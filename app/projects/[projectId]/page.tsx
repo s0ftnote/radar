@@ -5,7 +5,12 @@ import { JudgmentWorkbench } from "@/components/judgment-workbench";
 import { SourceNetwork } from "@/components/source-network";
 import { getIntelligenceWorkspace, type IntelligenceWorkspace } from "@/lib/intelligence";
 import { getProject } from "@/lib/projects";
-import { listAvailableInstanceSources, listProjectSources, type ProjectSource } from "@/lib/sources";
+import {
+  listAvailableInstanceSources,
+  listProjectSources,
+  type AvailableInstanceSource,
+  type ProjectSource,
+} from "@/lib/sources";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +26,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
     sources,
     intelligenceWorkspace,
     project.currentBriefRevision.id,
-    availableSources.length,
+    availableSources,
   );
 
   return (
@@ -84,16 +89,24 @@ function projectSourceState(
   sources: ProjectSource[],
   workspace: IntelligenceWorkspace,
   briefRevisionId: string,
-  availableSourceCount: number,
+  availableSources: AvailableInstanceSource[],
 ) {
   const activeSources = sources.filter((source) => source.active);
   if (activeSources.length === 0) {
-    if (sources.length === 0 && availableSourceCount > 0) {
+    if (sources.length === 0 && availableSources.some((source) => source.versionCount > 0)) {
       return {
         badge: "可复用来源",
         badgeClass: "status-ready",
         heading: "接入已有来源",
         guidance: "本地实例已有取得过的来源。直接接入这个 Project，即可复用版本并开始独立判断。",
+      };
+    }
+    if (sources.length === 0 && availableSources.length > 0) {
+      return {
+        badge: "已有来源配置",
+        badgeClass: "status-ready",
+        heading: "接入已有来源",
+        guidance: "本地实例已有尚未采集的来源。直接接入，不必再次验证 URL，然后运行首次采集。",
       };
     }
     return sources.length === 0

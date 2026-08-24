@@ -2,11 +2,13 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 
 export type ProjectIsolationAgentFixture = {
   endpoint: string;
+  delayNextProjectAResponse(): void;
   close(): Promise<void>;
 };
 
 export async function startProjectIsolationAgentFixture(): Promise<ProjectIsolationAgentFixture> {
   let projectBRevisionOneAttempts = 0;
+  let delayNextProjectAResponse = false;
   const server = createServer(async (request, response) => {
     if (request.method !== "POST" || request.url !== "/judge") {
       response.writeHead(404).end();
@@ -16,7 +18,12 @@ export async function startProjectIsolationAgentFixture(): Promise<ProjectIsolat
     const body = await requestJson(request);
     const brief = String(asRecord(body.radarBriefRevision)?.description);
     const sourceBody = String(asRecord(body.sourceVersion)?.body);
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    if (brief.includes("Project A") && delayNextProjectAResponse) {
+      delayNextProjectAResponse = false;
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
 
     if (brief.includes("Project A") && sourceBody.includes("Revision 1")) {
       sendJson(response, 200, matched({
@@ -68,6 +75,7 @@ export async function startProjectIsolationAgentFixture(): Promise<ProjectIsolat
   if (!address || typeof address === "string") throw new Error("Agent fixture did not bind a port.");
   return {
     endpoint: `http://127.0.0.1:${address.port}/judge`,
+    delayNextProjectAResponse: () => (delayNextProjectAResponse = true),
     close: () => closeServer(server),
   };
 }

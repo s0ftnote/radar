@@ -427,9 +427,11 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .available-source-list { margin-top: 12px; border-top: 1px solid var(--line); }
 
-.available-source { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.available-source { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 
 .available-source p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+
+.available-source a { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 
 .network-empty { padding: 68px 20px 48px; text-align: center; }
 
@@ -659,6 +661,7 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
   .available-sources > div:first-child,
   .available-source { align-items: stretch; flex-direction: column; }
   .available-source { display: flex; }
+  .available-source .source-health { align-self: flex-start; }
   .available-source .button { width: 100%; }
   .create-project { position: static; grid-row: 1; }
   .project-list { min-height: 320px; }

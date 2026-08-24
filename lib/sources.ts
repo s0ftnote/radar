@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { DatabaseSync } from "node:sqlite";
 import { database } from "@/lib/database";
 import { fetchFeed, type FeedEntry } from "@/lib/feed";
 
@@ -88,20 +89,7 @@ export async function validateAndLinkSource(projectId: string, rawUrl: string): 
          VALUES (?, ?, ?, 'healthy', ?, ?)`,
       ).run(sourceId, url, feed.name, now, now);
     }
-    db.prepare(
-      `INSERT INTO project_source_configurations
-        (project_id, source_id, active, added_at, removed_at)
-       VALUES (?, ?, 1, ?, NULL)
-       ON CONFLICT(project_id, source_id) DO UPDATE SET active = 1, removed_at = NULL`,
-    ).run(projectId, sourceId, now);
-    db.prepare(
-      `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
-       SELECT ?, version.id, ?
-       FROM source_versions AS version
-       JOIN source_contents AS content ON content.id = version.content_id
-       WHERE content.source_id = ?
-       ON CONFLICT(project_id, source_version_id) DO NOTHING`,
-    ).run(projectId, now, sourceId);
+    linkSourceToProject(db, projectId, sourceId, now);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -117,20 +105,7 @@ export function linkSavedSource(projectId: string, sourceId: string): ProjectSou
   const now = new Date().toISOString();
   db.exec("BEGIN IMMEDIATE");
   try {
-    db.prepare(
-      `INSERT INTO project_source_configurations
-        (project_id, source_id, active, added_at, removed_at)
-       VALUES (?, ?, 1, ?, NULL)
-       ON CONFLICT(project_id, source_id) DO UPDATE SET active = 1, removed_at = NULL`,
-    ).run(projectId, sourceId, now);
-    db.prepare(
-      `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
-       SELECT ?, version.id, ?
-       FROM source_versions AS version
-       JOIN source_contents AS content ON content.id = version.content_id
-       WHERE content.source_id = ?
-       ON CONFLICT(project_id, source_version_id) DO NOTHING`,
-    ).run(projectId, now, sourceId);
+    linkSourceToProject(db, projectId, sourceId, now);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -266,6 +241,28 @@ function getProjectSource(projectId: string, sourceId: string): ProjectSource {
   ).get(projectId, sourceId) as SourceRow | undefined;
   if (!row) throw new Error("来源保存后无法重新读取。");
   return mapProjectSource(row, listSourceVersions(projectId, row.id));
+}
+
+function linkSourceToProject(
+  db: DatabaseSync,
+  projectId: string,
+  sourceId: string,
+  visibleAt: string,
+): void {
+  db.prepare(
+    `INSERT INTO project_source_configurations
+      (project_id, source_id, active, added_at, removed_at)
+     VALUES (?, ?, 1, ?, NULL)
+     ON CONFLICT(project_id, source_id) DO UPDATE SET active = 1, removed_at = NULL`,
+  ).run(projectId, sourceId, visibleAt);
+  db.prepare(
+    `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
+     SELECT ?, version.id, ?
+     FROM source_versions AS version
+     JOIN source_contents AS content ON content.id = version.content_id
+     WHERE content.source_id = ?
+     ON CONFLICT(project_id, source_version_id) DO NOTHING`,
+  ).run(projectId, visibleAt, sourceId);
 }
 
 const sourceSelection = `

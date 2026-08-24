@@ -76,7 +76,7 @@ export function SourceNetwork({
     }
   }
 
-  async function useSavedSource(source: AvailableInstanceSource) {
+  async function linkSource(source: { id: string; name: string }) {
     if (isBusy) return;
     setPending(`link:${source.id}`);
     setNotice(null);
@@ -90,7 +90,9 @@ export function SourceNetwork({
       if (!response.ok) throw new Error(result.error ?? "已保存来源没有接入这个 Project。");
       setNotice({
         kind: "success",
-        message: `已从本地实例复用 ${result.name} 和 ${result.versions.length} 个来源版本；没有重新取得内容。`,
+        message: result.versions.length > 0
+          ? `已从本地实例复用 ${result.name} 和 ${result.versions.length} 个来源版本；没有重新取得内容。`
+          : `${result.name} 已从本地实例接入；无需再次验证，请运行首次采集。`,
       });
       router.refresh();
     } catch (error) {
@@ -134,23 +136,27 @@ export function SourceNetwork({
         <section className="available-sources" aria-labelledby="available-sources-title">
           <div>
             <h3 id="available-sources-title">本地实例已有来源</h3>
-            <p>直接接入已取得版本；不会再次请求远端 Feed。</p>
+            <p>已有版本会直接复用；尚未采集的来源也无需再次验证。</p>
           </div>
           <div className="available-source-list">
             {availableSources.map((source) => (
               <article className="available-source" key={source.id}>
                 <div>
                   <h3>{source.name}</h3>
-                  <p>{source.versionCount} 个已取得版本 · {source.usedByProjectCount} 个 Project 使用</p>
+                  <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
+                  <p>{source.versionCount > 0 ? `${source.versionCount} 个已取得版本` : "尚未取得版本"} · {source.usedByProjectCount} 个 Project 使用</p>
                 </div>
+                <span className={`source-health ${source.healthStatus === "unhealthy" ? "source-health-error" : ""}`}>
+                  {source.healthStatus === "healthy" ? "健康" : "异常"}
+                </span>
                 <button
                   className="button button-secondary"
                   type="button"
                   disabled={isBusy}
-                  onClick={() => useSavedSource(source)}
+                  onClick={() => linkSource(source)}
                   aria-label={pending === `link:${source.id}`
-                    ? `正在接入 ${source.name}`
-                    : `使用已保存来源 ${source.name}`}
+                    ? `正在接入 ${source.name} ${source.url}`
+                    : `使用已保存来源 ${source.name} ${source.url}`}
                 >
                   {pending === `link:${source.id}` ? "正在接入…" : "接入这个 Project"}
                 </button>
@@ -195,7 +201,7 @@ export function SourceNetwork({
               {source.versions.length > 0 && (
                 <ol className="version-list">
                   {source.versions.map((version) => (
-                    <li key={version.id}>
+                    <li id={`source-version-${version.id}`} key={version.id}>
                       <span className="version-number">版本 {version.number}</span>
                       <a href={version.originUrl} target="_blank" rel="noreferrer">{version.title}</a>
                       <time dateTime={version.acquiredAt}>{formatShortDate(version.acquiredAt)}</time>
@@ -205,22 +211,33 @@ export function SourceNetwork({
               )}
 
               <div className="source-actions">
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  disabled={!source.active || isBusy}
-                  onClick={() => operate(source, "collect")}
-                >
-                  {pending === `collect:${source.id}` ? "正在采集…" : `采集 ${source.name}`}
-                </button>
-                {source.active && (
+                {source.active ? (
+                  <>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => operate(source, "collect")}
+                    >
+                      {pending === `collect:${source.id}` ? "正在采集…" : `采集 ${source.name}`}
+                    </button>
+                    <button
+                      className="text-action"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => operate(source, "stop")}
+                    >
+                      {`停止使用 ${source.name}`}
+                    </button>
+                  </>
+                ) : (
                   <button
-                    className="text-action"
+                    className="button button-secondary"
                     type="button"
                     disabled={isBusy}
-                    onClick={() => operate(source, "stop")}
+                    onClick={() => linkSource(source)}
                   >
-                    {`停止使用 ${source.name}`}
+                    {pending === `link:${source.id}` ? "正在重新接入…" : `重新接入 ${source.name}`}
                   </button>
                 )}
               </div>
