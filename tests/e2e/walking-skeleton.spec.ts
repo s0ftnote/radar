@@ -1,33 +1,63 @@
+import { createHash } from "node:crypto";
+import type { ChildProcess } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
-import { startFeedFixture } from "./support/feed-fixture";
+import { startFeedFixture, type FeedFixture } from "./support/feed-fixture";
 import { startRadar, stopRadar } from "./support/radar-process";
-import { startReportAgentFixture } from "./support/report-agent-fixture";
+import { startReportAgentFixture, type ReportAgentFixture } from "./support/report-agent-fixture";
 
 test.setTimeout(90_000);
 
 test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ browser }) => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "radar-walking-skeleton-"));
-  const extractedDirectory = await mkdtemp(join(tmpdir(), "radar-walking-skeleton-package-"));
-  const feed = await startFeedFixture();
-  const agent = await startReportAgentFixture();
-  let radar = await startRadar(dataDirectory, 33123, {
-    RADAR_AGENT_ENDPOINT: agent.endpoint,
-    RADAR_AGENT_TOKEN: agent.token,
-  });
-  let context = await browser.newContext({ acceptDownloads: true });
-  let page = await context.newPage();
+  let dataDirectory: string | null = null;
+  let extractedDirectory: string | null = null;
+  let feed: FeedFixture | null = null;
+  let agent: ReportAgentFixture | null = null;
+  let radar: ChildProcess | null = null;
+  let context: BrowserContext | null = null;
 
   try {
+    dataDirectory = await mkdtemp(join(tmpdir(), "radar-walking-skeleton-"));
+    extractedDirectory = await mkdtemp(join(tmpdir(), "radar-walking-skeleton-package-"));
+    feed = await startFeedFixture();
+    agent = await startReportAgentFixture();
+    radar = await startRadar(dataDirectory, 33123, {
+      RADAR_AGENT_ENDPOINT: agent.endpoint,
+      RADAR_AGENT_TOKEN: agent.token,
+    });
+    context = await browser.newContext({ acceptDownloads: true });
+    let page = await context.newPage();
     await page.goto("/");
     await expect(page.getByText("还没有 Radar Project")).toBeVisible();
     await page.getByLabel("Project 名称").fill("Walking Skeleton 验收");
     await page.getByLabel("Radar Brief").fill("寻找需要本地保管、逐层追溯并离线交付证据的明确需求。");
+
+    await context.setOffline(true);
     await page.getByRole("button", { name: "创建 Radar Project" }).click();
+    await expect(page.getByText("Radar 暂时无法连接，Project 没有保存，请重试。")).toBeVisible();
+    await context.setOffline(false);
+
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Network.enable");
+    await cdp.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 750,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    });
+    await page.getByRole("button", { name: "创建 Radar Project" }).click();
+    await expect(page.locator(".create-project form")).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByText("正在保存 Radar Project…")).toBeVisible();
+    await cdp.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    });
     await page.getByRole("link", { name: /Walking Skeleton 验收/ }).click();
     const projectUrl = page.url();
 
@@ -87,17 +117,21 @@ test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ 
     await materialPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
     const download = await downloadPromise;
     const archive = unzipSync(new Uint8Array(await readFile((await download.path())!)));
-    for (const path of [
+    const expectedPaths = [
       "index.html",
       "assets/styles.css",
       "assets/preview.png",
+      "assets/ZCOOLXiaoWei-Regular.ttf",
+      "assets/OFL.txt",
+      "editorial.json",
       "render-source.json",
       "provenance.html",
       "provenance.json",
+      "capability-snapshot.json",
+      "asset-provenance.json",
       "manifest.json",
-    ]) {
-      expect(archive[path], `${path} must exist`).toBeTruthy();
-    }
+    ];
+    expect(Object.keys(archive).sort()).toEqual(expectedPaths.sort());
     const html = strFromU8(archive["index.html"]);
     expect(html).toContain("<main>");
     expect(html).toContain("<article>");
@@ -106,7 +140,7 @@ test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ 
       entrypoint: string;
       report: { revisionNumber: number };
       sections: { renderSource: string; provenance: string[] };
-      files: Array<{ path: string }>;
+      files: Array<{ path: string; bytes: number; sha256: string }>;
     };
     expect(manifest).toMatchObject({
       entrypoint: "index.html",
@@ -115,6 +149,13 @@ test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ 
     });
     expect(manifest.sections.provenance).toContain("provenance.json");
     expect(manifest.files.map((file) => file.path)).toContain("assets/preview.png");
+    expect(Object.keys(archive).sort()).toEqual([...manifest.files.map((file) => file.path), "manifest.json"].sort());
+    for (const file of manifest.files) {
+      const content = archive[file.path];
+      expect(content, `${file.path} must exist`).toBeTruthy();
+      expect(file.bytes).toBe(content.byteLength);
+      expect(file.sha256).toBe(createHash("sha256").update(content).digest("hex"));
+    }
     const renderSource = JSON.parse(strFromU8(archive["render-source.json"])) as {
       rendererContract: string;
       document: { blocks: unknown[] };
@@ -132,7 +173,7 @@ test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ 
     expect(Array.from(archive["assets/preview.png"].slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
 
     for (const [path, content] of Object.entries(archive)) {
-      const outputPath = join(extractedDirectory, path);
+      const outputPath = safeExtractionPath(extractedDirectory, path);
       await mkdir(join(outputPath, ".."), { recursive: true });
       await writeFile(outputPath, content);
     }
@@ -146,7 +187,9 @@ test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ 
     expect(remoteRequests).toEqual([]);
 
     await context.close();
+    context = null;
     await stopRadar(radar);
+    radar = null;
     radar = await startRadar(dataDirectory, 33123, {
       RADAR_AGENT_ENDPOINT: agent.endpoint,
       RADAR_AGENT_TOKEN: agent.token,
@@ -172,11 +215,20 @@ test("干净会话可以跑通并重启恢复 Radar walking skeleton", async ({ 
     await expect(restoredPreview.getByRole("heading", { name: "完整引用" })).toBeVisible();
     await expect(restoredPreview.getByText("Revision 1: developers want evidence they can keep.")).toBeVisible();
   } finally {
-    await context.close().catch(() => undefined);
-    await stopRadar(radar).catch(() => undefined);
-    await feed.close().catch(() => undefined);
-    await agent.close().catch(() => undefined);
-    await rm(dataDirectory, { recursive: true, force: true });
-    await rm(extractedDirectory, { recursive: true, force: true });
+    await context?.close().catch(() => undefined);
+    if (radar) await stopRadar(radar).catch(() => undefined);
+    await feed?.close().catch(() => undefined);
+    await agent?.close().catch(() => undefined);
+    if (dataDirectory) await rm(dataDirectory, { recursive: true, force: true });
+    if (extractedDirectory) await rm(extractedDirectory, { recursive: true, force: true });
   }
 });
+
+function safeExtractionPath(root: string, path: string): string {
+  const resolvedRoot = resolve(root);
+  const resolvedPath = resolve(root, path);
+  if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}${sep}`)) {
+    throw new Error(`Archive entry escapes extraction directory: ${path}`);
+  }
+  return resolvedPath;
+}

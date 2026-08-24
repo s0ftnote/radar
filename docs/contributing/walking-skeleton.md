@@ -88,10 +88,14 @@ npm run radar
 ### 5. 检查下载包
 
 ```bash
-mkdir -p /tmp/radar-package-check
-unzip -q /absolute/path/to/radar-html-package-*.zip -d /tmp/radar-package-check
-find /tmp/radar-package-check -maxdepth 2 -type f | sort
+RADAR_PACKAGE_ZIP=/absolute/path/to/one/radar-html-package-id.zip
+RADAR_PACKAGE_CHECK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/radar-package-check.XXXXXX")"
+test -f "$RADAR_PACKAGE_ZIP"
+unzip -q "$RADAR_PACKAGE_ZIP" -d "$RADAR_PACKAGE_CHECK_DIR"
+find "$RADAR_PACKAGE_CHECK_DIR" -maxdepth 2 -type f | sort
 ```
+
+把 `RADAR_PACKAGE_ZIP` 替换成这次下载得到的一个精确绝对路径，不要使用可匹配旧包或多个包的 glob。
 
 至少应看到：
 
@@ -101,7 +105,7 @@ find /tmp/radar-package-check -maxdepth 2 -type f | sort
 - `provenance.html`、`provenance.json` 与 `asset-provenance.json`；
 - `capability-snapshot.json` 与 `manifest.json`。
 
-断开网络或停止 Radar 后，直接在浏览器中打开解压后的 `index.html`。页面仍应语义化可读，并显示固定身份、完整引用、来源版本身份和 PNG 替代文字；开发者工具的 Network 面板不应出现远程运行时资产请求。`manifest.json` 中的 `entrypoint`、Report 修订、section 路径、文件字节数和 SHA-256 应与实际文件一致。
+断开网络或停止 Radar 后，直接在浏览器中打开 `$RADAR_PACKAGE_CHECK_DIR/index.html`。页面仍应语义化可读，并显示固定身份、完整引用、来源版本身份和 PNG 替代文字；开发者工具的 Network 面板不应出现远程运行时资产请求。`manifest.json` 中的 `entrypoint`、Report 修订、section 路径、文件字节数和 SHA-256 应与实际文件一致。
 
 ### 6. 验证重启恢复
 
@@ -120,6 +124,14 @@ find /tmp/radar-package-check -maxdepth 2 -type f | sort
 test -d "$RADAR_ACCEPTANCE_DATA_DIR" &&
   [[ "$RADAR_ACCEPTANCE_DATA_DIR" == "${TMPDIR:-/tmp}"/radar-walking-skeleton.* ]] &&
   rm -rf -- "$RADAR_ACCEPTANCE_DATA_DIR"
+
+test -d "$RADAR_PACKAGE_CHECK_DIR" &&
+  [[ "$RADAR_PACKAGE_CHECK_DIR" == "${TMPDIR:-/tmp}"/radar-package-check.* ]] &&
+  rm -rf -- "$RADAR_PACKAGE_CHECK_DIR"
+
+test -f "$RADAR_PACKAGE_ZIP" &&
+  [[ "$(basename "$RADAR_PACKAGE_ZIP")" == radar-html-package-*.zip ]] &&
+  rm -f -- "$RADAR_PACKAGE_ZIP"
 ```
 
-若约束不匹配，命令不会删除任何内容；请回到第 1 步打印的绝对路径核对，不要扩大删除范围。
+若任一约束不匹配，对应命令不会删除内容；请核对第 1 步打印的数据路径、第 5 步创建的解压路径和本次下载的精确 ZIP，不要扩大删除范围。
