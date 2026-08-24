@@ -34,7 +34,9 @@ export function CreateProjectForm() {
     } catch (error) {
       setState({
         status: "error",
-        message: error instanceof Error ? error.message : "Project 没有保存，请重试。",
+        message: error instanceof TypeError
+          ? "Radar 暂时无法连接，Project 没有保存，请重试。"
+          : error instanceof Error ? error.message : "Project 没有保存，请重试。",
       });
     }
   }
@@ -45,7 +47,7 @@ export function CreateProjectForm() {
         <h2 id="create-project-title">开始一条长期关注线</h2>
         <p>先用自己的话说明想持续知道什么。这里保存的是原始 Brief，不是关键词规则。</p>
       </div>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} aria-busy={state.status === "submitting"}>
         <label>
           <span>Project 名称</span>
           <input
@@ -74,8 +76,11 @@ export function CreateProjectForm() {
         <p
           className={`form-status ${state.status === "error" ? "form-status-error" : ""} ${state.status === "success" ? "form-status-success" : ""}`}
           aria-live="polite"
+          aria-atomic="true"
         >
-          {state.status === "success" || state.status === "error" ? state.message : " "}
+          {state.status === "submitting"
+            ? "正在保存 Radar Project…"
+            : state.status === "success" || state.status === "error" ? state.message : " "}
         </p>
       </form>
     </section>
