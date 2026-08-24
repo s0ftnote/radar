@@ -182,7 +182,7 @@ export function getIntelligenceWorkspace(projectId: string): IntelligenceWorkspa
      JOIN source_contents AS content ON content.id = version.content_id
      JOIN instance_sources AS source ON source.id = content.source_id
      WHERE item.project_id = ? AND revision.revision_number = 1
-     ORDER BY item.created_at DESC`,
+     ORDER BY item.created_at DESC, signal.created_at, signal.id`,
   ).all(projectId) as ItemRow[];
   return {
     sourceVersionCount: sourceVersionCount.count,
@@ -306,15 +306,15 @@ function persistMatch(
     const existingRevision = db.prepare(
       `SELECT id FROM intelligence_item_revisions
        WHERE intelligence_item_id = ? AND revision_number = 1`,
-    ).get(itemId);
-    if (existingRevision) {
-      throw new Error("新的 Signal 需要形成情报条目后续修订；当前切片不会改写首个修订的证据。");
+    ).get(itemId) as { id: string } | undefined;
+    if (!existingRevision) {
+      db.prepare(
+        `INSERT INTO intelligence_item_revisions
+          (id, intelligence_item_id, revision_number, title, judgment, rationale, created_at)
+         VALUES (?, ?, 1, ?, ?, ?, ?)`,
+      ).run(revisionId, itemId, judgment.title, judgment.judgment, judgment.rationale, now);
     }
-    db.prepare(
-      `INSERT INTO intelligence_item_revisions
-        (id, intelligence_item_id, revision_number, title, judgment, rationale, created_at)
-       VALUES (?, ?, 1, ?, ?, ?, ?)`,
-    ).run(revisionId, itemId, judgment.title, judgment.judgment, judgment.rationale, now);
+    const targetRevisionId = existingRevision?.id ?? revisionId;
     db.prepare(
       `INSERT INTO signals
         (id, project_id, brief_revision_id, source_version_id, evidence_quote,
@@ -334,12 +334,12 @@ function persistMatch(
     db.prepare(
       `INSERT INTO intelligence_revision_signals (intelligence_item_revision_id, signal_id)
        VALUES (?, ?)`,
-    ).run(revisionId, signalId);
+    ).run(targetRevisionId, signalId);
     db.prepare(
       `UPDATE agent_runs SET status = 'success', outcome = 'matched', reason = ?,
         signal_id = ?, intelligence_item_id = ?, intelligence_item_revision_id = ?,
         completed_at = ? WHERE id = ?`,
-    ).run(judgment.rationale, signalId, itemId, revisionId, now, runId);
+    ).run(judgment.rationale, signalId, itemId, targetRevisionId, now, runId);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

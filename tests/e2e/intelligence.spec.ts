@@ -120,7 +120,14 @@ test("用户可以把来源版本判断为可追溯且幂等的情报条目", as
     await page.goto("/");
     await page.getByRole("link", { name: /可追溯需求判断/ }).click();
     await page.getByRole("button", { name: "运行 Radar 判断" }).click();
-    await expect(page.getByRole("heading", { name: "可恢复的 Agent 运行需求" })).toBeVisible();
+    const repeatedIdentityItem = page.locator("article.intelligence-item").filter({
+      has: page.getByRole("heading", { name: "可检查的本地工作台需求" }),
+    });
+    await expect(repeatedIdentityItem.getByRole("blockquote")).toHaveCount(2);
+    await expect(repeatedIdentityItem.getByRole("blockquote").nth(1)).toHaveText(
+      "Revision 4: developers want evidence they can keep.",
+    );
+    await expect(page.locator("article.intelligence-item")).toHaveCount(2);
     await expect(page.getByText("Radar 在 Agent 返回前停止；可以重试。")).toBeVisible();
     expect(agent.requestCount()).toBe(6);
 

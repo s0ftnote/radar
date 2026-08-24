@@ -74,10 +74,10 @@ export async function startAgentFixture(): Promise<AgentFixture> {
     if (sourceBody.includes("Revision 4")) {
       sendJson(response, 200, {
         match: true,
-        judgmentKey: "recoverable-agent-runs",
-        title: "可恢复的 Agent 运行需求",
-        judgment: "本地 Agent 运行中断后必须保留历史并允许重试。",
-        rationale: "来源强调证据保留；中断恢复是本地工作台可检查性的组成部分。",
+        judgmentKey: "inspectable-local-workbenches",
+        title: "可检查的本地工作台需求",
+        judgment: "用户需要在本地保存可检查的来源事实与判断链。",
+        rationale: "来源再次表达了保留证据的需求，与既有判断身份一致。",
         evidence: {
           quote: "Revision 4: developers want evidence they can keep.",
         },
