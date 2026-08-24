@@ -1,9 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
 
-export async function startRadar(dataDirectory: string, port = 33123): Promise<ChildProcess> {
+export async function startRadar(
+  dataDirectory: string,
+  port = 33123,
+  environment: Record<string, string> = {},
+): Promise<ChildProcess> {
   const child = spawn("npm", ["run", "radar", "--", "--port", String(port)], {
     cwd: process.cwd(),
-    env: { ...process.env, RADAR_DATA_DIR: dataDirectory, NEXT_TELEMETRY_DISABLED: "1" },
+    env: { ...process.env, ...environment, RADAR_DATA_DIR: dataDirectory, NEXT_TELEMETRY_DISABLED: "1" },
     stdio: ["ignore", "pipe", "pipe"],
     detached: process.platform !== "win32",
   });

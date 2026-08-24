@@ -1,6 +1,6 @@
 # Radar
 
-Radar 是一个开源、本地优先的个人情报工作台。当前 walking skeleton 可以持久化 Radar Project、首个 Radar Brief 修订，以及经过验证并手动采集的公开 RSS/Atom 来源版本；所有数据保存在你控制的设备上。
+Radar 是一个开源、本地优先的个人情报工作台。当前 walking skeleton 可以持久化 Radar Project、首个 Radar Brief 修订、公开 RSS/Atom 来源版本，以及由 Agent 判断形成的 Signal 和首个情报条目修订；所有数据保存在你控制的设备上。
 
 ## 本地启动
 
@@ -24,7 +24,36 @@ npm run radar
 RADAR_DATA_DIR=/path/to/my-radar-data npm run radar
 ```
 
-停止进程后再次运行同一命令，Radar Projects 与 Radar Brief 修订会从该目录恢复。
+停止进程后再次运行同一命令，Radar Projects、来源版本、Agent 运行和情报条目会从该目录恢复。
+
+## 本地 Agent 适配器
+
+Radar 通过一个厂商无关的 HTTP JSON 边界运行判断。把用户控制的本地适配器 endpoint 和可选 token 放在进程环境中：
+
+```bash
+RADAR_AGENT_ENDPOINT=http://127.0.0.1:8787/judge \
+RADAR_AGENT_TOKEN=your-local-secret \
+npm run radar
+```
+
+Radar 会向 endpoint `POST` 当前 `radarBriefRevision` 与一个明确的 `sourceVersion`。适配器返回以下两种结果之一：
+
+```json
+{ "match": false, "reason": "与当前 Brief 不相关的理由" }
+```
+
+```json
+{
+  "match": true,
+  "judgmentKey": "adapter-owned-stable-judgment-key",
+  "title": "情报条目标题",
+  "judgment": "证据化判断",
+  "rationale": "为什么与当前 Brief 相关",
+  "evidence": { "quote": "来源版本中的原文摘录" }
+}
+```
+
+`judgmentKey` 在当前 Project 内标识判断，而不是 feed entry。`evidence.quote` 必须能在提交给 Agent 的来源版本标题或正文中定位；Radar 会自行记录字段与字符区间。`RADAR_AGENT_TOKEN` 只用于请求授权，不会写入领域记录或页面。
 
 ## 验证
 
@@ -34,4 +63,4 @@ npm run test:e2e
 npm run build
 ```
 
-浏览器验收从空白临时数据目录启动真实 Radar 进程，只通过公开 Web 界面创建、列出、打开 Project，并验证进程重启后的持久化。
+浏览器验收从空白临时数据目录启动真实 Radar 进程，只通过公开 Web 界面驱动 Project、来源采集和 Agent 判断，并验证进程重启后的持久化。

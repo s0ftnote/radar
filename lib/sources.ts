@@ -83,6 +83,14 @@ export async function validateAndLinkSource(projectId: string, rawUrl: string): 
        VALUES (?, ?, 1, ?, NULL)
        ON CONFLICT(project_id, source_id) DO UPDATE SET active = 1, removed_at = NULL`,
     ).run(projectId, sourceId, now);
+    db.prepare(
+      `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
+       SELECT ?, version.id, ?
+       FROM source_versions AS version
+       JOIN source_contents AS content ON content.id = version.content_id
+       WHERE content.source_id = ?
+       ON CONFLICT(project_id, source_version_id) DO NOTHING`,
+    ).run(projectId, now, sourceId);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -121,6 +129,15 @@ export async function collectSource(
         if (persistEntryVersion(sourceId, entry, completedAt) === "created") created += 1;
         else reused += 1;
       }
+      db.prepare(
+        `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
+         SELECT config.project_id, version.id, ?
+         FROM project_source_configurations AS config
+         JOIN source_contents AS content ON content.source_id = config.source_id
+         JOIN source_versions AS version ON version.content_id = content.id
+         WHERE config.source_id = ? AND config.active = 1
+         ON CONFLICT(project_id, source_version_id) DO NOTHING`,
+      ).run(completedAt, sourceId);
       db.prepare(
         `UPDATE instance_sources
          SET name = ?, health_status = 'healthy', last_attempt_at = ?, last_success_at = ?, last_error = NULL
@@ -165,7 +182,7 @@ export function listProjectSources(projectId: string): ProjectSource[] {
     `${sourceSelection} WHERE config.project_id = ?
      ORDER BY config.active DESC, config.added_at DESC`,
   ).all(projectId) as SourceRow[];
-  return rows.map((row) => mapProjectSource(row, listSourceVersions(row.id)));
+  return rows.map((row) => mapProjectSource(row, listSourceVersions(projectId, row.id)));
 }
 
 function getProjectSource(projectId: string, sourceId: string): ProjectSource {
@@ -173,7 +190,7 @@ function getProjectSource(projectId: string, sourceId: string): ProjectSource {
     `${sourceSelection} WHERE config.project_id = ? AND source.id = ?`,
   ).get(projectId, sourceId) as SourceRow | undefined;
   if (!row) throw new Error("来源保存后无法重新读取。");
-  return mapProjectSource(row, listSourceVersions(row.id));
+  return mapProjectSource(row, listSourceVersions(projectId, row.id));
 }
 
 const sourceSelection = `
@@ -229,15 +246,16 @@ function persistEntryVersion(sourceId: string, entry: FeedEntry, acquiredAt: str
   return "created";
 }
 
-function listSourceVersions(sourceId: string): SourceVersion[] {
+function listSourceVersions(projectId: string, sourceId: string): SourceVersion[] {
   const rows = database().prepare(
     `SELECT version.id, version.version_number, version.title, version.origin_url,
       version.published_at, version.acquired_at
-     FROM source_versions AS version
+     FROM project_source_versions AS visible
+     JOIN source_versions AS version ON version.id = visible.source_version_id
      JOIN source_contents AS content ON content.id = version.content_id
-     WHERE content.source_id = ?
+     WHERE visible.project_id = ? AND content.source_id = ?
      ORDER BY version.acquired_at DESC, version.version_number DESC`,
-  ).all(sourceId) as VersionRow[];
+  ).all(projectId, sourceId) as VersionRow[];
   return rows.map((row) => ({
     id: row.id,
     number: row.version_number,
