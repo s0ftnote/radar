@@ -72,7 +72,7 @@ export function CreateProjectForm() {
           {state.status === "submitting" ? "正在保存…" : "创建 Radar Project"}
         </button>
         <p
-          className={`form-status ${state.status === "error" ? "form-status-error" : ""}`}
+          className={`form-status ${state.status === "error" ? "form-status-error" : ""} ${state.status === "success" ? "form-status-success" : ""}`}
           aria-live="polite"
         >
           {state.status === "success" || state.status === "error" ? state.message : " "}

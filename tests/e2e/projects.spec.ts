@@ -38,6 +38,14 @@ test("用户可以创建、区分、重新打开并在重启后保留 Radar Proj
     await page.goto("/");
     await expect(page.getByRole("link", { name: /Agent 工具需求/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /本地优先产品/ })).toBeVisible();
+    await page.getByRole("link", { name: /本地优先产品/ }).click();
+    await expect(page.getByRole("heading", { name: "本地优先产品" })).toBeVisible();
+    await expect(page.getByText("关注用户真正拥有数据和运行权的本地优先软件实践。"))
+      .toBeVisible();
+    await page.getByRole("link", { name: "Radar Projects" }).click();
+    await page.getByRole("link", { name: /Agent 工具需求/ }).click();
+    await expect(page.getByText("持续判断独立开发者在构建 AI Agent 时反复遇到的工具缺口。"))
+      .toBeVisible();
   } finally {
     await stopRadar(radar);
     await rm(dataDirectory, { recursive: true, force: true });

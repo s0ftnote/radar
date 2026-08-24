@@ -13,12 +13,12 @@ export function database(): DatabaseSync {
   mkdirSync(dataDirectory, { recursive: true });
   const db = new DatabaseSync(resolve(dataDirectory, "radar.sqlite"), { timeout: 5_000 });
   db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
-  migrate(db);
+  initializeSchema(db);
   globalThis.__radarDatabase = db;
   return db;
 }
 
-function migrate(db: DatabaseSync): void {
+function initializeSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS radar_projects (
       id TEXT PRIMARY KEY,

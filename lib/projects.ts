@@ -5,9 +5,11 @@ export type RadarProject = {
   id: string;
   name: string;
   createdAt: string;
-  briefId: string;
-  briefRevision: number;
-  briefDescription: string;
+  currentBriefRevision: {
+    id: string;
+    number: number;
+    description: string;
+  };
 };
 
 type ProjectRow = {
@@ -78,9 +80,11 @@ export function createProject(input: { name: string; brief: string }): RadarProj
     id: projectId,
     name: input.name,
     createdAt,
-    briefId,
-    briefRevision: 1,
-    briefDescription: input.brief,
+    currentBriefRevision: {
+      id: briefId,
+      number: 1,
+      description: input.brief,
+    },
   };
 }
 
@@ -89,8 +93,10 @@ function mapProject(row: ProjectRow): RadarProject {
     id: row.id,
     name: row.name,
     createdAt: row.created_at,
-    briefId: row.brief_id,
-    briefRevision: row.revision_number,
-    briefDescription: row.description,
+    currentBriefRevision: {
+      id: row.brief_id,
+      number: row.revision_number,
+      description: row.description,
+    },
   };
 }

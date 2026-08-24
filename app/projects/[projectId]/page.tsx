@@ -32,17 +32,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           <article className="brief-document">
             <div className="section-title-row">
               <h2>Radar Brief</h2>
-              <span>Brief 修订 {project.briefRevision}</span>
+              <span>Brief 修订 {project.currentBriefRevision.number}</span>
             </div>
-            <p className="brief-copy">{project.briefDescription}</p>
+            <p className="brief-copy">{project.currentBriefRevision.description}</p>
             <dl className="provenance-list">
               <div>
                 <dt>Project 身份</dt>
                 <dd>{project.id}</dd>
               </div>
               <div>
-                <dt>Brief 身份</dt>
-                <dd>{project.briefId}</dd>
+                <dt>Brief 修订身份</dt>
+                <dd>{project.currentBriefRevision.id}</dd>
               </div>
               <div>
                 <dt>创建时间</dt>

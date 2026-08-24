@@ -40,11 +40,13 @@ export default function HomePage() {
                     <Link href={`/projects/${project.id}`}>
                       <span className="project-row-copy">
                         <strong>{project.name}</strong>
-                        <span>{project.briefDescription}</span>
+                        <span>{project.currentBriefRevision.description}</span>
                       </span>
                       <span className="project-row-meta">
                         <time dateTime={project.createdAt}>{formatDate(project.createdAt)}</time>
-                        <span aria-hidden="true">→</span>
+                        <svg className="row-arrow" aria-hidden="true" viewBox="0 0 20 20">
+                          <path d="M4 10h11M11 6l4 4-4 4" />
+                        </svg>
                       </span>
                     </Link>
                   </li>

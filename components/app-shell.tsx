@@ -18,7 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {children}
       <footer className="app-footer">
         <span>数据与判断保存在你控制的设备上。</span>
-        <span>Radar walking skeleton</span>
+        <span>Radar · 本地情报工作台</span>
       </footer>
     </div>
   );
