@@ -54,13 +54,14 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await expect(preview.getByRole("heading", { name: "离线证据交付 · 固定快照" })).toBeVisible();
     await expect(preview.getByText("可报告的本地证据需求：开发者需要把本地证据链组织成可追溯主张。")).toBeVisible();
     await expect(preview.getByRole("heading", { name: "完整引用" })).toBeVisible();
-    const citation = preview.getByRole("link", { name: "查看引用" }).first();
+    const citation = preview.getByRole("link", { name: /^引用 1：/ }).first();
     const citationTarget = await citation.getAttribute("href");
     expect(citationTarget).toMatch(/^#reference-/);
     await expect(preview.locator(citationTarget!)).toHaveCount(1);
     await expect(preview.getByText(/^Report 修订$/)).toBeVisible();
     await expect(preview.getByText(/^判断修订$/)).toBeVisible();
     await expect(preview.getByText(/^来源版本$/)).toBeVisible();
+    await expect(preview.getByText(/包内只公开来源站点，不保存原始定位 URL/)).toBeVisible();
     await expect(preview.getByRole("img", { name: "离线证据交付 · 固定快照的 PNG 预览" })).toBeVisible();
     const downloadPromise = page.waitForEvent("download");
     await firstPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
@@ -109,10 +110,29 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     }
     expect(Array.from(archive["assets/preview.png"].slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
     const assetProvenance = JSON.parse(strFromU8(archive["asset-provenance.json"])) as {
-      assets: Array<{ path: string; generationContext: { renderSourceSha256?: string } }>;
+      assets: Array<{
+        path: string;
+        source?: string;
+        acquiredAt?: string;
+        license?: string;
+        generationContext: { renderSourceSha256?: string };
+      }>;
     };
     expect(assetProvenance.assets.find((asset) => asset.path === "assets/preview.png")?.generationContext.renderSourceSha256)
       .toBe(createHash("sha256").update(archive["render-source.json"]).digest("hex"));
+    expect(assetProvenance.assets.find((asset) => asset.path.endsWith(".ttf"))).toMatchObject({
+      source: "https://github.com/googlefonts/zcool-xiaowei/",
+      acquiredAt: "2026-08-24T11:13:27.000Z",
+      license: "SIL Open Font License 1.1",
+    });
+    const provenance = JSON.parse(strFromU8(archive["provenance.json"])) as {
+      claims: Array<{ evidence: Array<{ sourceVersion: { publicLocator: Record<string, unknown> } }> }>;
+    };
+    expect(provenance.claims[0].evidence[0].sourceVersion.publicLocator).toEqual({
+      status: "withheld",
+      site: "https://example.test/",
+      reason: "credential_bearing_or_unsupported",
+    });
 
     const bundleText = Object.entries(archive)
       .filter(([path]) => !path.endsWith(".png") && !path.endsWith(".ttf"))
@@ -211,6 +231,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await context.close();
 
     expect(await pathExists(join(dataDirectory, "material-packages", ".staging", interrupted.runId))).toBe(true);
+    await chmod(join(dataDirectory, "material-packages", ".staging"), 0o500);
     radar = await startRadar(dataDirectory, 33123, {
       RADAR_AGENT_ENDPOINT: agent.endpoint,
       RADAR_AGENT_TOKEN: agent.token,
@@ -221,8 +242,10 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     const interruptedRun = page.locator("li.material-package-run").filter({ hasText: "中断包恢复 · 固定快照" });
     await expect(interruptedRun.getByText("失败", { exact: true })).toBeVisible();
     await expect(interruptedRun).toContainText("文件写入完成前停止");
-    expect(await pathExists(join(dataDirectory, "material-packages", ".staging", interrupted.runId))).toBe(false);
+    await expect(interruptedRun).toContainText("清理未完成（staging）");
+    expect(await pathExists(join(dataDirectory, "material-packages", ".staging", interrupted.runId))).toBe(true);
     expect(await pathExists(join(dataDirectory, "material-packages", interrupted.packageId, interrupted.runId))).toBe(false);
+    await chmod(join(dataDirectory, "material-packages", ".staging"), 0o700);
     await interruptedRun.getByRole("button", { name: "重试 HTML 包" }).click();
     await expect(interruptedRun.getByText(/^已由运行 .* 恢复$/)).toBeVisible();
     await expect(page.locator("article.material-package-record")).toHaveCount(4);
@@ -233,6 +256,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await feed.close().catch(() => undefined);
     await agent.close().catch(() => undefined);
     await chmod(join(dataDirectory, "material-packages"), 0o700).catch(() => undefined);
+    await chmod(join(dataDirectory, "material-packages", ".staging"), 0o700).catch(() => undefined);
     await rm(dataDirectory, { recursive: true, force: true });
     await rm(extractedDirectory, { recursive: true, force: true });
   }

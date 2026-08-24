@@ -136,22 +136,33 @@ export function MaterialPackageWorkbench({
               </header>
               <p className="material-identity">物料包身份 · {materialPackage.id}</p>
               <div className="material-package-actions">
-                <a href={`#report-${materialPackage.reportId}`}>固定 Report 修订 {materialPackage.reportRevisionNumber}</a>
+                <a
+                  href={`#report-${materialPackage.reportId}`}
+                  aria-label={`固定 Report 修订 ${materialPackage.reportRevisionNumber}：${materialPackage.reportTitle}`}
+                >
+                  固定 Report 修订 {materialPackage.reportRevisionNumber}
+                </a>
                 {materialPackage.successfulRunId ? (
                   <>
-                    <a href={`/api/projects/${projectId}/material-packages/${materialPackage.id}/download`} download>
+                    <a
+                      href={`/api/projects/${projectId}/material-packages/${materialPackage.id}/download`}
+                      aria-label={`下载完整 ZIP：${materialPackage.reportTitle}，物料包 ${materialPackage.id}`}
+                      download
+                    >
                       下载完整 ZIP
                     </a>
                     <a
                       href={`/api/projects/${projectId}/material-packages/${materialPackage.id}/files/index.html`}
                       target="_blank"
                       rel="noreferrer"
+                      aria-label={`新窗口打开 HTML：${materialPackage.reportTitle}，物料包 ${materialPackage.id}`}
                     >
                       新窗口打开 HTML
                     </a>
                     <button
                       className="text-action"
                       type="button"
+                      aria-label={`${expandedPackageId === materialPackage.id ? "收起预览" : "打开完整预览"}：${materialPackage.reportTitle}，物料包 ${materialPackage.id}`}
                       onClick={() => setPreviewOverride(
                         expandedPackageId === materialPackage.id ? null : materialPackage.id,
                       )}

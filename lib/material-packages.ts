@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import { strToU8, zipSync, type Zippable } from "fflate";
 import sharp from "sharp";
 import { radarDataDirectory } from "@/lib/data-directory";
@@ -39,7 +40,9 @@ type MaterialPackageSnapshot = {
         id: string;
         revisionNumber: number;
         title: string;
-        sourceOrigin: string;
+        publicLocator:
+          | { status: "available"; url: string }
+          | { status: "withheld"; site: string | null; reason: "credential_bearing_or_unsupported" };
         publishedAt: string | null;
         acquiredAt: string;
       };
@@ -152,7 +155,7 @@ export async function createHtmlMaterialPackage(
   db.exec("BEGIN IMMEDIATE");
   let intent: HtmlMaterialPackageIntent;
   try {
-    intent = createHtmlMaterialPackageIntent(projectId, reportRevisionId);
+    intent = createHtmlMaterialPackageIntentInTransaction(db, projectId, reportRevisionId);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -162,18 +165,22 @@ export async function createHtmlMaterialPackage(
   return { packageId: intent.snapshot.packageId };
 }
 
-export function createHtmlMaterialPackageIntent(
+export function createHtmlMaterialPackageIntentInTransaction(
+  db: DatabaseSync,
   projectId: string,
   reportRevisionId: string,
 ): HtmlMaterialPackageIntent {
+  if (!db.isTransaction) {
+    throw new Error("HTML 物料包 intent 必须在调用方的数据库事务内登记。");
+  }
   const packageId = randomUUID();
   const snapshot = snapshotReport(projectId, reportRevisionId, packageId);
   const runId = randomUUID();
-  database().prepare(
+  db.prepare(
     `INSERT INTO material_packages (id, project_id, report_revision_id, target, created_at)
      VALUES (?, ?, ?, 'html', ?)`,
   ).run(packageId, projectId, reportRevisionId, snapshot.capturedAt);
-  insertPackageRun(runId, snapshot, null);
+  insertPackageRun(db, runId, snapshot, null);
   return { runId, snapshot };
 }
 
@@ -207,7 +214,7 @@ export async function retryHtmlMaterialPackage(
   const retryRunId = randomUUID();
   db.exec("BEGIN IMMEDIATE");
   try {
-    insertPackageRun(retryRunId, snapshot, runId);
+    insertPackageRun(db, retryRunId, snapshot, runId);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -299,12 +306,13 @@ export async function readMaterialPackageDownload(
 }
 
 function insertPackageRun(
+  db: DatabaseSync,
   runId: string,
   snapshot: MaterialPackageSnapshot,
   retriedFromRunId: string | null,
 ): void {
   const startedAt = new Date().toISOString();
-  database().prepare(
+  db.prepare(
     `INSERT INTO material_package_runs
       (id, material_package_id, retried_from_run_id, process_instance_id,
        status, input_snapshot_json, started_at)
@@ -409,8 +417,12 @@ async function buildPackageFiles(snapshot: MaterialPackageSnapshot): Promise<Map
       {
         path: "assets/ZCOOLXiaoWei-Regular.ttf",
         kind: "bundled_font",
-        createdBy: "ZCOOL",
-        createdAt: snapshot.capturedAt,
+        source: "https://github.com/googlefonts/zcool-xiaowei/",
+        createdBy: "The ZCOOL XiaoWei Project Authors",
+        originalCreatedYear: 2018,
+        acquiredAt: "2026-08-24T11:13:27.000Z",
+        bundledAt: "2026-08-24T11:13:27.000Z",
+        license: "SIL Open Font License 1.1",
         usageStatus: "redistributed_under_ofl",
         transformation: "none",
         generationContext: { license: "assets/OFL.txt" },
@@ -484,7 +496,10 @@ function buildRenderSource(snapshot: MaterialPackageSnapshot) {
         id: claim.id,
         epistemicRole: claim.epistemicRole,
         text: claim.text,
-        evidenceRefs: claim.evidence.map((evidence) => referenceId(claim.id, evidence.signalId)),
+        evidenceRefs: claim.evidence.map((evidence, index) => ({
+          id: referenceId(claim.id, evidence.signalId),
+          label: `引用 ${index + 1}：${evidence.sourceVersion.title} · 来源修订 ${evidence.sourceVersion.revisionNumber}`,
+        })),
       })),
     },
     assets: [{ id: "preview", role: "document_preview", path: "assets/preview.png" }],
@@ -507,7 +522,7 @@ function renderIndexHtml(renderSource: HtmlRenderSource, snapshot: MaterialPacka
     <li class="claim" id="claim-${escapeAttribute(claim.id)}">
       <span class="role">${escapeHtml(roleLabel(claim.epistemicRole))}</span>
       <p>${escapeHtml(claim.text)}</p>
-      <p class="claim-references">${claim.evidenceRefs.map((reference) => `<a href="#${escapeAttribute(reference)}">查看引用</a>`).join(" · ")}</p>
+      <p class="claim-references">${claim.evidenceRefs.map((reference) => `<a href="#${escapeAttribute(reference.id)}">${escapeHtml(reference.label)}</a>`).join(" · ")}</p>
     </li>`).join("");
   const metadata = new Map(renderSource.document.metadata.map((item) => [item.key, item]));
   const purpose = metadata.get("purpose")!;
@@ -562,7 +577,7 @@ function renderReferences(snapshot: MaterialPackageSnapshot): string {
   const references = snapshot.claims.flatMap((claim) => claim.evidence.map((evidence) => `
     <li id="${escapeAttribute(referenceId(claim.id, evidence.signalId))}">
       <blockquote>${escapeHtml(evidence.quote)}</blockquote>
-      <p><strong>${escapeHtml(evidence.sourceVersion.title)}</strong> · <a href="${escapeAttribute(evidence.sourceVersion.sourceOrigin)}">来源站点 ${escapeHtml(evidence.sourceVersion.sourceOrigin)}</a></p>
+      <p><strong>${escapeHtml(evidence.sourceVersion.title)}</strong> · ${renderPublicLocator(evidence.sourceVersion.publicLocator)}</p>
       <dl class="reference-chain">
         <div><dt>Report 主张</dt><dd>${escapeHtml(claim.id)} · ${escapeHtml(roleLabel(claim.epistemicRole))}</dd></div>
         <div><dt>判断修订</dt><dd>${escapeHtml(claim.intelligenceRevision.title)} · 修订 ${claim.intelligenceRevision.revisionNumber} · ${escapeHtml(claim.intelligenceRevision.id)}</dd></div>
@@ -572,7 +587,7 @@ function renderReferences(snapshot: MaterialPackageSnapshot): string {
         <div><dt>采集时间（UTC）</dt><dd><time datetime="${escapeAttribute(evidence.sourceVersion.acquiredAt)}">${escapeHtml(formatUtc(evidence.sourceVersion.acquiredAt))}</time></dd></div>
       </dl>
     </li>`));
-  return `<section class="report-identity" aria-labelledby="report-identity-title"><h2 id="report-identity-title">固定身份</h2><dl class="reference-chain"><div><dt>物料包</dt><dd>${escapeHtml(snapshot.packageId)}</dd></div><div><dt>Report</dt><dd>${escapeHtml(snapshot.report.id)}</dd></div><div><dt>Report 修订</dt><dd>修订 ${snapshot.report.revisionNumber} · ${escapeHtml(snapshot.report.revisionId)}</dd></div><div><dt>Report 创建时间（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.createdAt)}">${escapeHtml(formatUtc(snapshot.report.createdAt))}</time></dd></div><div><dt>来源截止点（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.sourceCutoffAt)}">${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</time></dd></div></dl></section><section class="references" aria-labelledby="references-title"><h2 id="references-title">完整引用</h2><ol>${references.join("")}</ol></section>`;
+  return `<section class="report-identity" aria-labelledby="report-identity-title"><h2 id="report-identity-title">固定身份</h2><dl class="reference-chain"><div><dt>物料包</dt><dd>${escapeHtml(snapshot.packageId)}</dd></div><div><dt>Report</dt><dd>${escapeHtml(snapshot.report.id)}</dd></div><div><dt>Report 修订</dt><dd>修订 ${snapshot.report.revisionNumber} · ${escapeHtml(snapshot.report.revisionId)}</dd></div><div><dt>Report 创建时间（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.createdAt)}">${escapeHtml(formatUtc(snapshot.report.createdAt))}</time></dd></div><div><dt>来源截止点（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.sourceCutoffAt)}">${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</time></dd></div></dl></section><section class="references" aria-labelledby="references-title"><h2 id="references-title">完整引用</h2><p class="provenance-note">为避免复制来源会话、授权码或私密路径，包内只公开来源站点，不保存原始定位 URL。请用下列来源版本身份在本地 Radar 回查精确记录。</p><ol>${references.join("")}</ol></section>`;
 }
 
 async function renderPreviewPng(renderSource: HtmlRenderSource, font: Uint8Array): Promise<Uint8Array> {
@@ -598,7 +613,7 @@ async function renderPreviewPng(renderSource: HtmlRenderSource, font: Uint8Array
 }
 
 function packageStyles(): string {
-  return `@font-face{font-family:RadarEditorial;src:url("ZCOOLXiaoWei-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:14px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--ink);font:400 17px RadarEditorial,serif;letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font:400 38px/1.15 RadarEditorial,serif;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:17px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}.reference-chain{grid-template-columns:1fr 1fr;margin-top:16px}.reference-chain div{min-width:0}.reference-chain dd{overflow-wrap:anywhere}figure{margin:42px 0 0;padding-top:28px;border-top:1px solid var(--line)}.preview{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:10px}figcaption,.claim-references{margin-top:8px;color:var(--muted);font-size:13px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:17px;font-weight:700}.claim .claim-references{font-size:13px;font-weight:400}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:1px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl,.reference-chain{grid-template-columns:1fr}}`;
+  return `@font-face{font-family:RadarEditorial;src:url("ZCOOLXiaoWei-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:14px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--ink);font:400 17px RadarEditorial,serif;letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font:400 38px/1.15 RadarEditorial,serif;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:17px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}.reference-chain{grid-template-columns:1fr 1fr;margin-top:16px}.reference-chain div{min-width:0}.reference-chain dd{overflow-wrap:anywhere}figure{margin:42px 0 0;padding-top:28px;border-top:1px solid var(--line)}.preview{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:10px}figcaption,.claim-references{margin-top:8px;color:var(--muted);font-size:13px}.provenance-note{max-width:68ch;color:var(--muted)}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:17px;font-weight:700}.claim .claim-references{font-size:13px;font-weight:400}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:1px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl,.reference-chain{grid-template-columns:1fr}}`;
 }
 
 function snapshotReport(
@@ -655,7 +670,7 @@ function snapshotReport(
         id: row.source_version_id,
         revisionNumber: row.source_version_number,
         title: row.source_title,
-        sourceOrigin: publicSourceOrigin(row.origin_url),
+        publicLocator: publicSourceLocator(row.origin_url),
         publishedAt: row.published_at,
         acquiredAt: row.acquired_at,
       },
@@ -694,14 +709,29 @@ function recoverInterruptedRuns(projectId: string): void {
   const failRun = db.prepare(
     `UPDATE material_package_runs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
   );
+  const interruptedError = "HTML 物料包生成失败：Radar 在文件写入完成前停止；可以按原固定快照重试。";
+  const failedAt = new Date().toISOString();
   for (const row of rows) {
-    rmSync(safeArtifactPath(packageRoot, join(".staging", row.id)), { recursive: true, force: true });
-    rmSync(safeArtifactPath(packageRoot, join(row.material_package_id, row.id)), { recursive: true, force: true });
-    failRun.run(
-      "HTML 物料包生成失败：Radar 在文件写入完成前停止；可以按原固定快照重试。",
-      new Date().toISOString(),
-      row.id,
-    );
+    failRun.run(interruptedError, failedAt, row.id);
+  }
+  const recordCleanupFailure = db.prepare(
+    `UPDATE material_package_runs SET error = error || ? WHERE id = ?`,
+  );
+  for (const row of rows) {
+    const failures: string[] = [];
+    for (const [label, path] of [
+      ["staging", join(".staging", row.id)],
+      ["final", join(row.material_package_id, row.id)],
+    ] as const) {
+      try {
+        rmSync(safeArtifactPath(packageRoot, path), { recursive: true, force: true });
+      } catch {
+        failures.push(label);
+      }
+    }
+    if (failures.length > 0) {
+      recordCleanupFailure.run(` 清理未完成（${failures.join("、")}）；恢复写权限后重试会再次清理。`, row.id);
+    }
   }
 }
 
@@ -805,13 +835,30 @@ function formatUtc(value: string): string {
   return `${new Date(value).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
-function publicSourceOrigin(value: string): string {
+function renderPublicLocator(locator: MaterialPackageSnapshot["claims"][number]["evidence"][number]["sourceVersion"]["publicLocator"]): string {
+  if (locator.status === "available") {
+    return `<a href="${escapeAttribute(locator.url)}">原始来源 ${escapeHtml(locator.url)}</a>`;
+  }
+  const site = locator.site ? ` · 来源站点（非原文定位）${escapeHtml(locator.site)}` : "";
+  return `<span class="withheld-locator">原始定位已省略${site}</span>`;
+}
+
+function publicSourceLocator(
+  value: string,
+): MaterialPackageSnapshot["claims"][number]["evidence"][number]["sourceVersion"]["publicLocator"] {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    return "";
+    return { status: "withheld", site: null, reason: "credential_bearing_or_unsupported" };
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-  return `${url.origin}/`;
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return { status: "withheld", site: null, reason: "credential_bearing_or_unsupported" };
+  }
+  const site = `${url.origin}/`;
+  if (url.username || url.password || url.search) {
+    return { status: "withheld", site, reason: "credential_bearing_or_unsupported" };
+  }
+  url.hash = "";
+  return { status: "available", url: url.toString() };
 }

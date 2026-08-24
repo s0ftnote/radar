@@ -9,7 +9,7 @@ import { database } from "@/lib/database";
 import { getIntelligenceWorkspace, type IntelligenceItemView } from "@/lib/intelligence";
 import {
   completeHtmlMaterialPackageIntent,
-  createHtmlMaterialPackageIntent,
+  createHtmlMaterialPackageIntentInTransaction,
   type HtmlMaterialPackageIntent,
 } from "@/lib/material-packages";
 import { processInstanceId } from "@/lib/process-instance";
@@ -331,7 +331,7 @@ function persistReport(
       `UPDATE report_generation_runs
        SET status = 'success', report_id = ?, completed_at = ? WHERE id = ?`,
     ).run(reportId, now, runId);
-    const materialPackageIntent = createHtmlMaterialPackageIntent(projectId, revisionId);
+    const materialPackageIntent = createHtmlMaterialPackageIntentInTransaction(db, projectId, revisionId);
     db.exec("COMMIT");
     return { reportId, revisionId, materialPackageIntent };
   } catch (error) {
