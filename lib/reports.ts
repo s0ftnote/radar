@@ -7,6 +7,7 @@ import {
 } from "@/lib/agent";
 import { database } from "@/lib/database";
 import { getIntelligenceWorkspace, type IntelligenceItemView } from "@/lib/intelligence";
+import { createHtmlMaterialPackage } from "@/lib/material-packages";
 import { processInstanceId } from "@/lib/process-instance";
 
 export type ManualReportInput = {
@@ -239,7 +240,13 @@ async function executeGeneration(
 
   try {
     const generated = await agent.generateReport(snapshot);
-    return persistReport(runId, projectId, snapshot, generated, agent.kind);
+    const report = persistReport(runId, projectId, snapshot, generated, agent.kind);
+    try {
+      await createHtmlMaterialPackage(projectId, report.revisionId);
+    } catch {
+      // The package run records its own failure and never changes a successful Report.
+    }
+    return { reportId: report.reportId };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Report 生成失败，可以重试。";
     db.prepare(
@@ -256,7 +263,7 @@ function persistReport(
   snapshot: ReportInputSnapshot,
   generated: AgentReportGeneration,
   adapterKind: string,
-): ReportGenerationResult {
+): ReportGenerationResult & { revisionId: string } {
   const db = database();
   const reportId = randomUUID();
   const revisionId = randomUUID();
@@ -318,7 +325,7 @@ function persistReport(
        SET status = 'success', report_id = ?, completed_at = ? WHERE id = ?`,
     ).run(reportId, now, runId);
     db.exec("COMMIT");
-    return { reportId };
+    return { reportId, revisionId };
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;

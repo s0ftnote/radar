@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { radarDataDirectory } from "@/lib/data-directory";
 
 declare global {
   var __radarDatabase: DatabaseSync | undefined;
@@ -9,7 +10,7 @@ declare global {
 export function database(): DatabaseSync {
   if (globalThis.__radarDatabase?.isOpen) return globalThis.__radarDatabase;
 
-  const dataDirectory = resolve(/* turbopackIgnore: true */ process.env.RADAR_DATA_DIR ?? ".radar");
+  const dataDirectory = radarDataDirectory();
   mkdirSync(dataDirectory, { recursive: true });
   const db = new DatabaseSync(resolve(dataDirectory, "radar.sqlite"), { timeout: 5_000 });
   db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
@@ -213,6 +214,27 @@ function initializeSchema(db: DatabaseSync): void {
       PRIMARY KEY (report_claim_id, signal_id)
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS material_packages (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES radar_projects(id),
+      report_revision_id TEXT NOT NULL REFERENCES report_revisions(id),
+      target TEXT NOT NULL CHECK (target IN ('html')),
+      created_at TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS material_package_runs (
+      id TEXT PRIMARY KEY,
+      material_package_id TEXT NOT NULL REFERENCES material_packages(id),
+      retried_from_run_id TEXT REFERENCES material_package_runs(id),
+      process_instance_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
+      input_snapshot_json TEXT NOT NULL,
+      artifact_directory TEXT,
+      error TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT
+    ) STRICT;
+
     CREATE INDEX IF NOT EXISTS source_contents_by_source ON source_contents(source_id);
     CREATE INDEX IF NOT EXISTS source_versions_by_content ON source_versions(content_id, version_number DESC);
     CREATE INDEX IF NOT EXISTS project_source_versions_by_project ON project_source_versions(project_id, visible_at DESC);
@@ -224,5 +246,7 @@ function initializeSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS report_runs_by_project ON report_generation_runs(project_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS reports_by_project ON reports(project_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS report_claims_by_revision ON report_claims(report_revision_id, position);
+    CREATE INDEX IF NOT EXISTS material_packages_by_project ON material_packages(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS material_package_runs_by_package ON material_package_runs(material_package_id, started_at DESC);
   `);
 }

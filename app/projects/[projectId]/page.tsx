@@ -2,9 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { JudgmentWorkbench } from "@/components/judgment-workbench";
+import { MaterialPackageWorkbench } from "@/components/material-package-workbench";
 import { ReportWorkbench } from "@/components/report-workbench";
 import { SourceNetwork } from "@/components/source-network";
 import { getIntelligenceWorkspace, type IntelligenceWorkspace } from "@/lib/intelligence";
+import {
+  getMaterialPackageWorkspace,
+  type MaterialPackageWorkspace,
+} from "@/lib/material-packages";
 import { getProject } from "@/lib/projects";
 import { getReportWorkspace, type ReportWorkspace } from "@/lib/reports";
 import {
@@ -25,10 +30,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const availableSources = listAvailableInstanceSources(projectId);
   const intelligenceWorkspace = getIntelligenceWorkspace(projectId);
   const reportWorkspace = getReportWorkspace(projectId);
+  const materialPackageWorkspace = getMaterialPackageWorkspace(projectId);
   const sourceState = projectSourceState(
     sources,
     intelligenceWorkspace,
     reportWorkspace,
+    materialPackageWorkspace,
     project.currentBriefRevision.id,
     availableSources,
   );
@@ -89,6 +96,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           availableItems={intelligenceWorkspace.items}
           workspace={reportWorkspace}
         />
+        <MaterialPackageWorkbench
+          projectId={projectId}
+          reports={reportWorkspace.reports}
+          workspace={materialPackageWorkspace}
+        />
       </main>
     </AppShell>
   );
@@ -98,6 +110,7 @@ function projectSourceState(
   sources: ProjectSource[],
   workspace: IntelligenceWorkspace,
   reportWorkspace: ReportWorkspace,
+  materialPackageWorkspace: MaterialPackageWorkspace,
   briefRevisionId: string,
   availableSources: AvailableInstanceSource[],
 ) {
@@ -196,6 +209,14 @@ function projectSourceState(
       guidance: "失败运行保留了完整输入快照和原因；按原输入重试不会影响已有 Report。",
     };
   }
+  if (hasUnresolvedMaterialPackageFailure(materialPackageWorkspace)) {
+    return {
+      badge: "HTML 包需重试",
+      badgeClass: "status-attention",
+      heading: "重试 HTML 物料包",
+      guidance: "Report 已经成功且保持不变；查看包生成原因，再按原固定快照重试。",
+    };
+  }
   if (workspace.items.length > 0 && reportWorkspace.reports.length === 0) {
     return {
       badge: "准备输出",
@@ -210,6 +231,20 @@ function projectSourceState(
     heading: "保持节奏",
     guidance: "需要新鲜事实时再次手动采集；没有变化的内容会复用既有版本。",
   };
+}
+
+function hasUnresolvedMaterialPackageFailure(workspace: MaterialPackageWorkspace): boolean {
+  const runsById = new Map(workspace.runs.map((run) => [run.id, run]));
+  const resolvedFailures = new Set<string>();
+  for (const run of workspace.runs) {
+    if (run.status !== "success") continue;
+    let ancestor = run.retriedFromRunId;
+    while (ancestor) {
+      resolvedFailures.add(ancestor);
+      ancestor = runsById.get(ancestor)?.retriedFromRunId ?? null;
+    }
+  }
+  return workspace.runs.some((run) => run.status === "failed" && !resolvedFailures.has(run.id));
 }
 
 function hasUnresolvedReportFailure(workspace: ReportWorkspace): boolean {
