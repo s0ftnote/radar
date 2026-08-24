@@ -8,6 +8,7 @@ import { SourceNetwork } from "@/components/source-network";
 import { getIntelligenceWorkspace, type IntelligenceWorkspace } from "@/lib/intelligence";
 import {
   getMaterialPackageWorkspace,
+  hasUnresolvedMaterialPackageFailure,
   type MaterialPackageWorkspace,
 } from "@/lib/material-packages";
 import { getProject } from "@/lib/projects";
@@ -231,20 +232,6 @@ function projectSourceState(
     heading: "保持节奏",
     guidance: "需要新鲜事实时再次手动采集；没有变化的内容会复用既有版本。",
   };
-}
-
-function hasUnresolvedMaterialPackageFailure(workspace: MaterialPackageWorkspace): boolean {
-  const runsById = new Map(workspace.runs.map((run) => [run.id, run]));
-  const resolvedFailures = new Set<string>();
-  for (const run of workspace.runs) {
-    if (run.status !== "success") continue;
-    let ancestor = run.retriedFromRunId;
-    while (ancestor) {
-      resolvedFailures.add(ancestor);
-      ancestor = runsById.get(ancestor)?.retriedFromRunId ?? null;
-    }
-  }
-  return workspace.runs.some((run) => run.status === "failed" && !resolvedFailures.has(run.id));
 }
 
 function hasUnresolvedReportFailure(workspace: ReportWorkspace): boolean {

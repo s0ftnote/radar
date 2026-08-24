@@ -50,7 +50,7 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
     await page.getByRole("button", { name: "生成 Report" }).click();
     await expect(page.getByRole("button", { name: "正在生成 Report…" })).toBeDisabled();
     await expect(page.locator(".report-workbench")).toHaveAttribute("aria-busy", "true");
-    await expect(page.getByRole("heading", { name: "解释本地证据工作流 · 固定快照" })).toBeVisible();
+    await expect(page.locator("article.report-record").getByRole("heading", { name: "解释本地证据工作流 · 固定快照" })).toBeVisible();
     await page.unroute("**/api/projects/*/reports");
 
     const firstReport = page.locator("article.report-record").first();
@@ -117,6 +117,7 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
     context = await browser.newContext();
     page = await context.newPage();
     await page.goto(projectUrl);
+    await expect(page.getByRole("heading", { name: "固定 Report 观察" })).toBeVisible();
     await expect(page.locator("article.report-record")).toHaveCount(3);
     await expect(page.getByText("Agent 返回 HTTP 503")).toBeVisible();
     await expect(page.getByText("先失败后恢复的证据角度", { exact: true })).toBeVisible();

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { strToU8, zipSync, type Zippable } from "fflate";
 import sharp from "sharp";
@@ -38,7 +39,7 @@ type MaterialPackageSnapshot = {
         id: string;
         revisionNumber: number;
         title: string;
-        originUrl: string;
+        sourceOrigin: string;
         publishedAt: string | null;
         acquiredAt: string;
       };
@@ -66,6 +67,13 @@ export type MaterialPackageRunView = {
   reportRevisionNumber: number;
   startedAt: string;
   completedAt: string | null;
+  resolvedByRunId: string | null;
+  canRetry: boolean;
+};
+
+export type HtmlMaterialPackageIntent = {
+  runId: string;
+  snapshot: MaterialPackageSnapshot;
 };
 
 export type MaterialPackageWorkspace = {
@@ -125,6 +133,8 @@ const DELIVERED_PATHS = new Set([
   "index.html",
   "assets/styles.css",
   "assets/preview.png",
+  "assets/ZCOOLXiaoWei-Regular.ttf",
+  "assets/OFL.txt",
   "editorial.json",
   "render-source.json",
   "provenance.html",
@@ -138,10 +148,39 @@ export async function createHtmlMaterialPackage(
   projectId: string,
   reportRevisionId: string,
 ): Promise<{ packageId: string }> {
+  const db = database();
+  db.exec("BEGIN IMMEDIATE");
+  let intent: HtmlMaterialPackageIntent;
+  try {
+    intent = createHtmlMaterialPackageIntent(projectId, reportRevisionId);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  await completeHtmlMaterialPackageIntent(intent);
+  return { packageId: intent.snapshot.packageId };
+}
+
+export function createHtmlMaterialPackageIntent(
+  projectId: string,
+  reportRevisionId: string,
+): HtmlMaterialPackageIntent {
   const packageId = randomUUID();
   const snapshot = snapshotReport(projectId, reportRevisionId, packageId);
-  await executePackageRun(snapshot, null, { projectId, reportRevisionId });
-  return { packageId };
+  const runId = randomUUID();
+  database().prepare(
+    `INSERT INTO material_packages (id, project_id, report_revision_id, target, created_at)
+     VALUES (?, ?, ?, 'html', ?)`,
+  ).run(packageId, projectId, reportRevisionId, snapshot.capturedAt);
+  insertPackageRun(runId, snapshot, null);
+  return { runId, snapshot };
+}
+
+export async function completeHtmlMaterialPackageIntent(
+  intent: HtmlMaterialPackageIntent,
+): Promise<void> {
+  await completePackageRun(intent.snapshot, intent.runId);
 }
 
 export async function retryHtmlMaterialPackage(
@@ -165,7 +204,16 @@ export async function retryHtmlMaterialPackage(
     throw new Error("这次失败已经由后续运行恢复，无需再次重试。");
   }
   const snapshot = JSON.parse(row.input_snapshot_json) as MaterialPackageSnapshot;
-  await executePackageRun(snapshot, runId);
+  const retryRunId = randomUUID();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    insertPackageRun(retryRunId, snapshot, runId);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  await completePackageRun(snapshot, retryRunId);
   return { packageId: snapshot.packageId };
 }
 
@@ -196,6 +244,7 @@ export function getMaterialPackageWorkspace(projectId: string): MaterialPackageW
      WHERE package.project_id = ?
      ORDER BY run.started_at DESC, run.id DESC`,
   ).all(projectId) as RunRow[];
+  const resolvingRuns = indexResolvingRuns(runs);
   return {
     packages: packages.map((row) => ({
       id: row.id,
@@ -216,8 +265,16 @@ export function getMaterialPackageWorkspace(projectId: string): MaterialPackageW
       reportRevisionNumber: row.report_revision_number,
       startedAt: row.started_at,
       completedAt: row.completed_at,
+      resolvedByRunId: resolvingRuns.get(row.id) ?? null,
+      canRetry: row.status === "failed" && !resolvingRuns.has(row.id),
     })),
   };
+}
+
+export function hasUnresolvedMaterialPackageFailure(
+  workspace: MaterialPackageWorkspace,
+): boolean {
+  return workspace.runs.some((run) => run.canRetry);
 }
 
 export async function readMaterialPackageFile(
@@ -241,34 +298,22 @@ export async function readMaterialPackageDownload(
   return readFile(safeArtifactPath(directory, "package.zip"));
 }
 
-async function executePackageRun(
+function insertPackageRun(
+  runId: string,
   snapshot: MaterialPackageSnapshot,
   retriedFromRunId: string | null,
-  createPackage?: { projectId: string; reportRevisionId: string },
-): Promise<void> {
-  const db = database();
-  const runId = randomUUID();
+): void {
   const startedAt = new Date().toISOString();
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    if (createPackage) {
-      db.prepare(
-        `INSERT INTO material_packages (id, project_id, report_revision_id, target, created_at)
-         VALUES (?, ?, ?, 'html', ?)`,
-      ).run(snapshot.packageId, createPackage.projectId, createPackage.reportRevisionId, snapshot.capturedAt);
-    }
-    db.prepare(
-      `INSERT INTO material_package_runs
-        (id, material_package_id, retried_from_run_id, process_instance_id,
-         status, input_snapshot_json, started_at)
-       VALUES (?, ?, ?, ?, 'running', ?, ?)`,
-    ).run(runId, snapshot.packageId, retriedFromRunId, processInstanceId, JSON.stringify(snapshot), startedAt);
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
+  database().prepare(
+    `INSERT INTO material_package_runs
+      (id, material_package_id, retried_from_run_id, process_instance_id,
+       status, input_snapshot_json, started_at)
+     VALUES (?, ?, ?, ?, 'running', ?, ?)`,
+  ).run(runId, snapshot.packageId, retriedFromRunId, processInstanceId, JSON.stringify(snapshot), startedAt);
+}
 
+async function completePackageRun(snapshot: MaterialPackageSnapshot, runId: string): Promise<void> {
+  const db = database();
   try {
     const artifactDirectory = await writePackageArtifacts(snapshot, runId);
     db.prepare(
@@ -290,34 +335,39 @@ async function writePackageArtifacts(
   runId: string,
 ): Promise<string> {
   const packageRoot = join(radarDataDirectory(), "material-packages");
-  let temporaryDirectory: string | null = null;
+  const stagingDirectory = join(packageRoot, ".staging", runId);
+  const finalDirectory = join(packageRoot, snapshot.packageId, runId);
   try {
     await mkdir(packageRoot, { recursive: true });
-    temporaryDirectory = await mkdtemp(join(packageRoot, ".tmp-"));
+    await rm(stagingDirectory, { recursive: true, force: true });
+    await rm(finalDirectory, { recursive: true, force: true });
+    await mkdir(stagingDirectory, { recursive: true });
     const files = await buildPackageFiles(snapshot);
     const manifest = buildManifest(snapshot, files);
     files.set("manifest.json", jsonFile(manifest));
 
     for (const [path, content] of files) {
-      const outputPath = safeArtifactPath(temporaryDirectory, path);
+      const outputPath = safeArtifactPath(stagingDirectory, path);
       await mkdir(dirname(outputPath), { recursive: true });
       await writeFile(outputPath, content);
     }
     const archive = zipSync(Object.fromEntries(files) as Zippable, { level: 6 });
-    await writeFile(join(temporaryDirectory, "package.zip"), archive);
+    await writeFile(join(stagingDirectory, "package.zip"), archive);
 
-    const finalDirectory = join(packageRoot, snapshot.packageId, runId);
     await mkdir(dirname(finalDirectory), { recursive: true });
-    await rename(temporaryDirectory, finalDirectory);
-    temporaryDirectory = null;
+    await rename(stagingDirectory, finalDirectory);
     return relative(radarDataDirectory(), finalDirectory);
   } finally {
-    if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
+    await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
 async function buildPackageFiles(snapshot: MaterialPackageSnapshot): Promise<Map<string, Uint8Array>> {
   const renderSource = buildRenderSource(snapshot);
+  const renderSourceFile = jsonFile(renderSource);
+  const renderSourceSha256 = sha256(renderSourceFile);
+  const font = new Uint8Array(await readFile(join(process.cwd(), "app/fonts/ZCOOLXiaoWei-Regular.ttf")));
+  const fontLicense = new Uint8Array(await readFile(join(process.cwd(), "app/fonts/OFL.txt")));
   const editorial = {
     schemaVersion: 1,
     title: snapshot.report.title,
@@ -343,7 +393,7 @@ async function buildPackageFiles(snapshot: MaterialPackageSnapshot): Promise<Map
       { key: "hosting", status: "unknown", value: null },
     ],
   };
-  const preview = await renderPreviewPng(snapshot);
+  const preview = await renderPreviewPng(renderSource, font);
   const assetProvenance = {
     schemaVersion: 1,
     assets: [
@@ -354,16 +404,27 @@ async function buildPackageFiles(snapshot: MaterialPackageSnapshot): Promise<Map
         createdAt: snapshot.capturedAt,
         usageStatus: "radar_generated",
         transformation: "render-source v1 → SVG → PNG",
-        generationContext: { target: "html", rendererVersion: 1 },
+        generationContext: { target: "html", rendererVersion: 1, renderSourceSha256 },
+      },
+      {
+        path: "assets/ZCOOLXiaoWei-Regular.ttf",
+        kind: "bundled_font",
+        createdBy: "ZCOOL",
+        createdAt: snapshot.capturedAt,
+        usageStatus: "redistributed_under_ofl",
+        transformation: "none",
+        generationContext: { license: "assets/OFL.txt" },
       },
     ],
   };
   return new Map([
-    ["index.html", textFile(renderIndexHtml(snapshot))],
+    ["index.html", textFile(renderIndexHtml(renderSource, snapshot))],
     ["assets/styles.css", textFile(packageStyles())],
     ["assets/preview.png", preview],
+    ["assets/ZCOOLXiaoWei-Regular.ttf", font],
+    ["assets/OFL.txt", fontLicense],
     ["editorial.json", jsonFile(editorial)],
-    ["render-source.json", jsonFile(renderSource)],
+    ["render-source.json", renderSourceFile],
     ["provenance.html", textFile(renderProvenanceHtml(snapshot))],
     ["provenance.json", jsonFile(provenance)],
     ["capability-snapshot.json", jsonFile(capabilitySnapshot)],
@@ -408,17 +469,22 @@ function buildRenderSource(snapshot: MaterialPackageSnapshot) {
     document: {
       title: snapshot.report.title,
       metadata: [
-        { label: "内容目的", value: snapshot.report.purpose },
-        { label: "目标受众", value: snapshot.report.audience },
-        { label: "核心角度", value: snapshot.report.angle },
-        { label: "来源截止点", value: snapshot.report.sourceCutoffAt },
+        { key: "purpose", label: "内容目的", value: snapshot.report.purpose },
+        { key: "audience", label: "目标受众", value: snapshot.report.audience },
+        { key: "angle", label: "核心角度", value: snapshot.report.angle },
+        {
+          key: "source_cutoff_at",
+          label: "来源截止点（UTC）",
+          value: snapshot.report.sourceCutoffAt,
+          displayValue: formatUtc(snapshot.report.sourceCutoffAt),
+        },
       ],
       blocks: snapshot.claims.map((claim) => ({
         type: "claim",
         id: claim.id,
         epistemicRole: claim.epistemicRole,
         text: claim.text,
-        evidenceRefs: claim.evidence.map((evidence) => evidence.signalId),
+        evidenceRefs: claim.evidence.map((evidence) => referenceId(claim.id, evidence.signalId)),
       })),
     },
     assets: [{ id: "preview", role: "document_preview", path: "assets/preview.png" }],
@@ -434,19 +500,27 @@ function buildProvenance(snapshot: MaterialPackageSnapshot) {
   };
 }
 
-function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
-  const claims = snapshot.claims.map((claim) => `
+type HtmlRenderSource = ReturnType<typeof buildRenderSource>;
+
+function renderIndexHtml(renderSource: HtmlRenderSource, snapshot: MaterialPackageSnapshot): string {
+  const claims = renderSource.document.blocks.map((claim) => `
     <li class="claim" id="claim-${escapeAttribute(claim.id)}">
       <span class="role">${escapeHtml(roleLabel(claim.epistemicRole))}</span>
       <p>${escapeHtml(claim.text)}</p>
+      <p class="claim-references">${claim.evidenceRefs.map((reference) => `<a href="#${escapeAttribute(reference)}">查看引用</a>`).join(" · ")}</p>
     </li>`).join("");
+  const metadata = new Map(renderSource.document.metadata.map((item) => [item.key, item]));
+  const purpose = metadata.get("purpose")!;
+  const audience = metadata.get("audience")!;
+  const angle = metadata.get("angle")!;
+  const sourceCutoff = metadata.get("source_cutoff_at")!;
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self'">
-  <title>${escapeHtml(snapshot.report.title)}</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self'; font-src 'self'">
+  <title>${escapeHtml(renderSource.document.title)}</title>
   <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -454,12 +528,12 @@ function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
     <article>
       <header>
         <div class="document-masthead"><strong>Radar</strong><span>HTML 平台物料包</span></div>
-        <h1>${escapeHtml(snapshot.report.title)}</h1>
-        <p class="angle">${escapeHtml(snapshot.report.angle)}</p>
+        <h1>${escapeHtml(renderSource.document.title)}</h1>
+        <p class="angle">${escapeHtml(angle.value)}</p>
         <dl>
-          <div><dt>内容目的</dt><dd>${escapeHtml(snapshot.report.purpose)}</dd></div>
-          <div><dt>目标受众</dt><dd>${escapeHtml(snapshot.report.audience)}</dd></div>
-          <div><dt>来源截止点</dt><dd>${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</dd></div>
+          <div><dt>${escapeHtml(purpose.label)}</dt><dd>${escapeHtml(purpose.value)}</dd></div>
+          <div><dt>${escapeHtml(audience.label)}</dt><dd>${escapeHtml(audience.value)}</dd></div>
+          <div><dt>${escapeHtml(sourceCutoff.label)}</dt><dd><time datetime="${escapeAttribute(sourceCutoff.value)}">${escapeHtml(sourceCutoff.displayValue ?? sourceCutoff.value)}</time></dd></div>
         </dl>
       </header>
       <section aria-labelledby="claims-title">
@@ -467,7 +541,7 @@ function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
         <ol class="claims">${claims}</ol>
       </section>
       <figure>
-        <img class="preview" src="assets/preview.png" alt="${escapeAttribute(snapshot.report.title)}的 PNG 预览">
+        <img class="preview" src="assets/preview.png" alt="${escapeAttribute(renderSource.document.title)}的 PNG 预览">
         <figcaption>与本文共享同一份 render source 的 PNG 衍生预览</figcaption>
       </figure>
       ${renderReferences(snapshot)}
@@ -480,43 +554,51 @@ function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
 
 function renderProvenanceHtml(snapshot: MaterialPackageSnapshot): string {
   return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'"><title>${escapeHtml(snapshot.report.title)} · 完整引用</title><link rel="stylesheet" href="assets/styles.css"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'"><title>${escapeHtml(snapshot.report.title)} · 完整引用</title><link rel="stylesheet" href="assets/styles.css"></head>
 <body><main><article><header><div class="document-masthead"><strong>Radar</strong><span>完整引用</span></div><h1>${escapeHtml(snapshot.report.title)}</h1></header>${renderReferences(snapshot)}</article></main></body></html>`;
 }
 
 function renderReferences(snapshot: MaterialPackageSnapshot): string {
   const references = snapshot.claims.flatMap((claim) => claim.evidence.map((evidence) => `
-    <li id="signal-${escapeAttribute(evidence.signalId)}">
+    <li id="${escapeAttribute(referenceId(claim.id, evidence.signalId))}">
       <blockquote>${escapeHtml(evidence.quote)}</blockquote>
-      <p><strong>${escapeHtml(evidence.sourceVersion.title)}</strong> · 来源版本 ${evidence.sourceVersion.revisionNumber}</p>
-      <p><a href="${escapeAttribute(evidence.sourceVersion.originUrl)}">${escapeHtml(evidence.sourceVersion.originUrl)}</a></p>
-      <p class="identity">Signal ${escapeHtml(evidence.signalId)} · Report 主张 ${escapeHtml(claim.id)}</p>
+      <p><strong>${escapeHtml(evidence.sourceVersion.title)}</strong> · <a href="${escapeAttribute(evidence.sourceVersion.sourceOrigin)}">来源站点 ${escapeHtml(evidence.sourceVersion.sourceOrigin)}</a></p>
+      <dl class="reference-chain">
+        <div><dt>Report 主张</dt><dd>${escapeHtml(claim.id)} · ${escapeHtml(roleLabel(claim.epistemicRole))}</dd></div>
+        <div><dt>判断修订</dt><dd>${escapeHtml(claim.intelligenceRevision.title)} · 修订 ${claim.intelligenceRevision.revisionNumber} · ${escapeHtml(claim.intelligenceRevision.id)}</dd></div>
+        <div><dt>Signal</dt><dd>${escapeHtml(evidence.signalId)}</dd></div>
+        <div><dt>来源版本</dt><dd>修订 ${evidence.sourceVersion.revisionNumber} · ${escapeHtml(evidence.sourceVersion.id)}</dd></div>
+        ${evidence.sourceVersion.publishedAt ? `<div><dt>发布时间（UTC）</dt><dd><time datetime="${escapeAttribute(evidence.sourceVersion.publishedAt)}">${escapeHtml(formatUtc(evidence.sourceVersion.publishedAt))}</time></dd></div>` : ""}
+        <div><dt>采集时间（UTC）</dt><dd><time datetime="${escapeAttribute(evidence.sourceVersion.acquiredAt)}">${escapeHtml(formatUtc(evidence.sourceVersion.acquiredAt))}</time></dd></div>
+      </dl>
     </li>`));
-  return `<section class="references" aria-labelledby="references-title"><h2 id="references-title">完整引用</h2><ol>${references.join("")}</ol></section>`;
+  return `<section class="report-identity" aria-labelledby="report-identity-title"><h2 id="report-identity-title">固定身份</h2><dl class="reference-chain"><div><dt>物料包</dt><dd>${escapeHtml(snapshot.packageId)}</dd></div><div><dt>Report</dt><dd>${escapeHtml(snapshot.report.id)}</dd></div><div><dt>Report 修订</dt><dd>修订 ${snapshot.report.revisionNumber} · ${escapeHtml(snapshot.report.revisionId)}</dd></div><div><dt>Report 创建时间（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.createdAt)}">${escapeHtml(formatUtc(snapshot.report.createdAt))}</time></dd></div><div><dt>来源截止点（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.sourceCutoffAt)}">${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</time></dd></div></dl></section><section class="references" aria-labelledby="references-title"><h2 id="references-title">完整引用</h2><ol>${references.join("")}</ol></section>`;
 }
 
-async function renderPreviewPng(snapshot: MaterialPackageSnapshot): Promise<Uint8Array> {
-  const claimLines = snapshot.claims.slice(0, 4).flatMap((claim) => wrapText(`${roleLabel(claim.epistemicRole)} · ${claim.text}`, 36));
-  const titleLines = wrapText(snapshot.report.title, 24).slice(0, 3);
+async function renderPreviewPng(renderSource: HtmlRenderSource, font: Uint8Array): Promise<Uint8Array> {
+  const claimLines = renderSource.document.blocks.flatMap((claim) => wrapText(`${roleLabel(claim.epistemicRole)} · ${claim.text}`, 36));
+  const titleLines = wrapText(renderSource.document.title, 24);
   const titleSvg = titleLines.map((line, index) => `<text x="92" y="${190 + index * 64}" class="title">${escapeHtml(line)}</text>`).join("");
   const claimStart = 190 + titleLines.length * 64 + 72;
-  const claimsSvg = claimLines.slice(0, 8).map((line, index) => `<text x="92" y="${claimStart + index * 48}" class="claim">${escapeHtml(line)}</text>`).join("");
-  const svg = `<svg width="1200" height="900" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
-    <rect width="1200" height="900" fill="#f6f5f1"/>
-    <rect x="56" y="56" width="1088" height="788" rx="18" fill="#ffffff" stroke="#c8cac1"/>
+  const claimsSvg = claimLines.map((line, index) => `<text x="92" y="${claimStart + index * 48}" class="claim">${escapeHtml(line)}</text>`).join("");
+  const height = Math.max(900, claimStart + claimLines.length * 48 + 100);
+  const embeddedFont = Buffer.from(font).toString("base64");
+  const svg = `<svg width="1200" height="${height}" viewBox="0 0 1200 ${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="${height}" fill="#f6f5f1"/>
+    <rect x="56" y="56" width="1088" height="${height - 112}" rx="18" fill="#ffffff" stroke="#c8cac1"/>
     <text x="92" y="120" class="brand">Radar</text>
     <text x="1108" y="120" text-anchor="end" class="meta">HTML · PNG PREVIEW</text>
     <line x1="92" x2="1108" y1="146" y2="146" stroke="#ddded7"/>
     ${titleSvg}
     <line x1="92" x2="1108" y1="${claimStart - 44}" y2="${claimStart - 44}" stroke="#ddded7"/>
     ${claimsSvg}
-    <style>.brand{font:700 22px sans-serif;letter-spacing:2px;fill:#24664a}.meta{font:600 18px sans-serif;letter-spacing:1px;fill:#656961}.title{font:700 46px sans-serif;fill:#1e211e}.claim{font:400 28px sans-serif;fill:#454a44}</style>
+    <style>@font-face{font-family:RadarEditorial;src:url(data:font/ttf;base64,${embeddedFont})}.brand{font:400 24px RadarEditorial,serif;letter-spacing:2px;fill:#1e211e}.meta{font:600 18px sans-serif;letter-spacing:1px;fill:#656961}.title{font:400 46px RadarEditorial,serif;fill:#1e211e}.claim{font:400 28px sans-serif;fill:#454a44}</style>
   </svg>`;
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
 }
 
 function packageStyles(): string {
-  return `:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:14px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--green);letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font-size:38px;line-height:1.15;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:17px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}figure{margin:42px 0 0;padding-top:28px;border-top:1px solid var(--line)}.preview{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:10px}figcaption{margin-top:8px;color:var(--muted);font-size:13px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:17px;font-weight:700}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:1px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl{grid-template-columns:1fr}}`;
+  return `@font-face{font-family:RadarEditorial;src:url("ZCOOLXiaoWei-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:14px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--ink);font:400 17px RadarEditorial,serif;letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font:400 38px/1.15 RadarEditorial,serif;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:17px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}.reference-chain{grid-template-columns:1fr 1fr;margin-top:16px}.reference-chain div{min-width:0}.reference-chain dd{overflow-wrap:anywhere}figure{margin:42px 0 0;padding-top:28px;border-top:1px solid var(--line)}.preview{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:10px}figcaption,.claim-references{margin-top:8px;color:var(--muted);font-size:13px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:17px;font-weight:700}.claim .claim-references{font-size:13px;font-weight:400}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:1px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl,.reference-chain{grid-template-columns:1fr}}`;
 }
 
 function snapshotReport(
@@ -573,7 +655,7 @@ function snapshotReport(
         id: row.source_version_id,
         revisionNumber: row.source_version_number,
         title: row.source_title,
-        originUrl: publicCitationUrl(row.origin_url),
+        sourceOrigin: publicSourceOrigin(row.origin_url),
         publishedAt: row.published_at,
         acquiredAt: row.acquired_at,
       },
@@ -601,17 +683,26 @@ function snapshotReport(
 }
 
 function recoverInterruptedRuns(projectId: string): void {
-  database().prepare(
-    `UPDATE material_package_runs
-     SET status = 'failed', error = ?, completed_at = ?
-     WHERE status = 'running' AND process_instance_id <> ?
-       AND material_package_id IN (SELECT id FROM material_packages WHERE project_id = ?)`,
-  ).run(
-    "HTML 物料包生成失败：Radar 在文件写入完成前停止；可以按原固定快照重试。",
-    new Date().toISOString(),
-    processInstanceId,
-    projectId,
+  const db = database();
+  const rows = db.prepare(
+    `SELECT run.id, run.material_package_id
+     FROM material_package_runs AS run
+     JOIN material_packages AS package ON package.id = run.material_package_id
+     WHERE package.project_id = ? AND run.status = 'running' AND run.process_instance_id <> ?`,
+  ).all(projectId, processInstanceId) as Array<{ id: string; material_package_id: string }>;
+  const packageRoot = join(radarDataDirectory(), "material-packages");
+  const failRun = db.prepare(
+    `UPDATE material_package_runs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
   );
+  for (const row of rows) {
+    rmSync(safeArtifactPath(packageRoot, join(".staging", row.id)), { recursive: true, force: true });
+    rmSync(safeArtifactPath(packageRoot, join(row.material_package_id, row.id)), { recursive: true, force: true });
+    failRun.run(
+      "HTML 物料包生成失败：Radar 在文件写入完成前停止；可以按原固定快照重试。",
+      new Date().toISOString(),
+      row.id,
+    );
+  }
 }
 
 function resolvedRunIds(packageId: string): Set<string> {
@@ -619,17 +710,25 @@ function resolvedRunIds(packageId: string): Set<string> {
     `SELECT id, retried_from_run_id, status FROM material_package_runs
      WHERE material_package_id = ? ORDER BY started_at DESC, id DESC`,
   ).all(packageId) as Array<{ id: string; retried_from_run_id: string | null; status: string }>;
+  return new Set(indexResolvingRuns(rows).keys());
+}
+
+function indexResolvingRuns(
+  rows: Array<{ id: string; retried_from_run_id: string | null; status: string }>,
+): Map<string, string> {
   const byId = new Map(rows.map((row) => [row.id, row]));
-  const resolved = new Set<string>();
+  const resolving = new Map<string, string>();
   for (const row of rows) {
     if (row.status !== "success") continue;
+    const visited = new Set<string>();
     let ancestor = row.retried_from_run_id;
-    while (ancestor && !resolved.has(ancestor)) {
-      resolved.add(ancestor);
+    while (ancestor && !visited.has(ancestor)) {
+      visited.add(ancestor);
+      if (!resolving.has(ancestor)) resolving.set(ancestor, row.id);
       ancestor = byId.get(ancestor)?.retried_from_run_id ?? null;
     }
   }
-  return resolved;
+  return resolving;
 }
 
 function successfulArtifactDirectory(projectId: string, packageId: string): string {
@@ -656,8 +755,10 @@ function safeArtifactPath(root: string, path: string): string {
 function mediaType(path: string): string {
   if (path.endsWith(".html")) return "text/html; charset=utf-8";
   if (path.endsWith(".css")) return "text/css; charset=utf-8";
+  if (path.endsWith(".txt")) return "text/plain; charset=utf-8";
   if (path.endsWith(".json")) return "application/json; charset=utf-8";
   if (path.endsWith(".png")) return "image/png";
+  if (path.endsWith(".ttf")) return "font/ttf";
   return "application/octet-stream";
 }
 
@@ -679,6 +780,10 @@ function roleLabel(role: EpistemicRole): string {
   return "推断";
 }
 
+function referenceId(claimId: string, signalId: string): string {
+  return `reference-${claimId}-${signalId}`;
+}
+
 function wrapText(value: string, width: number): string[] {
   const characters = [...value];
   const lines: string[] = [];
@@ -697,14 +802,10 @@ function escapeAttribute(value: string): string {
 }
 
 function formatUtc(value: string): string {
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(new Date(value));
+  return `${new Date(value).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
-function publicCitationUrl(value: string): string {
+function publicSourceOrigin(value: string): string {
   let url: URL;
   try {
     url = new URL(value);
@@ -712,13 +813,5 @@ function publicCitationUrl(value: string): string {
     return "";
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-  url.username = "";
-  url.password = "";
-  url.hash = "";
-  for (const key of [...url.searchParams.keys()]) {
-    if (/(?:^|[_-])(?:access[_-]?token|token|api[_-]?key|key|auth(?:orization)?|credential|password|passwd|secret|signature|sig)(?:$|[_-])/i.test(key)) {
-      url.searchParams.delete(key);
-    }
-  }
-  return url.toString();
+  return `${url.origin}/`;
 }

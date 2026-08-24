@@ -835,6 +835,10 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .material-package-actions a { color: var(--green-ink); font-weight: 700; }
 
+.material-package-actions .text-action { padding: 0; color: var(--green-ink); font-weight: 700; }
+
+.material-package-actions .text-action:hover { color: var(--ink); }
+
 .material-package-actions span { color: var(--muted); }
 
 .material-contract { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 20px 0 0; border-top: 1px solid var(--line); }

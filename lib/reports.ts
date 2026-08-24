@@ -7,7 +7,11 @@ import {
 } from "@/lib/agent";
 import { database } from "@/lib/database";
 import { getIntelligenceWorkspace, type IntelligenceItemView } from "@/lib/intelligence";
-import { createHtmlMaterialPackage } from "@/lib/material-packages";
+import {
+  completeHtmlMaterialPackageIntent,
+  createHtmlMaterialPackageIntent,
+  type HtmlMaterialPackageIntent,
+} from "@/lib/material-packages";
 import { processInstanceId } from "@/lib/process-instance";
 
 export type ManualReportInput = {
@@ -242,7 +246,7 @@ async function executeGeneration(
     const generated = await agent.generateReport(snapshot);
     const report = persistReport(runId, projectId, snapshot, generated, agent.kind);
     try {
-      await createHtmlMaterialPackage(projectId, report.revisionId);
+      await completeHtmlMaterialPackageIntent(report.materialPackageIntent);
     } catch {
       // The package run records its own failure and never changes a successful Report.
     }
@@ -263,7 +267,10 @@ function persistReport(
   snapshot: ReportInputSnapshot,
   generated: AgentReportGeneration,
   adapterKind: string,
-): ReportGenerationResult & { revisionId: string } {
+): ReportGenerationResult & {
+  revisionId: string;
+  materialPackageIntent: HtmlMaterialPackageIntent;
+} {
   const db = database();
   const reportId = randomUUID();
   const revisionId = randomUUID();
@@ -324,8 +331,9 @@ function persistReport(
       `UPDATE report_generation_runs
        SET status = 'success', report_id = ?, completed_at = ? WHERE id = ?`,
     ).run(reportId, now, runId);
+    const materialPackageIntent = createHtmlMaterialPackageIntent(projectId, revisionId);
     db.exec("COMMIT");
-    return { reportId, revisionId };
+    return { reportId, revisionId, materialPackageIntent };
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;

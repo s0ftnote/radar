@@ -1,6 +1,8 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { expect, test } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
@@ -52,6 +54,13 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await expect(preview.getByRole("heading", { name: "离线证据交付 · 固定快照" })).toBeVisible();
     await expect(preview.getByText("可报告的本地证据需求：开发者需要把本地证据链组织成可追溯主张。")).toBeVisible();
     await expect(preview.getByRole("heading", { name: "完整引用" })).toBeVisible();
+    const citation = preview.getByRole("link", { name: "查看引用" }).first();
+    const citationTarget = await citation.getAttribute("href");
+    expect(citationTarget).toMatch(/^#reference-/);
+    await expect(preview.locator(citationTarget!)).toHaveCount(1);
+    await expect(preview.getByText(/^Report 修订$/)).toBeVisible();
+    await expect(preview.getByText(/^判断修订$/)).toBeVisible();
+    await expect(preview.getByText(/^来源版本$/)).toBeVisible();
     await expect(preview.getByRole("img", { name: "离线证据交付 · 固定快照的 PNG 预览" })).toBeVisible();
     const downloadPromise = page.waitForEvent("download");
     await firstPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
@@ -63,6 +72,8 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
       "index.html",
       "assets/styles.css",
       "assets/preview.png",
+      "assets/ZCOOLXiaoWei-Regular.ttf",
+      "assets/OFL.txt",
       "editorial.json",
       "render-source.json",
       "provenance.html",
@@ -77,7 +88,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
       packageId: string;
       report: { revisionNumber: number };
       sections: Record<string, unknown>;
-      files: Array<{ path: string; sha256: string }>;
+      files: Array<{ path: string; mediaType: string; bytes: number; sha256: string }>;
     };
     expect(manifest.packageId).toBeTruthy();
     expect(manifest.report.revisionNumber).toBe(1);
@@ -88,14 +99,29 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
       "provenance",
       "renderSource",
     ]);
-    expect(manifest.files.every((file) => file.path && /^[a-f0-9]{64}$/.test(file.sha256))).toBe(true);
+    expect(Object.keys(archive).sort()).toEqual([...manifest.files.map((file) => file.path), "manifest.json"].sort());
+    for (const file of manifest.files) {
+      const content = archive[file.path];
+      expect(content, `${file.path} must exist`).toBeTruthy();
+      expect(file.bytes).toBe(content.byteLength);
+      expect(file.mediaType).toBe(expectedMediaType(file.path));
+      expect(file.sha256).toBe(createHash("sha256").update(content).digest("hex"));
+    }
     expect(Array.from(archive["assets/preview.png"].slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    const assetProvenance = JSON.parse(strFromU8(archive["asset-provenance.json"])) as {
+      assets: Array<{ path: string; generationContext: { renderSourceSha256?: string } }>;
+    };
+    expect(assetProvenance.assets.find((asset) => asset.path === "assets/preview.png")?.generationContext.renderSourceSha256)
+      .toBe(createHash("sha256").update(archive["render-source.json"]).digest("hex"));
 
     const bundleText = Object.entries(archive)
-      .filter(([path]) => !path.endsWith(".png"))
+      .filter(([path]) => !path.endsWith(".png") && !path.endsWith(".ttf"))
       .map(([, value]) => strFromU8(value))
       .join("\n");
-    expect(bundleText).toContain("https://example.test/fixture-entry-1?utm_source=radar");
+    expect(bundleText).toContain("https://example.test/");
+    expect(bundleText).not.toContain("/session/");
+    expect(bundleText).not.toContain("code=");
+    expect(bundleText).not.toContain("session=");
     expect(bundleText).not.toContain("source-fixture-secret");
     expect(bundleText).not.toContain(agent.token);
     expect(bundleText).not.toContain("RADAR_AGENT_TOKEN");
@@ -163,6 +189,41 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await expect(page.locator("li.material-package-run")).toHaveCount(4);
     await expect(page.getByText("HTML 物料包生成失败", { exact: false })).toBeVisible();
     await expect(page.locator("article.material-package-record").first().getByRole("link", { name: "下载完整 ZIP" })).toBeVisible();
+    const latestPackage = page.locator("article.material-package-record").first();
+    await expect(latestPackage.locator("iframe")).toBeVisible();
+    await expect(page.locator("article.material-package-record iframe")).toHaveCount(1);
+    const restartedDownloadPromise = page.waitForEvent("download");
+    await latestPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
+    const restartedDownload = await restartedDownloadPromise;
+    const restartedArchive = unzipSync(new Uint8Array(await readFile((await restartedDownload.path())!)));
+    expect(JSON.parse(strFromU8(restartedArchive["manifest.json"])).packageId).toBeTruthy();
+
+    await page.getByLabel("选择 可报告的本地证据需求 修订 1").check();
+    await page.getByLabel("内容目的").fill("中断包恢复");
+    await page.getByLabel("目标受众").fill("本地运维者");
+    await page.getByLabel("核心角度").fill("中断 HTML 包");
+    await page.getByRole("button", { name: "生成 Report" }).click();
+    const interrupted = await waitForRunningMaterialPackage(dataDirectory);
+    await stopRadar(radar);
+    await context.close();
+
+    expect(await pathExists(join(dataDirectory, "material-packages", ".staging", interrupted.runId))).toBe(true);
+    radar = await startRadar(dataDirectory, 33123, {
+      RADAR_AGENT_ENDPOINT: agent.endpoint,
+      RADAR_AGENT_TOKEN: agent.token,
+    });
+    context = await browser.newContext({ acceptDownloads: true });
+    page = await context.newPage();
+    await page.goto(projectUrl);
+    const interruptedRun = page.locator("li.material-package-run").filter({ hasText: "中断包恢复 · 固定快照" });
+    await expect(interruptedRun.getByText("失败", { exact: true })).toBeVisible();
+    await expect(interruptedRun).toContainText("文件写入完成前停止");
+    expect(await pathExists(join(dataDirectory, "material-packages", ".staging", interrupted.runId))).toBe(false);
+    expect(await pathExists(join(dataDirectory, "material-packages", interrupted.packageId, interrupted.runId))).toBe(false);
+    await interruptedRun.getByRole("button", { name: "重试 HTML 包" }).click();
+    await expect(interruptedRun.getByText(/^已由运行 .* 恢复$/)).toBeVisible();
+    await expect(page.locator("article.material-package-record")).toHaveCount(4);
+    await expect(page.locator("li.material-package-run")).toHaveCount(6);
   } finally {
     await context.close().catch(() => undefined);
     await stopRadar(radar).catch(() => undefined);
@@ -185,4 +246,44 @@ async function createReport(
   await page.getByLabel("目标受众").fill(audience);
   await page.getByLabel("核心角度").fill(angle);
   await page.getByRole("button", { name: "生成 Report" }).click();
+}
+
+function expectedMediaType(path: string): string {
+  if (path.endsWith(".html")) return "text/html; charset=utf-8";
+  if (path.endsWith(".css")) return "text/css; charset=utf-8";
+  if (path.endsWith(".txt")) return "text/plain; charset=utf-8";
+  if (path.endsWith(".json")) return "application/json; charset=utf-8";
+  if (path.endsWith(".png")) return "image/png";
+  if (path.endsWith(".ttf")) return "font/ttf";
+  return "application/octet-stream";
+}
+
+async function waitForRunningMaterialPackage(
+  dataDirectory: string,
+): Promise<{ runId: string; packageId: string }> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const db = new DatabaseSync(join(dataDirectory, "radar.sqlite"));
+    const row = db.prepare(
+      `SELECT run.id AS run_id, run.material_package_id
+       FROM material_package_runs AS run
+       WHERE run.status = 'running'
+       ORDER BY run.started_at DESC LIMIT 1`,
+    ).get() as { run_id: string; material_package_id: string } | undefined;
+    db.close();
+    if (row && await pathExists(join(dataDirectory, "material-packages", ".staging", row.run_id))) {
+      return { runId: row.run_id, packageId: row.material_package_id };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("Timed out waiting for an in-progress HTML package write.");
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

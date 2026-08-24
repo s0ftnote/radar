@@ -22,7 +22,9 @@ export function MaterialPackageWorkbench({
   );
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const resolvedByRunId = indexResolvedRuns(workspace);
+  const [previewOverride, setPreviewOverride] = useState<string | null | undefined>(undefined);
+  const defaultPreviewId = workspace.packages.find((item) => item.successfulRunId)?.id ?? null;
+  const expandedPackageId = previewOverride === undefined ? defaultPreviewId : previewOverride;
   const isBusy = pending !== null;
 
   async function supplement() {
@@ -136,9 +138,27 @@ export function MaterialPackageWorkbench({
               <div className="material-package-actions">
                 <a href={`#report-${materialPackage.reportId}`}>固定 Report 修订 {materialPackage.reportRevisionNumber}</a>
                 {materialPackage.successfulRunId ? (
-                  <a href={`/api/projects/${projectId}/material-packages/${materialPackage.id}/download`} download>
-                    下载完整 ZIP
-                  </a>
+                  <>
+                    <a href={`/api/projects/${projectId}/material-packages/${materialPackage.id}/download`} download>
+                      下载完整 ZIP
+                    </a>
+                    <a
+                      href={`/api/projects/${projectId}/material-packages/${materialPackage.id}/files/index.html`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      新窗口打开 HTML
+                    </a>
+                    <button
+                      className="text-action"
+                      type="button"
+                      onClick={() => setPreviewOverride(
+                        expandedPackageId === materialPackage.id ? null : materialPackage.id,
+                      )}
+                    >
+                      {expandedPackageId === materialPackage.id ? "收起预览" : "打开完整预览"}
+                    </button>
+                  </>
                 ) : (
                   <span>等待成功产物</span>
                 )}
@@ -150,7 +170,7 @@ export function MaterialPackageWorkbench({
                 <div><dt>Provenance</dt><dd>完整引用与机器可读映射</dd></div>
                 <div><dt>Capability snapshot</dt><dd>HTML 下载路径与核验状态</dd></div>
               </dl>
-              {materialPackage.successfulRunId ? (
+              {materialPackage.successfulRunId && expandedPackageId === materialPackage.id ? (
                 <div className="material-preview-frame">
                   <iframe
                     title={`${materialPackage.reportTitle}的离线 HTML 预览`}
@@ -158,9 +178,9 @@ export function MaterialPackageWorkbench({
                     sandbox="allow-same-origin"
                   />
                 </div>
-              ) : (
+              ) : !materialPackage.successfulRunId ? (
                 <p className="material-preview-empty">生成失败时不伪造预览；修复后可以按原快照重试。</p>
-              )}
+              ) : null}
             </article>
           ))}
         </div>
@@ -176,7 +196,6 @@ export function MaterialPackageWorkbench({
         ) : (
           <ol>
             {workspace.runs.map((run) => {
-              const resolvingRun = resolvedByRunId.get(run.id);
               return (
                 <li className="material-package-run" key={run.id}>
                   <div>
@@ -188,10 +207,10 @@ export function MaterialPackageWorkbench({
                   <p>固定 Report 修订 {run.reportRevisionNumber} · 运行身份 {run.id}</p>
                   {run.retriedFromRunId && <p>重试自运行 · {run.retriedFromRunId}</p>}
                   {run.error && <p className="material-run-error">{run.error}</p>}
-                  {run.status === "failed" && resolvingRun && (
-                    <p className="material-run-resolution">已由运行 {resolvingRun.id} 恢复</p>
+                  {run.status === "failed" && run.resolvedByRunId && (
+                    <p className="material-run-resolution">已由运行 {run.resolvedByRunId} 恢复</p>
                   )}
-                  {run.status === "failed" && !resolvingRun && (
+                  {run.canRetry && (
                     <button className="text-action" type="button" disabled={isBusy} onClick={() => retry(run.id)}>
                       {pending === `retry:${run.id}` ? "正在重试 HTML 包…" : "重试 HTML 包"}
                     </button>
@@ -204,24 +223,6 @@ export function MaterialPackageWorkbench({
       </section>
     </section>
   );
-}
-
-function indexResolvedRuns(
-  workspace: MaterialPackageWorkspace,
-): Map<string, MaterialPackageWorkspace["runs"][number]> {
-  const byId = new Map(workspace.runs.map((run) => [run.id, run]));
-  const resolved = new Map<string, MaterialPackageWorkspace["runs"][number]>();
-  for (const run of workspace.runs) {
-    if (run.status !== "success") continue;
-    const visited = new Set<string>();
-    let ancestor = run.retriedFromRunId;
-    while (ancestor && !visited.has(ancestor)) {
-      visited.add(ancestor);
-      if (!resolved.has(ancestor)) resolved.set(ancestor, run);
-      ancestor = byId.get(ancestor)?.retriedFromRunId ?? null;
-    }
-  }
-  return resolved;
 }
 
 function runStatus(status: MaterialPackageWorkspace["runs"][number]["status"]): string {

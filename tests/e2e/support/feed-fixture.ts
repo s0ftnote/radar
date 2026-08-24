@@ -92,7 +92,7 @@ function fallbackIdentityRssDocument(): string {
 
 function rssDocument(revision: number, credentialedEntryUrl: boolean): string {
   const entryUrl = credentialedEntryUrl
-    ? `https://reader:source-fixture-secret@example.test/fixture-entry-${revision}?access_token=source-fixture-secret&amp;utm_source=radar`
+    ? `https://reader:source-fixture-secret@example.test/session/source-fixture-secret/fixture-entry-${revision}?code=source-fixture-secret&amp;session=source-fixture-secret`
     : `https://example.test/fixture-entry-${revision}`;
   return `<?xml version="1.0" encoding="UTF-8" ?>
     <rss version="2.0">

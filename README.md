@@ -82,11 +82,12 @@ Radar 会先保存 Report 输入快照，再调用适配器；失败可按原快
 - `editorial.json`：标题、目的、受众、角度与有序主张；
 - `render-source.json`：与具体渲染器解耦的语义块和资产关系；
 - `assets/preview.png`：由同一 render source 派生的 PNG 预览；
+- `assets/ZCOOLXiaoWei-Regular.ttf`、`assets/OFL.txt`：自托管标题字体及其开源许可证；
 - `provenance.html`、`provenance.json`、`asset-provenance.json`：人类可读引用、机器映射与资产生成记录；
 - `capability-snapshot.json`：HTML 下载路径及生成时核验状态；
 - `manifest.json`：包身份、固定 Report 修订、文件类型、大小与 SHA-256。
 
-HTML 与样式、PNG 都使用包内相对路径；来源 URL 会移除 URL 用户信息与常见凭据参数，Agent token 不写入领域快照、日志或下载包。
+HTML、样式、字体与 PNG 都使用包内相对路径。公开引用只导出来源站点的 `http(s)` origin，不复制可能含会话、授权码或私密路径的原始 URL；精确证据链通过包内的 Report、判断修订、Signal 与来源版本稳定身份回查。Agent token 不写入领域快照、日志或下载包。
 
 ## 验证
 
