@@ -98,3 +98,5 @@ npm run build
 ```
 
 浏览器验收从空白临时数据目录启动真实 Radar 进程，只通过公开 Web 界面驱动 Project、来源采集、Agent 判断和 Report 生成，并验证进程重启后的持久化。
+
+从干净检出复现完整主链、检查下载包并安全清理临时数据，见[贡献者 walking skeleton 验收手册](docs/contributing/walking-skeleton.md)。
