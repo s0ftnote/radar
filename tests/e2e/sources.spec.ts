@@ -27,9 +27,21 @@ test("用户可以验证、采集、复用、修订并停止公开 RSS 来源", 
     await expect(page.getByText(/无法解析 RSS\/Atom/)).toBeVisible();
     await expect(page.getByText("还没有来源")).toBeVisible();
 
+    await page.getByLabel("公开 RSS/Atom URL").fill("http://127.0.0.1:1/unreachable");
+    await page.getByRole("button", { name: "验证并保存" }).click();
+    await expect(page.getByText(/无法连接来源/)).toBeVisible();
+    await expect(page.getByText("还没有来源")).toBeVisible();
+
+    await page.getByLabel("公开 RSS/Atom URL").fill(`${feed.url}/empty`);
+    await page.getByRole("button", { name: "验证并保存" }).click();
+    await expect(page.getByRole("heading", { name: "Empty Radar Fixture Feed" })).toBeVisible();
+    await page.getByRole("button", { name: "采集 Empty Radar Fixture Feed" }).click();
+    await expect(page.locator(".network-notice")).toHaveText("采集成功，Feed 当前没有来源内容");
+    await expect(page.getByText("0 个不可变版本")).toBeVisible();
+
     await page.getByLabel("公开 RSS/Atom URL").fill(`${feed.url}/feed`);
     await page.getByRole("button", { name: "验证并保存" }).click();
-    await expect(page.getByRole("heading", { name: "Radar Fixture Feed" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Radar Fixture Feed", exact: true })).toBeVisible();
     await expect(page.getByText("已验证，等待首次采集")).toBeVisible();
 
     await page.getByRole("button", { name: "采集 Radar Fixture Feed" }).click();
@@ -57,7 +69,7 @@ test("用户可以验证、采集、复用、修订并停止公开 RSS 来源", 
 
     feed.breakFeed();
     await page.getByRole("button", { name: "采集 Radar Fixture Feed" }).click();
-    await expect(page.getByText(/Feed XML 无效/)).toBeVisible();
+    await expect(page.locator(".network-notice")).toContainText("Feed XML 无效");
     await expect(page.getByText("2 个不可变版本")).toBeVisible();
     await expect(page.getByText("Local-first tools gain traction")).toBeVisible();
 
@@ -73,7 +85,7 @@ test("用户可以验证、采集、复用、修订并停止公开 RSS 来源", 
     page = await context.newPage();
     await page.goto("/");
     await page.getByRole("link", { name: /来源能力观察/ }).click();
-    await expect(page.getByRole("heading", { name: "Radar Fixture Feed" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Radar Fixture Feed", exact: true })).toBeVisible();
     await expect(page.getByText("已停止后续采集，历史版本保留")).toBeVisible();
     await expect(page.getByText("版本 2")).toBeVisible();
   } finally {

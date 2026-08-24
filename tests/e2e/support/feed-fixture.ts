@@ -17,6 +17,11 @@ export async function startFeedFixture(): Promise<FeedFixture> {
       response.end("<rss><channel><item></rss>");
       return;
     }
+    if (request.url === "/empty") {
+      response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
+      response.end(emptyRssDocument());
+      return;
+    }
     if (request.url !== "/feed") {
       response.writeHead(404).end();
       return;
@@ -36,6 +41,17 @@ export async function startFeedFixture(): Promise<FeedFixture> {
     restoreFeed: () => (malformed = false),
     close: () => closeServer(server),
   };
+}
+
+function emptyRssDocument(): string {
+  return `<?xml version="1.0" encoding="UTF-8" ?>
+    <rss version="2.0">
+      <channel>
+        <title>Empty Radar Fixture Feed</title>
+        <link>https://example.test/empty-fixture</link>
+        <description>A valid feed with no entries</description>
+      </channel>
+    </rss>`;
 }
 
 function rssDocument(revision: number): string {

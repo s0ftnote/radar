@@ -20,17 +20,7 @@ const parser = new XMLParser({
 });
 
 export async function fetchFeed(url: string): Promise<ParsedFeed> {
-  const response = await fetch(url, {
-    headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" },
-    redirect: "follow",
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`来源返回 HTTP ${response.status}，请检查 URL 或稍后重试。`);
-
-  const declaredLength = Number(response.headers.get("content-length") ?? "0");
-  if (declaredLength > 5_000_000) throw new Error("Feed 超过 5 MB，当前本地切片不会保存它。");
-  const xml = await response.text();
-  if (xml.length > 5_000_000) throw new Error("Feed 超过 5 MB，当前本地切片不会保存它。");
+  const xml = await fetchFeedXml(url);
 
   const validation = XMLValidator.validate(xml);
   if (validation !== true) {
@@ -43,6 +33,38 @@ export async function fetchFeed(url: string): Promise<ParsedFeed> {
     if (error instanceof FeedFormatError) throw error;
     throw new Error(`无法解析 RSS/Atom：${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+async function fetchFeedXml(url: string): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new Error("来源连接超时，请确认 URL 可公开访问后重试。");
+    }
+    throw new Error(
+      `无法连接来源，请检查 URL 或网络后重试：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!response.ok) throw new Error(`来源返回 HTTP ${response.status}，请检查 URL 或稍后重试。`);
+
+  const declaredLength = Number(response.headers.get("content-length") ?? "0");
+  if (declaredLength > 5_000_000) throw new Error("Feed 超过 5 MB，当前本地切片不会保存它。");
+  let xml: string;
+  try {
+    xml = await response.text();
+  } catch (error) {
+    throw new Error(
+      `读取来源内容失败，请稍后重试：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (xml.length > 5_000_000) throw new Error("Feed 超过 5 MB，当前本地切片不会保存它。");
+  return xml;
 }
 
 function normalizeFeed(document: Record<string, unknown>, feedUrl: string): ParsedFeed {
