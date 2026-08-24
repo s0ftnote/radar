@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { JudgmentWorkbench } from "@/components/judgment-workbench";
 import { SourceNetwork } from "@/components/source-network";
+import { getIntelligenceWorkspace } from "@/lib/intelligence";
 import { getProject } from "@/lib/projects";
 import { listProjectSources, type ProjectSource } from "@/lib/sources";
 
@@ -13,6 +15,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
   if (!project) notFound();
   const sources = listProjectSources(projectId);
+  const intelligenceWorkspace = getIntelligenceWorkspace(projectId);
   const sourceState = projectSourceState(sources);
 
   return (
@@ -65,6 +68,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
         </div>
 
         <SourceNetwork projectId={projectId} sources={sources} />
+        <JudgmentWorkbench projectId={projectId} workspace={intelligenceWorkspace} />
       </main>
     </AppShell>
   );
