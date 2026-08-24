@@ -61,7 +61,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await expect(preview.getByText(/^Report 修订$/)).toBeVisible();
     await expect(preview.getByText(/^判断修订$/)).toBeVisible();
     await expect(preview.getByText(/^来源版本$/)).toBeVisible();
-    await expect(preview.getByText(/包内只公开来源站点，不保存原始定位 URL/)).toBeVisible();
+    await expect(preview.getByText(/部分引用没有经来源适配器确认的公开 canonical locator/)).toBeVisible();
     await expect(preview.getByRole("img", { name: "离线证据交付 · 固定快照的 PNG 预览" })).toBeVisible();
     const downloadPromise = page.waitForEvent("download");
     await firstPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
@@ -87,6 +87,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
 
     const manifest = JSON.parse(strFromU8(archive["manifest.json"])) as {
       packageId: string;
+      createdAt: string;
       report: { revisionNumber: number };
       sections: Record<string, unknown>;
       files: Array<{ path: string; mediaType: string; bytes: number; sha256: string }>;
@@ -114,6 +115,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
         path: string;
         source?: string;
         acquiredAt?: string;
+        bundledAt?: string;
         license?: string;
         generationContext: { renderSourceSha256?: string };
       }>;
@@ -123,6 +125,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     expect(assetProvenance.assets.find((asset) => asset.path.endsWith(".ttf"))).toMatchObject({
       source: "https://github.com/googlefonts/zcool-xiaowei/",
       acquiredAt: "2026-08-24T11:13:27.000Z",
+      bundledAt: manifest.createdAt,
       license: "SIL Open Font License 1.1",
     });
     const provenance = JSON.parse(strFromU8(archive["provenance.json"])) as {
@@ -131,7 +134,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     expect(provenance.claims[0].evidence[0].sourceVersion.publicLocator).toEqual({
       status: "withheld",
       site: "https://example.test/",
-      reason: "credential_bearing_or_unsupported",
+      reason: "unverified_public_locator",
     });
 
     const bundleText = Object.entries(archive)
@@ -248,6 +251,7 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await chmod(join(dataDirectory, "material-packages", ".staging"), 0o700);
     await interruptedRun.getByRole("button", { name: "重试 HTML 包" }).click();
     await expect(interruptedRun.getByText(/^已由运行 .* 恢复$/)).toBeVisible();
+    expect(await pathExists(join(dataDirectory, "material-packages", ".staging", interrupted.runId))).toBe(false);
     await expect(page.locator("article.material-package-record")).toHaveCount(4);
     await expect(page.locator("li.material-package-run")).toHaveCount(6);
   } finally {

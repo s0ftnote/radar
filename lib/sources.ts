@@ -303,8 +303,10 @@ function persistEntryVersion(sourceId: string, entry: FeedEntry, acquiredAt: str
   ).get(contentId) as { number: number };
   db.prepare(
     `INSERT INTO source_versions
-      (id, content_id, version_number, content_hash, title, body, origin_url, published_at, raw_json, acquired_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, content_id, version_number, content_hash, title, body, origin_url,
+       public_locator_url, public_locator_status, public_site_url,
+       published_at, raw_json, acquired_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     digest(`${contentId}\u0000${contentHash}`),
     contentId,
@@ -313,6 +315,9 @@ function persistEntryVersion(sourceId: string, entry: FeedEntry, acquiredAt: str
     entry.title,
     entry.body,
     entry.originUrl,
+    entry.publicLocatorUrl,
+    entry.publicLocatorStatus,
+    entry.publicSiteUrl,
     entry.publishedAt,
     entry.rawPayload,
     acquiredAt,

@@ -4,6 +4,9 @@ export type FeedEntry = {
   externalId: string;
   title: string;
   originUrl: string;
+  publicLocatorUrl: string | null;
+  publicLocatorStatus: "available" | "withheld_unverified";
+  publicSiteUrl: string | null;
   body: string;
   publishedAt: string | null;
   rawPayload: string;
@@ -93,10 +96,12 @@ function normalizeRssEntry(value: unknown, index: number, feedUrl: string): Feed
   const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
   const entryUrl = text(entry.link);
   const publishedAt = text(entry.pubDate);
+  const originUrl = entryUrl || feedUrl;
   return {
     externalId: text(entry.guid) || entryUrl || `${title}:${publishedAt}`,
     title,
-    originUrl: entryUrl || feedUrl,
+    originUrl,
+    ...unverifiedPublicLocator(originUrl),
     body: text(entry.encoded) || text(entry.description) || "",
     publishedAt: dateOrNull(publishedAt),
     rawPayload: JSON.stringify(entry),
@@ -108,13 +113,33 @@ function normalizeAtomEntry(value: unknown, index: number, feedUrl: string): Fee
   const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
   const entryUrl = atomLink(entry.link);
   const publishedAt = text(entry.published) || text(entry.updated);
+  const originUrl = entryUrl || feedUrl;
   return {
     externalId: text(entry.id) || entryUrl || `${title}:${publishedAt}`,
     title,
-    originUrl: entryUrl || feedUrl,
+    originUrl,
+    ...unverifiedPublicLocator(originUrl),
     body: text(entry.content) || text(entry.summary) || "",
     publishedAt: dateOrNull(publishedAt),
     rawPayload: JSON.stringify(entry),
+  };
+}
+
+function unverifiedPublicLocator(originUrl: string): Pick<
+  FeedEntry,
+  "publicLocatorUrl" | "publicLocatorStatus" | "publicSiteUrl"
+> {
+  let publicSiteUrl: string | null = null;
+  try {
+    const url = new URL(originUrl);
+    if (url.protocol === "http:" || url.protocol === "https:") publicSiteUrl = `${url.origin}/`;
+  } catch {
+    // The raw locator remains evidence in local custody, but is never exported as public.
+  }
+  return {
+    publicLocatorUrl: null,
+    publicLocatorStatus: "withheld_unverified",
+    publicSiteUrl,
   };
 }
 

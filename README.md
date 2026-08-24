@@ -87,7 +87,7 @@ Radar 会先保存 Report 输入快照，再调用适配器；失败可按原快
 - `capability-snapshot.json`：HTML 下载路径及生成时核验状态；
 - `manifest.json`：包身份、固定 Report 修订、文件类型、大小与 SHA-256。
 
-HTML、样式、字体与 PNG 都使用包内相对路径。公开引用只导出来源站点的 `http(s)` origin，不复制可能含会话、授权码或私密路径的原始 URL；精确证据链通过包内的 Report、判断修订、Signal 与来源版本稳定身份回查。Agent token 不写入领域快照、日志或下载包。
+HTML、样式、字体与 PNG 都使用包内相对路径。来源适配器只在能确认公开 canonical locator 时允许物料包导出该地址；当前 RSS/Atom 链路把未经独立确认的原始定位标为 withheld，仅保留不含路径和参数的来源站点提示。精确证据链通过包内的 Report、判断修订、Signal 与来源版本稳定身份回查。Agent token 不写入领域快照、日志或下载包。
 
 ## 验证
 

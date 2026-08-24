@@ -42,7 +42,7 @@ type MaterialPackageSnapshot = {
         title: string;
         publicLocator:
           | { status: "available"; url: string }
-          | { status: "withheld"; site: string | null; reason: "credential_bearing_or_unsupported" };
+          | { status: "withheld"; site: string | null; reason: "unverified_public_locator" };
         publishedAt: string | null;
         acquiredAt: string;
       };
@@ -105,7 +105,9 @@ type SnapshotRow = {
   source_version_id: string;
   source_version_number: number;
   source_title: string;
-  origin_url: string;
+  public_locator_url: string | null;
+  public_locator_status: "available" | "withheld_unverified";
+  public_site_url: string | null;
   published_at: string | null;
   acquired_at: string;
 };
@@ -174,7 +176,7 @@ export function createHtmlMaterialPackageIntentInTransaction(
     throw new Error("HTML 物料包 intent 必须在调用方的数据库事务内登记。");
   }
   const packageId = randomUUID();
-  const snapshot = snapshotReport(projectId, reportRevisionId, packageId);
+  const snapshot = snapshotReport(db, projectId, reportRevisionId, packageId);
   const runId = randomUUID();
   db.prepare(
     `INSERT INTO material_packages (id, project_id, report_revision_id, target, created_at)
@@ -194,6 +196,7 @@ export async function retryHtmlMaterialPackage(
   projectId: string,
   runId: string,
 ): Promise<{ packageId: string }> {
+  cleanupPendingArtifacts(projectId);
   const db = database();
   const row = db.prepare(
     `SELECT run.status, run.input_snapshot_json, run.material_package_id
@@ -421,7 +424,7 @@ async function buildPackageFiles(snapshot: MaterialPackageSnapshot): Promise<Map
         createdBy: "The ZCOOL XiaoWei Project Authors",
         originalCreatedYear: 2018,
         acquiredAt: "2026-08-24T11:13:27.000Z",
-        bundledAt: "2026-08-24T11:13:27.000Z",
+        bundledAt: snapshot.capturedAt,
         license: "SIL Open Font License 1.1",
         usageStatus: "redistributed_under_ofl",
         transformation: "none",
@@ -587,7 +590,13 @@ function renderReferences(snapshot: MaterialPackageSnapshot): string {
         <div><dt>采集时间（UTC）</dt><dd><time datetime="${escapeAttribute(evidence.sourceVersion.acquiredAt)}">${escapeHtml(formatUtc(evidence.sourceVersion.acquiredAt))}</time></dd></div>
       </dl>
     </li>`));
-  return `<section class="report-identity" aria-labelledby="report-identity-title"><h2 id="report-identity-title">固定身份</h2><dl class="reference-chain"><div><dt>物料包</dt><dd>${escapeHtml(snapshot.packageId)}</dd></div><div><dt>Report</dt><dd>${escapeHtml(snapshot.report.id)}</dd></div><div><dt>Report 修订</dt><dd>修订 ${snapshot.report.revisionNumber} · ${escapeHtml(snapshot.report.revisionId)}</dd></div><div><dt>Report 创建时间（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.createdAt)}">${escapeHtml(formatUtc(snapshot.report.createdAt))}</time></dd></div><div><dt>来源截止点（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.sourceCutoffAt)}">${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</time></dd></div></dl></section><section class="references" aria-labelledby="references-title"><h2 id="references-title">完整引用</h2><p class="provenance-note">为避免复制来源会话、授权码或私密路径，包内只公开来源站点，不保存原始定位 URL。请用下列来源版本身份在本地 Radar 回查精确记录。</p><ol>${references.join("")}</ol></section>`;
+  const hasWithheldLocator = snapshot.claims.some((claim) =>
+    claim.evidence.some((evidence) => evidence.sourceVersion.publicLocator.status === "withheld"),
+  );
+  const locatorNotice = hasWithheldLocator
+    ? `<p class="provenance-note">部分引用没有经来源适配器确认的公开 canonical locator。为避免复制来源会话、授权码或私密路径，包内省略其原始定位；请用来源版本身份在本地 Radar 回查精确记录。</p>`
+    : "";
+  return `<section class="report-identity" aria-labelledby="report-identity-title"><h2 id="report-identity-title">固定身份</h2><dl class="reference-chain"><div><dt>物料包</dt><dd>${escapeHtml(snapshot.packageId)}</dd></div><div><dt>Report</dt><dd>${escapeHtml(snapshot.report.id)}</dd></div><div><dt>Report 修订</dt><dd>修订 ${snapshot.report.revisionNumber} · ${escapeHtml(snapshot.report.revisionId)}</dd></div><div><dt>Report 创建时间（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.createdAt)}">${escapeHtml(formatUtc(snapshot.report.createdAt))}</time></dd></div><div><dt>来源截止点（UTC）</dt><dd><time datetime="${escapeAttribute(snapshot.report.sourceCutoffAt)}">${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</time></dd></div></dl></section><section class="references" aria-labelledby="references-title"><h2 id="references-title">完整引用</h2>${locatorNotice}<ol>${references.join("")}</ol></section>`;
 }
 
 async function renderPreviewPng(renderSource: HtmlRenderSource, font: Uint8Array): Promise<Uint8Array> {
@@ -617,11 +626,12 @@ function packageStyles(): string {
 }
 
 function snapshotReport(
+  db: DatabaseSync,
   projectId: string,
   reportRevisionId: string,
   packageId: string,
 ): MaterialPackageSnapshot {
-  const rows = database().prepare(
+  const rows = db.prepare(
     `SELECT report.id AS report_id, revision.id AS report_revision_id,
       revision.revision_number AS report_revision_number, revision.title AS report_title,
       revision.purpose, revision.audience, revision.angle, revision.source_cutoff_at,
@@ -632,7 +642,8 @@ function snapshotReport(
       intelligence_revision.revision_number AS intelligence_revision_number,
       signal.id AS signal_id, signal.evidence_quote,
       version.id AS source_version_id, version.version_number AS source_version_number,
-      version.title AS source_title, version.origin_url, version.published_at, version.acquired_at
+      version.title AS source_title, version.public_locator_url, version.public_locator_status,
+      version.public_site_url, version.published_at, version.acquired_at
      FROM reports AS report
      JOIN report_revisions AS revision ON revision.report_id = report.id
      JOIN report_claims AS claim ON claim.report_revision_id = revision.id
@@ -670,7 +681,13 @@ function snapshotReport(
         id: row.source_version_id,
         revisionNumber: row.source_version_number,
         title: row.source_title,
-        publicLocator: publicSourceLocator(row.origin_url),
+        publicLocator: row.public_locator_status === "available" && row.public_locator_url
+          ? { status: "available", url: row.public_locator_url }
+          : {
+              status: "withheld",
+              site: row.public_site_url,
+              reason: "unverified_public_locator",
+            },
         publishedAt: row.published_at,
         acquiredAt: row.acquired_at,
       },
@@ -707,15 +724,36 @@ function recoverInterruptedRuns(projectId: string): void {
   ).all(projectId, processInstanceId) as Array<{ id: string; material_package_id: string }>;
   const packageRoot = join(radarDataDirectory(), "material-packages");
   const failRun = db.prepare(
-    `UPDATE material_package_runs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
+    `UPDATE material_package_runs
+     SET status = 'failed', cleanup_pending = 1, error = ?, completed_at = ? WHERE id = ?`,
   );
   const interruptedError = "HTML 物料包生成失败：Radar 在文件写入完成前停止；可以按原固定快照重试。";
   const failedAt = new Date().toISOString();
   for (const row of rows) {
     failRun.run(interruptedError, failedAt, row.id);
   }
+  cleanupPendingArtifacts(projectId);
+}
+
+function cleanupPendingArtifacts(projectId: string): void {
+  const db = database();
+  const rows = db.prepare(
+    `SELECT run.id, run.material_package_id
+     FROM material_package_runs AS run
+     JOIN material_packages AS package ON package.id = run.material_package_id
+     WHERE package.project_id = ? AND run.cleanup_pending = 1`,
+  ).all(projectId) as Array<{ id: string; material_package_id: string }>;
+  const packageRoot = join(radarDataDirectory(), "material-packages");
+  const markClean = db.prepare(
+    `UPDATE material_package_runs
+     SET cleanup_pending = 0,
+       error = CASE WHEN instr(error, '清理未完成') > 0 THEN error || ' 旧文件现已清理。' ELSE error END
+     WHERE id = ?`,
+  );
   const recordCleanupFailure = db.prepare(
-    `UPDATE material_package_runs SET error = error || ? WHERE id = ?`,
+    `UPDATE material_package_runs
+     SET error = CASE WHEN instr(error, '清理未完成') = 0 THEN error || ? ELSE error END
+     WHERE id = ?`,
   );
   for (const row of rows) {
     const failures: string[] = [];
@@ -730,7 +768,9 @@ function recoverInterruptedRuns(projectId: string): void {
       }
     }
     if (failures.length > 0) {
-      recordCleanupFailure.run(` 清理未完成（${failures.join("、")}）；恢复写权限后重试会再次清理。`, row.id);
+      recordCleanupFailure.run(` 清理未完成（${failures.join("、")}）；恢复写权限后刷新或重试会再次清理。`, row.id);
+    } else {
+      markClean.run(row.id);
     }
   }
 }
@@ -841,24 +881,4 @@ function renderPublicLocator(locator: MaterialPackageSnapshot["claims"][number][
   }
   const site = locator.site ? ` · 来源站点（非原文定位）${escapeHtml(locator.site)}` : "";
   return `<span class="withheld-locator">原始定位已省略${site}</span>`;
-}
-
-function publicSourceLocator(
-  value: string,
-): MaterialPackageSnapshot["claims"][number]["evidence"][number]["sourceVersion"]["publicLocator"] {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return { status: "withheld", site: null, reason: "credential_bearing_or_unsupported" };
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return { status: "withheld", site: null, reason: "credential_bearing_or_unsupported" };
-  }
-  const site = `${url.origin}/`;
-  if (url.username || url.password || url.search) {
-    return { status: "withheld", site, reason: "credential_bearing_or_unsupported" };
-  }
-  url.hash = "";
-  return { status: "available", url: url.toString() };
 }

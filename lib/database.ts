@@ -73,6 +73,9 @@ function initializeSchema(db: DatabaseSync): void {
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       origin_url TEXT NOT NULL,
+      public_locator_url TEXT,
+      public_locator_status TEXT NOT NULL CHECK (public_locator_status IN ('available', 'withheld_unverified')),
+      public_site_url TEXT,
       published_at TEXT,
       raw_json TEXT NOT NULL,
       acquired_at TEXT NOT NULL,
@@ -230,6 +233,7 @@ function initializeSchema(db: DatabaseSync): void {
       status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
       input_snapshot_json TEXT NOT NULL,
       artifact_directory TEXT,
+      cleanup_pending INTEGER NOT NULL DEFAULT 0 CHECK (cleanup_pending IN (0, 1)),
       error TEXT,
       started_at TEXT NOT NULL,
       completed_at TEXT
