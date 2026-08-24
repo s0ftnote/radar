@@ -6,6 +6,7 @@ export type FeedFixture = {
   delayNextResponse(): void;
   breakFeed(): void;
   restoreFeed(): void;
+  useCredentialedEntryUrl(): void;
   close(): Promise<void>;
 };
 
@@ -13,6 +14,7 @@ export async function startFeedFixture(): Promise<FeedFixture> {
   let revision = 1;
   let malformed = false;
   let delayNextResponse = false;
+  let credentialedEntryUrl = false;
   const server = createServer(async (request, response) => {
     if (request.url === "/broken") {
       response.writeHead(200, { "content-type": "application/xml" });
@@ -38,7 +40,7 @@ export async function startFeedFixture(): Promise<FeedFixture> {
       await new Promise((resolve) => setTimeout(resolve, 2_000));
     }
     response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
-    response.end(malformed ? "<rss><channel>broken" : rssDocument(revision));
+    response.end(malformed ? "<rss><channel>broken" : rssDocument(revision, credentialedEntryUrl));
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -51,6 +53,7 @@ export async function startFeedFixture(): Promise<FeedFixture> {
     delayNextResponse: () => (delayNextResponse = true),
     breakFeed: () => (malformed = true),
     restoreFeed: () => (malformed = false),
+    useCredentialedEntryUrl: () => (credentialedEntryUrl = true),
     close: () => closeServer(server),
   };
 }
@@ -87,7 +90,10 @@ function fallbackIdentityRssDocument(): string {
     </rss>`;
 }
 
-function rssDocument(revision: number): string {
+function rssDocument(revision: number, credentialedEntryUrl: boolean): string {
+  const entryUrl = credentialedEntryUrl
+    ? `https://example.test/session/source-fixture-secret/fixture-entry-${revision}`
+    : `https://example.test/fixture-entry-${revision}`;
   return `<?xml version="1.0" encoding="UTF-8" ?>
     <rss version="2.0">
       <channel>
@@ -97,7 +103,7 @@ function rssDocument(revision: number): string {
         <item>
           <guid isPermaLink="false">fixture-entry-1</guid>
           <title>Local-first tools ${revision === 1 ? "gain traction" : "become inspectable"}</title>
-          <link>https://example.test/fixture-entry-${revision}</link>
+          <link>${entryUrl}</link>
           <pubDate>Mon, 24 Aug 2026 10:00:00 GMT</pubDate>
           <description>Revision ${revision}: developers want evidence they can keep.</description>
         </item>

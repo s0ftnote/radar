@@ -48,19 +48,21 @@ export async function startReportAgentFixture(): Promise<ReportAgentFixture> {
       const revisions = Array.isArray(body.intelligenceRevisions)
         ? body.intelligenceRevisions.map(asRecord).filter((value): value is Record<string, unknown> => value !== null)
         : [];
+      const claims = revisions.flatMap((revision) => {
+        const signals = Array.isArray(revision.signals)
+          ? revision.signals.map(asRecord).filter((value): value is Record<string, unknown> => value !== null)
+          : [];
+        const count = angle.includes("中断 HTML 包") ? 40 : 1;
+        return Array.from({ length: count }, (_, index) => ({
+          text: `${String(revision.title)}：${String(revision.judgment)}${count > 1 ? ` 第 ${index + 1} 条固定主张用于验证进程中断后的确定性恢复。`.repeat(4) : ""}`,
+          epistemicRole: "inference",
+          intelligenceItemRevisionId: String(revision.id),
+          signalIds: signals.slice(0, 1).map((signal) => String(signal.id)),
+        }));
+      });
       sendJson(response, 200, {
         title: `${String(body.purpose)} · 固定快照`,
-        claims: revisions.map((revision) => {
-          const signals = Array.isArray(revision.signals)
-            ? revision.signals.map(asRecord).filter((value): value is Record<string, unknown> => value !== null)
-            : [];
-          return {
-            text: `${String(revision.title)}：${String(revision.judgment)}`,
-            epistemicRole: "inference",
-            intelligenceItemRevisionId: String(revision.id),
-            signalIds: signals.slice(0, 1).map((signal) => String(signal.id)),
-          };
-        }),
+        claims,
       });
       return;
     }
