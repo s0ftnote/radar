@@ -431,11 +431,13 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .source-summary { display: flex; justify-content: space-between; gap: 24px; align-items: start; }
 
+.source-summary > div { min-width: 0; }
+
 .source-summary h3 { margin: 0 0 2px; font-size: 17px; }
 
 .source-summary a { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 
-.source-health { padding: 4px 9px; color: var(--green-ink); background: var(--green-soft); border-radius: 999px; font-size: 13px; font-weight: 700; }
+.source-health { flex: none; padding: 4px 9px; color: var(--green-ink); background: var(--green-soft); border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 .source-health-error { color: var(--error); background: var(--error-soft); }
 

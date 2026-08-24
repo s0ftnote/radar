@@ -87,11 +87,13 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
       </div>
 
       <p className="network-help">可以添加多个来源；停止使用不会删除已经取得的版本。</p>
-      {notice && (
-        <p className={`network-notice ${notice.kind === "error" ? "network-notice-error" : ""}`} aria-live="polite">
-          {notice.message}
-        </p>
-      )}
+      <p
+        className={`network-notice ${notice?.kind === "error" ? "network-notice-error" : ""}`}
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {notice?.message ?? ""}
+      </p>
 
       {sources.length === 0 ? (
         <div className="network-empty">
