@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { DatabaseSync } from "node:sqlite";
 import { database } from "@/lib/database";
 import { fetchFeed, type FeedEntry } from "@/lib/feed";
 
@@ -20,6 +21,7 @@ export type ProjectSource = {
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
+  usedByProjectCount: number;
   latestRun: {
     status: "not_collected" | "running" | "success" | "failed";
     newVersionCount: number;
@@ -27,6 +29,15 @@ export type ProjectSource = {
     error: string | null;
   };
   versions: SourceVersion[];
+};
+
+export type AvailableInstanceSource = {
+  id: string;
+  name: string;
+  url: string;
+  healthStatus: "healthy" | "unhealthy";
+  versionCount: number;
+  usedByProjectCount: number;
 };
 
 type SourceRow = {
@@ -38,6 +49,7 @@ type SourceRow = {
   last_attempt_at: string | null;
   last_success_at: string | null;
   last_error: string | null;
+  used_by_project_count: number;
   run_status: "running" | "success" | "failed" | null;
   new_version_count: number | null;
   reused_version_count: number | null;
@@ -77,20 +89,23 @@ export async function validateAndLinkSource(projectId: string, rawUrl: string): 
          VALUES (?, ?, ?, 'healthy', ?, ?)`,
       ).run(sourceId, url, feed.name, now, now);
     }
-    db.prepare(
-      `INSERT INTO project_source_configurations
-        (project_id, source_id, active, added_at, removed_at)
-       VALUES (?, ?, 1, ?, NULL)
-       ON CONFLICT(project_id, source_id) DO UPDATE SET active = 1, removed_at = NULL`,
-    ).run(projectId, sourceId, now);
-    db.prepare(
-      `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
-       SELECT ?, version.id, ?
-       FROM source_versions AS version
-       JOIN source_contents AS content ON content.id = version.content_id
-       WHERE content.source_id = ?
-       ON CONFLICT(project_id, source_version_id) DO NOTHING`,
-    ).run(projectId, now, sourceId);
+    linkSourceToProject(db, projectId, sourceId, now);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return getProjectSource(projectId, sourceId);
+}
+
+export function linkSavedSource(projectId: string, sourceId: string): ProjectSource {
+  const db = database();
+  const source = db.prepare("SELECT id FROM instance_sources WHERE id = ?").get(sourceId);
+  if (!source) throw new Error("找不到这个已保存来源。");
+  const now = new Date().toISOString();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    linkSourceToProject(db, projectId, sourceId, now);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -185,6 +200,41 @@ export function listProjectSources(projectId: string): ProjectSource[] {
   return rows.map((row) => mapProjectSource(row, listSourceVersions(projectId, row.id)));
 }
 
+export function listAvailableInstanceSources(projectId: string): AvailableInstanceSource[] {
+  return database().prepare(
+    `SELECT source.id, source.name, source.url, source.health_status,
+      COUNT(DISTINCT version.id) AS version_count,
+      COUNT(DISTINCT CASE WHEN config.active = 1 THEN config.project_id END) AS used_by_project_count
+     FROM instance_sources AS source
+     LEFT JOIN source_contents AS content ON content.source_id = source.id
+     LEFT JOIN source_versions AS version ON version.content_id = content.id
+     LEFT JOIN project_source_configurations AS config ON config.source_id = source.id
+     WHERE NOT EXISTS (
+       SELECT 1 FROM project_source_configurations AS current
+       WHERE current.project_id = ? AND current.source_id = source.id
+     )
+     GROUP BY source.id
+     ORDER BY source.created_at DESC`,
+  ).all(projectId).map((row) => {
+    const source = row as {
+      id: string;
+      name: string;
+      url: string;
+      health_status: "healthy" | "unhealthy";
+      version_count: number;
+      used_by_project_count: number;
+    };
+    return {
+      id: source.id,
+      name: source.name,
+      url: source.url,
+      healthStatus: source.health_status,
+      versionCount: source.version_count,
+      usedByProjectCount: source.used_by_project_count,
+    };
+  });
+}
+
 function getProjectSource(projectId: string, sourceId: string): ProjectSource {
   const row = database().prepare(
     `${sourceSelection} WHERE config.project_id = ? AND source.id = ?`,
@@ -193,9 +243,33 @@ function getProjectSource(projectId: string, sourceId: string): ProjectSource {
   return mapProjectSource(row, listSourceVersions(projectId, row.id));
 }
 
+function linkSourceToProject(
+  db: DatabaseSync,
+  projectId: string,
+  sourceId: string,
+  visibleAt: string,
+): void {
+  db.prepare(
+    `INSERT INTO project_source_configurations
+      (project_id, source_id, active, added_at, removed_at)
+     VALUES (?, ?, 1, ?, NULL)
+     ON CONFLICT(project_id, source_id) DO UPDATE SET active = 1, removed_at = NULL`,
+  ).run(projectId, sourceId, visibleAt);
+  db.prepare(
+    `INSERT INTO project_source_versions (project_id, source_version_id, visible_at)
+     SELECT ?, version.id, ?
+     FROM source_versions AS version
+     JOIN source_contents AS content ON content.id = version.content_id
+     WHERE content.source_id = ?
+     ON CONFLICT(project_id, source_version_id) DO NOTHING`,
+  ).run(projectId, visibleAt, sourceId);
+}
+
 const sourceSelection = `
   SELECT source.id, source.name, source.url, config.active,
     source.health_status, source.last_attempt_at, source.last_success_at, source.last_error,
+    (SELECT COUNT(*) FROM project_source_configurations AS usage
+     WHERE usage.source_id = source.id AND usage.active = 1) AS used_by_project_count,
     latest_run.status AS run_status, latest_run.new_version_count, latest_run.reused_version_count
   FROM project_source_configurations AS config
   JOIN instance_sources AS source ON source.id = config.source_id
@@ -276,6 +350,7 @@ function mapProjectSource(row: SourceRow, versions: SourceVersion[]): ProjectSou
     lastAttemptAt: row.last_attempt_at,
     lastSuccessAt: row.last_success_at,
     lastError: row.last_error,
+    usedByProjectCount: row.used_by_project_count,
     latestRun: {
       status: row.run_status ?? "not_collected",
       newVersionCount: row.new_version_count ?? 0,

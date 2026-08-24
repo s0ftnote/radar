@@ -95,6 +95,18 @@ test("用户可以验证、采集、复用、修订并停止公开 RSS 来源", 
     await page.getByRole("button", { name: "停止使用 Radar Fixture Feed" }).click();
     await expect(page.locator(".network-notice")).toHaveText("已停止后续采集，历史版本保留");
     await expect(radarSource.getByText("2 个不可变版本")).toBeVisible();
+    await page.getByRole("button", { name: "重新接入 Radar Fixture Feed" }).click();
+    await expect(page.locator(".network-notice")).toHaveText(
+      "已从本地实例复用 Radar Fixture Feed 和 2 个来源版本；没有重新取得内容。",
+    );
+    await expect(page.getByRole("button", { name: "采集 Radar Fixture Feed" })).toBeEnabled();
+    await page.getByRole("button", { name: "停止使用 Radar Fixture Feed" }).click();
+    await expect(page.locator(".network-notice")).toHaveText("已停止后续采集，历史版本保留");
+    await page.getByRole("button", { name: "停止使用 Empty Radar Fixture Feed" }).click();
+    await page.getByRole("button", { name: "停止使用 Fallback Identity Feed" }).click();
+    await expect(page.getByText(
+      "在 Source Network 中重新接入已停止来源，即可恢复手动采集；也可以验证新的公开 URL。既有版本继续保留。",
+    )).toBeVisible();
 
     await context.close();
     await stopRadar(radar);

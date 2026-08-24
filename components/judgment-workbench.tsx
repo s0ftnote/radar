@@ -122,7 +122,7 @@ export function JudgmentWorkbench({
                           <div><dt>Signal</dt><dd>{evidence.signalId}</dd></div>
                           <div><dt>Source Network 来源</dt><dd><a href={evidence.sourceUrl} target="_blank" rel="noreferrer">{evidence.sourceName}</a> · {evidence.sourceId}</dd></div>
                           <div><dt>来源内容</dt><dd>{evidence.sourceContentId}</dd></div>
-                          <div><dt>来源版本</dt><dd>{evidence.sourceVersionId} · 版本 {evidence.sourceVersionNumber}</dd></div>
+                          <div><dt>来源版本</dt><dd><a href={`#source-version-${evidence.sourceVersionId}`}>{evidence.sourceVersionId} · 版本 {evidence.sourceVersionNumber}</a></dd></div>
                           <div><dt>Radar Brief 修订</dt><dd>{evidence.briefRevisionId}</dd></div>
                         </dl>
                       </section>
