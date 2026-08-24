@@ -5,7 +5,7 @@ import { JudgmentWorkbench } from "@/components/judgment-workbench";
 import { SourceNetwork } from "@/components/source-network";
 import { getIntelligenceWorkspace, type IntelligenceWorkspace } from "@/lib/intelligence";
 import { getProject } from "@/lib/projects";
-import { listProjectSources, type ProjectSource } from "@/lib/sources";
+import { listAvailableInstanceSources, listProjectSources, type ProjectSource } from "@/lib/sources";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +15,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
   if (!project) notFound();
   const sources = listProjectSources(projectId);
+  const availableSources = listAvailableInstanceSources(projectId);
   const intelligenceWorkspace = getIntelligenceWorkspace(projectId);
-  const sourceState = projectSourceState(sources, intelligenceWorkspace, project.currentBriefRevision.id);
+  const sourceState = projectSourceState(
+    sources,
+    intelligenceWorkspace,
+    project.currentBriefRevision.id,
+    availableSources.length,
+  );
 
   return (
     <AppShell>
@@ -67,7 +73,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           </aside>
         </div>
 
-        <SourceNetwork projectId={projectId} sources={sources} />
+        <SourceNetwork projectId={projectId} sources={sources} availableSources={availableSources} />
         <JudgmentWorkbench projectId={projectId} workspace={intelligenceWorkspace} />
       </main>
     </AppShell>
@@ -78,9 +84,18 @@ function projectSourceState(
   sources: ProjectSource[],
   workspace: IntelligenceWorkspace,
   briefRevisionId: string,
+  availableSourceCount: number,
 ) {
   const activeSources = sources.filter((source) => source.active);
   if (activeSources.length === 0) {
+    if (sources.length === 0 && availableSourceCount > 0) {
+      return {
+        badge: "可复用来源",
+        badgeClass: "status-ready",
+        heading: "接入已有来源",
+        guidance: "本地实例已有取得过的来源。直接接入这个 Project，即可复用版本并开始独立判断。",
+      };
+    }
     return sources.length === 0
       ? {
           badge: "等待来源",

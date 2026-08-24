@@ -417,11 +417,27 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .network-notice-error { color: var(--error); }
 
+.available-sources { margin-top: 20px; padding: 20px 0 4px; border-top: 1px solid var(--line); }
+
+.available-sources > div:first-child { display: flex; justify-content: space-between; gap: 18px; align-items: baseline; }
+
+.available-sources h3 { margin: 0; font-size: 15px; }
+
+.available-sources > div:first-child p { margin: 0; color: var(--muted); font-size: 13px; }
+
+.available-source-list { margin-top: 12px; border-top: 1px solid var(--line); }
+
+.available-source { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+
+.available-source p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+
 .network-empty { padding: 68px 20px 48px; text-align: center; }
 
 .network-empty strong { font-size: 17px; }
 
 .network-empty p { max-width: 54ch; margin: 6px auto 0; color: var(--muted); }
+
+.network-empty-compact { padding-top: 38px; }
 
 .source-list { margin-top: 18px; }
 
@@ -443,7 +459,7 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .source-health-stopped { color: var(--muted); background: var(--surface-soft); }
 
-.source-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 22px 0 0; }
+.source-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin: 22px 0 0; }
 
 .source-facts div { padding-top: 12px; border-top: 1px solid var(--line); }
 
@@ -640,6 +656,10 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
   .workspace-grid,
   .detail-grid { grid-template-columns: 1fr; }
   .source-network-heading { grid-template-columns: 1fr; gap: 22px; }
+  .available-sources > div:first-child,
+  .available-source { align-items: stretch; flex-direction: column; }
+  .available-source { display: flex; }
+  .available-source .button { width: 100%; }
   .create-project { position: static; grid-row: 1; }
   .project-list { min-height: 320px; }
   .project-rows a { align-items: flex-start; gap: 16px; }
