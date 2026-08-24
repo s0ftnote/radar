@@ -3,12 +3,23 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 export type ReportAgentFixture = {
   endpoint: string;
   token: string;
+  waitForInterruptedGeneration(): Promise<void>;
+  releaseInterruptedGeneration(): void;
   close(): Promise<void>;
 };
 
 export async function startReportAgentFixture(): Promise<ReportAgentFixture> {
   const token = "report-fixture-secret";
   let failRecoveryAngleOnce = true;
+  let interruptGenerationOnce = true;
+  let markInterruptedGenerationStarted!: () => void;
+  let releaseInterruptedGeneration!: () => void;
+  const interruptedGenerationStarted = new Promise<void>((resolve) => {
+    markInterruptedGenerationStarted = resolve;
+  });
+  const interruptedGenerationRelease = new Promise<void>((resolve) => {
+    releaseInterruptedGeneration = resolve;
+  });
   const server = createServer(async (request, response) => {
     if (request.method !== "POST" || request.url !== "/agent") {
       response.writeHead(404).end();
@@ -24,6 +35,11 @@ export async function startReportAgentFixture(): Promise<ReportAgentFixture> {
     await new Promise((resolve) => setTimeout(resolve, 400));
     if (operation === "generate_report") {
       const angle = String(body.angle);
+      if (angle.includes("进程中断") && interruptGenerationOnce) {
+        interruptGenerationOnce = false;
+        markInterruptedGenerationStarted();
+        await interruptedGenerationRelease;
+      }
       if (angle.includes("先失败") && failRecoveryAngleOnce) {
         failRecoveryAngleOnce = false;
         sendJson(response, 503, { error: "fixture report generation failed" });
@@ -68,6 +84,8 @@ export async function startReportAgentFixture(): Promise<ReportAgentFixture> {
   return {
     endpoint: `http://127.0.0.1:${address.port}/agent`,
     token,
+    waitForInterruptedGeneration: () => interruptedGenerationStarted,
+    releaseInterruptedGeneration,
     close: () => closeServer(server),
   };
 }

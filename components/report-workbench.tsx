@@ -21,6 +21,7 @@ export function ReportWorkbench({
   const [notice, setNotice] = useState<Notice>(null);
   const [selectedRevisionIds, setSelectedRevisionIds] = useState<Set<string>>(new Set());
   const isBusy = pending !== null;
+  const resolvedByRunId = indexResolvedRuns(workspace);
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,7 +197,9 @@ export function ReportWorkbench({
           <p className="history-empty">尚未生成；运行会先保存固定输入，再调用 Agent。</p>
         ) : (
           <ol>
-            {workspace.runs.map((run) => (
+            {workspace.runs.map((run) => {
+              const resolvingRun = resolvedByRunId.get(run.id);
+              return (
               <li className="report-run" key={run.id}>
                 <div>
                   <span className={`run-status run-status-${run.status === "success" ? "matched" : run.status}`}>{runStatus(run.status)}</span>
@@ -225,18 +228,38 @@ export function ReportWorkbench({
                     </div>
                   ))}
                 </section>
-                {run.status === "failed" && (
+                {run.status === "failed" && resolvingRun && (
+                  <p className="report-run-resolution">已由运行 {resolvingRun.id} 恢复</p>
+                )}
+                {run.status === "failed" && !resolvingRun && (
                   <button className="text-action" type="button" disabled={isBusy} onClick={() => retry(run.id)}>
                     {pending === `retry:${run.id}` ? "正在重试…" : "重试这次生成"}
                   </button>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ol>
         )}
       </section>
     </section>
   );
+}
+
+function indexResolvedRuns(workspace: ReportWorkspace): Map<string, ReportWorkspace["runs"][number]> {
+  const runsById = new Map(workspace.runs.map((run) => [run.id, run]));
+  const resolvedByRunId = new Map<string, ReportWorkspace["runs"][number]>();
+  for (const run of workspace.runs) {
+    if (run.status !== "success") continue;
+    const visited = new Set<string>();
+    let ancestorId = run.retriedFromRunId;
+    while (ancestorId && !visited.has(ancestorId)) {
+      visited.add(ancestorId);
+      if (!resolvedByRunId.has(ancestorId)) resolvedByRunId.set(ancestorId, run);
+      ancestorId = runsById.get(ancestorId)?.retriedFromRunId ?? null;
+    }
+  }
+  return resolvedByRunId;
 }
 
 function epistemicRoleLabel(

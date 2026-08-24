@@ -719,7 +719,7 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .report-claim-heading { display: flex; gap: 10px; align-items: baseline; }
 
-.report-claim-heading > span { flex: none; padding: 2px 7px; color: var(--green-ink); background: var(--green-soft); border-radius: 999px; font-size: 13px; font-weight: 800; }
+.report-claim-heading > span { flex: none; padding: 2px 7px; color: var(--muted); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 800; }
 
 .report-claim-heading > p { max-width: 76ch; margin: 0; font-size: 17px; font-weight: 700; line-height: 1.55; }
 
@@ -746,6 +746,8 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 .report-run-meta a { color: var(--green-ink); font-weight: 700; }
 
 .report-run > .report-run-error { color: var(--error); }
+
+.report-run > .report-run-resolution { color: var(--green-ink); font-weight: 700; }
 
 .report-run-input { display: grid; gap: 6px; margin-top: 10px; }
 

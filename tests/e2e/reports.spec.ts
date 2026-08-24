@@ -6,7 +6,7 @@ import { startFeedFixture } from "./support/feed-fixture";
 import { startRadar, stopRadar } from "./support/radar-process";
 import { startReportAgentFixture } from "./support/report-agent-fixture";
 
-test.setTimeout(90_000);
+test.setTimeout(120_000);
 
 test("用户从情报修订生成固定且可追溯的 Report", async ({ browser }) => {
   const dataDirectory = await mkdtemp(join(tmpdir(), "radar-reports-"));
@@ -95,6 +95,8 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
     await expect(page.locator("article.report-record")).toHaveCount(3);
     await expect(page.getByText("Agent 返回 HTTP 503")).toBeVisible();
     await expect(page.locator("li.report-run").first().getByText(/^重试自运行/)).toBeVisible();
+    await expect(failedRun.getByText(/^已由运行 .* 恢复$/)).toBeVisible();
+    await expect(failedRun.getByRole("button", { name: "重试这次生成" })).toHaveCount(0);
 
     feed.publishChangedEntry();
     await page.getByRole("button", { name: "采集 Radar Fixture Feed" }).click();
@@ -121,6 +123,31 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
     await expect(page.locator("article.report-record").getByText(
       "Revision 2: developers want evidence they can keep.",
     )).toHaveCount(0);
+
+    await page.getByLabel("选择 可报告的本地证据需求 修订 1").check();
+    await page.getByLabel("内容目的").fill("验证中断恢复");
+    await page.getByLabel("目标受众").fill("本地运维者");
+    await page.getByLabel("核心角度").fill("进程中断后按固定快照恢复");
+    await page.getByRole("button", { name: "生成 Report" }).click();
+    await agent.waitForInterruptedGeneration();
+    await stopRadar(radar);
+    agent.releaseInterruptedGeneration();
+    await context.close();
+
+    radar = await startRadar(dataDirectory, 33123, {
+      RADAR_AGENT_ENDPOINT: agent.endpoint,
+      RADAR_AGENT_TOKEN: agent.token,
+    });
+    context = await browser.newContext();
+    page = await context.newPage();
+    await page.goto(projectUrl);
+    await expect(page.getByRole("heading", { name: "重试 Report 生成" })).toBeVisible();
+    const interruptedRun = page.locator("li.report-run").filter({ hasText: "进程中断后按固定快照恢复" });
+    await expect(interruptedRun).toContainText("Radar 在 Report Agent 返回前停止");
+    await interruptedRun.getByRole("button", { name: "重试这次生成" }).click();
+    await expect(page.locator("article.report-record")).toHaveCount(4);
+    await expect(interruptedRun.getByText(/^已由运行 .* 恢复$/)).toBeVisible();
+    await expect(interruptedRun.getByRole("button", { name: "重试这次生成" })).toHaveCount(0);
   } finally {
     await context.close().catch(() => undefined);
     await stopRadar(radar).catch(() => undefined);
