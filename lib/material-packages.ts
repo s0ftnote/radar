@@ -140,11 +140,7 @@ export async function createHtmlMaterialPackage(
 ): Promise<{ packageId: string }> {
   const packageId = randomUUID();
   const snapshot = snapshotReport(projectId, reportRevisionId, packageId);
-  database().prepare(
-    `INSERT INTO material_packages (id, project_id, report_revision_id, target, created_at)
-     VALUES (?, ?, ?, 'html', ?)`,
-  ).run(packageId, projectId, reportRevisionId, snapshot.capturedAt);
-  await executePackageRun(snapshot, null);
+  await executePackageRun(snapshot, null, { projectId, reportRevisionId });
   return { packageId };
 }
 
@@ -248,16 +244,30 @@ export async function readMaterialPackageDownload(
 async function executePackageRun(
   snapshot: MaterialPackageSnapshot,
   retriedFromRunId: string | null,
+  createPackage?: { projectId: string; reportRevisionId: string },
 ): Promise<void> {
   const db = database();
   const runId = randomUUID();
   const startedAt = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO material_package_runs
-      (id, material_package_id, retried_from_run_id, process_instance_id,
-       status, input_snapshot_json, started_at)
-     VALUES (?, ?, ?, ?, 'running', ?, ?)`,
-  ).run(runId, snapshot.packageId, retriedFromRunId, processInstanceId, JSON.stringify(snapshot), startedAt);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    if (createPackage) {
+      db.prepare(
+        `INSERT INTO material_packages (id, project_id, report_revision_id, target, created_at)
+         VALUES (?, ?, ?, 'html', ?)`,
+      ).run(snapshot.packageId, createPackage.projectId, createPackage.reportRevisionId, snapshot.capturedAt);
+    }
+    db.prepare(
+      `INSERT INTO material_package_runs
+        (id, material_package_id, retried_from_run_id, process_instance_id,
+         status, input_snapshot_json, started_at)
+       VALUES (?, ?, ?, ?, 'running', ?, ?)`,
+    ).run(runId, snapshot.packageId, retriedFromRunId, processInstanceId, JSON.stringify(snapshot), startedAt);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 
   try {
     const artifactDirectory = await writePackageArtifacts(snapshot, runId);
@@ -443,7 +453,7 @@ function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
   <main>
     <article>
       <header>
-        <p class="kicker">Radar · HTML 平台物料包</p>
+        <div class="document-masthead"><strong>Radar</strong><span>HTML 平台物料包</span></div>
         <h1>${escapeHtml(snapshot.report.title)}</h1>
         <p class="angle">${escapeHtml(snapshot.report.angle)}</p>
         <dl>
@@ -468,7 +478,7 @@ function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
 function renderProvenanceHtml(snapshot: MaterialPackageSnapshot): string {
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'"><title>${escapeHtml(snapshot.report.title)} · 完整引用</title><link rel="stylesheet" href="assets/styles.css"></head>
-<body><main><article><header><p class="kicker">Radar · Provenance</p><h1>${escapeHtml(snapshot.report.title)}</h1></header>${renderReferences(snapshot)}</article></main></body></html>`;
+<body><main><article><header><div class="document-masthead"><strong>Radar</strong><span>完整引用</span></div><h1>${escapeHtml(snapshot.report.title)}</h1></header>${renderReferences(snapshot)}</article></main></body></html>`;
 }
 
 function renderReferences(snapshot: MaterialPackageSnapshot): string {
@@ -501,7 +511,7 @@ async function renderPreviewPng(snapshot: MaterialPackageSnapshot): Promise<Uint
 }
 
 function packageStyles(): string {
-  return `:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:16px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:16px}h1{max-width:22ch;margin:8px 0 14px;font-size:clamp(32px,7vw,54px);line-height:1.15;letter-spacing:-.035em}.kicker{margin:0;color:var(--green);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.angle{max-width:62ch;color:var(--muted);font-size:19px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}.preview{display:block;width:100%;height:auto;margin:36px 0;border:1px solid var(--line);border-radius:10px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:19px;font-weight:700}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:2px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl{grid-template-columns:1fr}.angle{font-size:17px}.claim p{font-size:17px}}`;
+  return `:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:16px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:16px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--green);letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font-size:clamp(32px,7vw,54px);line-height:1.15;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:19px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}.preview{display:block;width:100%;height:auto;margin:36px 0;border:1px solid var(--line);border-radius:10px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:19px;font-weight:700}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:2px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl{grid-template-columns:1fr}.angle{font-size:17px}.claim p{font-size:17px}}`;
 }
 
 function snapshotReport(
@@ -699,8 +709,9 @@ function publicCitationUrl(value: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") return "";
   url.username = "";
   url.password = "";
+  url.hash = "";
   for (const key of [...url.searchParams.keys()]) {
-    if (/(?:^|_)(?:access[_-]?token|api[_-]?key|auth|authorization|credential|password|secret|signature)(?:$|_)/i.test(key)) {
+    if (/(?:^|[_-])(?:access[_-]?token|token|api[_-]?key|key|auth(?:orization)?|credential|password|passwd|secret|signature|sig)(?:$|[_-])/i.test(key)) {
       url.searchParams.delete(key);
     }
   }

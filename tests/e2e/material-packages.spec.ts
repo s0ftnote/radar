@@ -53,7 +53,6 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     await expect(preview.getByText("可报告的本地证据需求：开发者需要把本地证据链组织成可追溯主张。")).toBeVisible();
     await expect(preview.getByRole("heading", { name: "完整引用" })).toBeVisible();
     await expect(preview.getByRole("img", { name: "离线证据交付 · 固定快照的 PNG 预览" })).toBeVisible();
-
     const downloadPromise = page.waitForEvent("download");
     await firstPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
     const download = await downloadPromise;

@@ -156,7 +156,6 @@ export function MaterialPackageWorkbench({
                     title={`${materialPackage.reportTitle}的离线 HTML 预览`}
                     src={`/api/projects/${projectId}/material-packages/${materialPackage.id}/files/index.html`}
                     sandbox="allow-same-origin"
-                    loading="lazy"
                   />
                 </div>
               ) : (

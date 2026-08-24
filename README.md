@@ -75,6 +75,19 @@ Radar 会向同一 endpoint 发送 `POST`，并用 `x-radar-operation` 标明操
 
 Radar 会先保存 Report 输入快照，再调用适配器；失败可按原快照重试，成功生成的历史 Report 不会因后续来源或 Signal 变化而改写。
 
+每次成功生成 Report 后，Radar 会自动尝试派生一份独立的 HTML 平台物料包。物料包保存在 `RADAR_DATA_DIR/material-packages/`，可在 Project 页面预览或下载 ZIP；失败只影响本次包运行，不会回滚 Report。成功 Report 也可以单独补发新包，失败运行可以按原固定快照重试。
+
+下载包以 `index.html` 为离线入口，并明确分离：
+
+- `editorial.json`：标题、目的、受众、角度与有序主张；
+- `render-source.json`：与具体渲染器解耦的语义块和资产关系；
+- `assets/preview.png`：由同一 render source 派生的 PNG 预览；
+- `provenance.html`、`provenance.json`、`asset-provenance.json`：人类可读引用、机器映射与资产生成记录；
+- `capability-snapshot.json`：HTML 下载路径及生成时核验状态；
+- `manifest.json`：包身份、固定 Report 修订、文件类型、大小与 SHA-256。
+
+HTML 与样式、PNG 都使用包内相对路径；来源 URL 会移除 URL 用户信息与常见凭据参数，Agent token 不写入领域快照、日志或下载包。
+
 ## 验证
 
 ```bash
