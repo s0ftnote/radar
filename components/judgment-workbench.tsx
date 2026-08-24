@@ -88,7 +88,7 @@ export function JudgmentWorkbench({
             ) : (
               <div className="intelligence-items">
                 {workspace.items.map((item) => (
-                  <article className="intelligence-item" key={item.id}>
+                  <article className="intelligence-item" id={`intelligence-revision-${item.revisionId}`} key={item.id}>
                     <header>
                       <div>
                         <p className="eyebrow">情报条目 · 修订 {item.revisionNumber}</p>
@@ -104,7 +104,7 @@ export function JudgmentWorkbench({
                     </section>
 
                     {item.evidence.map((evidence) => (
-                      <section className="evidence-record" key={evidence.signalId}>
+                      <section className="evidence-record" id={`signal-${evidence.signalId}`} key={evidence.signalId}>
                         <div className="evidence-grid">
                           <section>
                             <h4>证据</h4>

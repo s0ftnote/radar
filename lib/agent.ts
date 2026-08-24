@@ -29,9 +29,43 @@ export type AgentJudgment =
       };
     };
 
+export type ReportGenerationInput = {
+  projectId: string;
+  triggerMethod: "manual";
+  purpose: string;
+  audience: string;
+  angle: string;
+  sourceCutoffAt: string;
+  intelligenceRevisions: Array<{
+    id: string;
+    intelligenceItemId: string;
+    revisionNumber: number;
+    title: string;
+    judgment: string;
+    rationale: string;
+    signals: Array<{
+      id: string;
+      evidenceQuote: string;
+      sourceVersionId: string;
+      sourceVersionNumber: number;
+    }>;
+  }>;
+};
+
+export type AgentReportGeneration = {
+  title: string;
+  claims: Array<{
+    text: string;
+    epistemicRole: "evidence" | "inference" | "user_viewpoint";
+    intelligenceItemRevisionId: string;
+    signalIds: string[];
+  }>;
+};
+
 export interface RadarAgent {
   readonly kind: string;
   judge(input: AgentJudgmentInput): Promise<AgentJudgment>;
+  generateReport(input: ReportGenerationInput): Promise<AgentReportGeneration>;
 }
 
 export function configuredRadarAgent(): RadarAgent {
@@ -42,12 +76,20 @@ class HttpJsonRadarAgent implements RadarAgent {
   readonly kind = "http-json";
 
   async judge(input: AgentJudgmentInput): Promise<AgentJudgment> {
+    return validateJudgment(await this.call("judge", input), input);
+  }
+
+  async generateReport(input: ReportGenerationInput): Promise<AgentReportGeneration> {
+    return validateReportGeneration(await this.call("generate_report", input), input);
+  }
+
+  private async call(operation: "judge" | "generate_report", input: unknown): Promise<unknown> {
     const endpoint = agentEndpoint();
     let response: Response;
     try {
       response = await fetch(endpoint, {
         method: "POST",
-        headers: agentHeaders(),
+        headers: { ...agentHeaders(), "x-radar-operation": operation },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(30_000),
       });
@@ -67,7 +109,7 @@ class HttpJsonRadarAgent implements RadarAgent {
     } catch {
       throw new Error("Agent 返回的不是有效 JSON，请检查适配器契约后重试。");
     }
-    return validateJudgment(value, input);
+    return value;
   }
 }
 
@@ -127,6 +169,62 @@ function validateJudgment(value: unknown, input: AgentJudgmentInput): AgentJudgm
       end: start + quote.length,
     },
   };
+}
+
+function validateReportGeneration(
+  value: unknown,
+  input: ReportGenerationInput,
+): AgentReportGeneration {
+  const result = asRecord(value);
+  if (!result || !Array.isArray(result.claims) || result.claims.length === 0) {
+    throw new Error("Agent Report 响应必须包含至少一项 claims。");
+  }
+  const revisions = new Map(input.intelligenceRevisions.map((revision) => [revision.id, revision]));
+  const usedRevisions = new Set<string>();
+  const claims = result.claims.map((value, index) => {
+    const claim = asRecord(value);
+    if (!claim) throw new Error(`Agent Report 主张 ${index + 1} 不是有效对象。`);
+    const intelligenceItemRevisionId = requiredString(
+      claim.intelligenceItemRevisionId,
+      `claims[${index}].intelligenceItemRevisionId`,
+    );
+    const revision = revisions.get(intelligenceItemRevisionId);
+    if (!revision) throw new Error("Agent Report 主张引用了未选择的情报条目修订。");
+    if (!Array.isArray(claim.signalIds) || claim.signalIds.length === 0) {
+      throw new Error("Agent Report 主张必须引用至少一个本次输入中的 Signal。");
+    }
+    const allowedSignals = new Set(revision.signals.map((signal) => signal.id));
+    const signalIds = [...new Set(claim.signalIds.map((signalId) => requiredString(signalId, "signalIds")))];
+    if (signalIds.some((signalId) => !allowedSignals.has(signalId))) {
+      throw new Error("Agent Report 主张引用了不属于该情报条目修订输入的 Signal。");
+    }
+    usedRevisions.add(intelligenceItemRevisionId);
+    const epistemicRole = requiredString(
+      claim.epistemicRole,
+      `claims[${index}].epistemicRole`,
+    );
+    if (!isEpistemicRole(epistemicRole)) {
+      throw new Error(
+        "Agent Report 主张的 epistemicRole 必须是 evidence、inference 或 user_viewpoint。",
+      );
+    }
+    return {
+      text: requiredString(claim.text, `claims[${index}].text`),
+      epistemicRole,
+      intelligenceItemRevisionId,
+      signalIds,
+    };
+  });
+  if (usedRevisions.size !== revisions.size) {
+    throw new Error("Agent Report 必须为每个选中的情报条目修订形成至少一项主张。");
+  }
+  return { title: requiredString(result.title, "title"), claims };
+}
+
+function isEpistemicRole(
+  value: string,
+): value is "evidence" | "inference" | "user_viewpoint" {
+  return value === "evidence" || value === "inference" || value === "user_viewpoint";
 }
 
 function requiredString(value: unknown, field: string): string {
