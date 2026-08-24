@@ -1,0 +1,19 @@
+schema_version: 1
+project:
+  name: "Radar"
+  summary: "开源、本地优先的个人情报产品，持续收集和判断外部 Signal、沉淀私有情报库、组合 Idea，并生成 Report 与平台物料包。"
+instructions:
+  # agents | claude | both
+  entry: "both"
+  # AGENTS.md for agents/both; CLAUDE.md for claude
+  primary: "AGENTS.md"
+lorekeeper:
+  knowledge_dir: "lore"
+  # git_policy: track | ignore | private_sync
+  git_policy: "track"
+  # language used for generated project knowledge documents
+  language: "zh-CN"
+graduation:
+  # Provider values are defaults, not permission to write. Every graduation
+  # still requires confirmation of both content and exact destination.
+  provider: none
