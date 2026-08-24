@@ -120,7 +120,7 @@ function projectSourceState(
           badge: "采集已暂停",
           badgeClass: "status-paused",
           heading: "恢复观察",
-          guidance: "重新验证一个已知或新的来源 URL，即可恢复手动采集；既有版本会继续保留。",
+          guidance: "在 Source Network 中重新接入已停止来源，即可恢复手动采集；也可以验证新的公开 URL。既有版本继续保留。",
         };
   }
   if (activeSources.some((source) => source.healthStatus === "unhealthy")) {
