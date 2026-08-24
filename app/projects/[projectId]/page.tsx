@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { SourceNetwork } from "@/components/source-network";
 import { getProject } from "@/lib/projects";
+import { listProjectSources } from "@/lib/sources";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +12,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const project = getProject(projectId);
 
   if (!project) notFound();
+  const sources = listProjectSources(projectId);
 
   return (
     <AppShell>
@@ -54,11 +57,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           </article>
 
           <aside className="next-step">
-            <h2>下一步：连接来源</h2>
-            <p>Project 已持久化。接下来将在 Source Network 中添加公开 RSS 或 Atom 来源。</p>
+            <h2>下一步</h2>
+            <p>添加一个公开 RSS/Atom 来源，先验证它，再开始积累可检查的内容版本。</p>
             <p className="quiet-note">来源事实会属于本地 Radar 实例；这个 Project 只拥有自己的匹配与判断。</p>
           </aside>
         </div>
+
+        <SourceNetwork projectId={projectId} sources={sources} />
       </main>
     </AppShell>
   );

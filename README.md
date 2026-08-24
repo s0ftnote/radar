@@ -1,6 +1,6 @@
 # Radar
 
-Radar 是一个开源、本地优先的个人情报工作台。当前 walking skeleton 从 Radar Project 和首个 Radar Brief 修订开始，所有数据保存在你控制的设备上。
+Radar 是一个开源、本地优先的个人情报工作台。当前 walking skeleton 可以持久化 Radar Project、首个 Radar Brief 修订，以及经过验证并手动采集的公开 RSS/Atom 来源版本；所有数据保存在你控制的设备上。
 
 ## 本地启动
 
