@@ -63,12 +63,15 @@ Radar 会向同一 endpoint 发送 `POST`，并用 `x-radar-operation` 标明操
   "claims": [
     {
       "text": "一项可追溯主张",
+      "epistemicRole": "inference",
       "intelligenceItemRevisionId": "selected-revision-id",
       "signalIds": ["selected-signal-id"]
     }
   ]
 }
 ```
+
+`epistemicRole` 必须是 `evidence`、`inference` 或 `user_viewpoint`，分别表示证据陈述、基于证据的推断或用户明确提供的观点。每个选中的情报条目修订都必须至少形成一项主张。
 
 Radar 会先保存 Report 输入快照，再调用适配器；失败可按原快照重试，成功生成的历史 Report 不会因后续来源或 Signal 变化而改写。
 
