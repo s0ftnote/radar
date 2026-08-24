@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Radar 个人情报图谱 MVP 的产品定义、对象模型、输出边界、决策地图与项目现状。"
+    />
+    <title>Radar 个人情报图谱 · 产品定义与现状</title>
+    <script>document.documentElement.classList.add("js");</script>
+    <style>
+      :root {
+        --canvas: #f7f6f3; --surface: #fff; --ink: #20201e; --muted: #73716c;
+        --faint: #9c9992; --line: #e8e6e1; --line-strong: #d8d5ce;
+        --blue-bg: #e8f2f7; --blue-ink: #315f78; --green-bg: #edf3ec;
+        --green-ink: #346538; --yellow-bg: #fbf3db; --yellow-ink: #856006;
+        --serif: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+        --sans: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+        --mono: "SFMono-Regular", "SF Mono", "JetBrains Mono", Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; color: var(--ink); background: var(--canvas); font-family: var(--sans); font-size: 16px; line-height: 1.72; -webkit-font-smoothing: antialiased; }
+      a { color: inherit; text-decoration-color: var(--line-strong); text-underline-offset: .18em; transition: color 160ms ease, text-decoration-color 160ms ease; }
+      a:hover { color: var(--blue-ink); text-decoration-color: var(--blue-ink); }
+      .skip-link { position: fixed; top: 12px; left: 12px; z-index: 20; padding: 8px 12px; color: #fff; background: #222; border-radius: 4px; transform: translateY(-150%); }
+      .skip-link:focus { transform: translateY(0); }
+      .page-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+      .masthead { position: sticky; top: 0; z-index: 10; background: rgba(247,246,243,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(14px); }
+      .masthead-inner { display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 24px; }
+      .wordmark { display: flex; align-items: baseline; gap: 10px; text-decoration: none; }
+      .wordmark strong { font-family: var(--serif); font-size: 22px; letter-spacing: -.03em; }
+      .wordmark span, .masthead-meta { color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+      .hero { position: relative; overflow: hidden; padding: 112px 0 88px; border-bottom: 1px solid var(--line); }
+      .hero::after { content: ""; position: absolute; right: -110px; top: 82px; width: 430px; height: 430px; border: 1px solid var(--line); border-radius: 50%; outline: 58px solid rgba(232,230,225,.32); pointer-events: none; }
+      .eyebrow { margin: 0 0 20px; color: var(--muted); font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { position: relative; z-index: 1; max-width: 930px; margin-bottom: 28px; font-family: var(--serif); font-size: clamp(50px,7.2vw,92px); font-weight: 600; letter-spacing: -.055em; line-height: .98; }
+      .hero-lede { position: relative; z-index: 1; max-width: 760px; margin-bottom: 42px; color: #484641; font-size: clamp(19px,2.2vw,25px); line-height: 1.55; }
+      .hero-facts { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); width: min(760px,100%); border-top: 1px solid var(--line-strong); }
+      .hero-fact { padding: 22px 24px 0 0; }
+      .hero-fact + .hero-fact { padding-left: 24px; border-left: 1px solid var(--line); }
+      .hero-fact strong { display: block; margin-bottom: 3px; font-family: var(--serif); font-size: 34px; line-height: 1.1; }
+      .hero-fact span { color: var(--muted); font-size: 13px; }
+      .section { padding: 96px 0; border-bottom: 1px solid var(--line); }
+      .section-heading { display: grid; grid-template-columns: 170px minmax(0,1fr); gap: 50px; margin-bottom: 52px; }
+      .section-index { color: var(--faint); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+      .section-heading h2 { max-width: 800px; margin-bottom: 16px; font-family: var(--serif); font-size: clamp(34px,4.6vw,58px); font-weight: 600; letter-spacing: -.045em; line-height: 1.06; }
+      .section-heading p { max-width: 780px; margin-bottom: 0; color: var(--muted); font-size: 18px; }
+      .bento { display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); gap: 16px; }
+      .card { grid-column: span 4; min-height: 230px; padding: 30px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; transition: transform 200ms ease, box-shadow 200ms ease; }
+      .card:hover { transform: translateY(-2px); box-shadow: 0 2px 8px rgba(0,0,0,.035); }
+      .card.wide { grid-column: span 8; } .card.half { grid-column: span 6; } .card.full { grid-column: 1/-1; }
+      .card.soft-blue { background: var(--blue-bg); } .card.soft-yellow { background: var(--yellow-bg); } .card.soft-green { background: var(--green-bg); }
+      .card-kicker { margin-bottom: 42px; color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+      .card h3 { margin-bottom: 14px; font-family: var(--serif); font-size: 27px; letter-spacing: -.03em; line-height: 1.18; }
+      .card p:last-child, .card ul:last-child { margin-bottom: 0; } .card p, .card li { color: #57544f; }
+      .tag { display: inline-block; padding: 5px 9px; color: var(--muted); background: #f1f0ed; border-radius: 999px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .08em; line-height: 1.2; text-transform: uppercase; }
+      .tag.green { color: var(--green-ink); background: var(--green-bg); } .tag.yellow { color: var(--yellow-ink); background: var(--yellow-bg); } .tag.blue { color: var(--blue-ink); background: var(--blue-bg); }
+      .flow { display: grid; grid-template-columns: repeat(8,minmax(122px,1fr)); gap: 10px; overflow-x: auto; padding-bottom: 10px; }
+      .flow-step { position: relative; min-height: 162px; padding: 20px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+      .flow-step:not(:last-child)::after { content: ""; position: absolute; z-index: 2; top: 34px; right: -11px; width: 10px; border-top: 1px solid #aba79f; }
+      .flow-step b { display: block; margin: 16px 0 9px; font-family: var(--serif); font-size: 19px; line-height: 1.2; }
+      .flow-step p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .graph-layout { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(340px,.85fr); gap: 16px; }
+      .graph-panel { min-height: 560px; overflow: hidden; background: #fbfbfa; border: 1px solid var(--line); border-radius: 10px; }
+      .graph-toolbar { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 20px; padding: 0 22px; background: var(--surface); border-bottom: 1px solid var(--line); }
+      .graph-toolbar span:last-child { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+      .graph-visual { display: block; width: 100%; height: auto; }
+      .graph-visual .edge { stroke: #cbc7be; stroke-width: 1.5; } .graph-visual .edge.user { stroke: #8ca8b7; stroke-width: 2.5; } .graph-visual .edge.suggested { stroke: #c7ad69; stroke-dasharray: 6 6; }
+      .graph-visual .node { stroke: #fff; stroke-width: 5; } .graph-visual text { fill: #4e4b46; font-family: var(--sans); font-size: 12px; }
+      .definition-list { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+      .definition { display: grid; grid-template-columns: 122px minmax(0,1fr); gap: 22px; padding: 21px 24px; }
+      .definition + .definition { border-top: 1px solid var(--line); } .definition dt { font-family: var(--serif); font-size: 18px; font-weight: 600; } .definition dd { margin: 0; color: var(--muted); font-size: 14px; }
+      .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+      table { width: 100%; border-collapse: collapse; } th, td { padding: 19px 22px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); } tr:last-child td { border-bottom: 0; }
+      th { color: var(--muted); background: #fbfbfa; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+      td { color: #514f4a; font-size: 14px; } td:first-child { color: var(--ink); font-weight: 600; }
+      .architecture { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .architecture-column { padding: 34px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+      .architecture-column h3 { margin: 15px 0 18px; font-family: var(--serif); font-size: 29px; letter-spacing: -.03em; }
+      .clean-list { margin: 0; padding: 0; list-style: none; } .clean-list li { position: relative; padding: 13px 0 13px 19px; color: #55524d; border-top: 1px solid var(--line); }
+      .clean-list li::before { content: ""; position: absolute; top: 24px; left: 1px; width: 6px; height: 6px; background: #9c978c; border-radius: 50%; }
+      .decision-list { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+      .decision { display: grid; grid-template-columns: 88px minmax(0,1fr) 110px; gap: 22px; align-items: start; padding: 24px 26px; }
+      .decision + .decision { border-top: 1px solid var(--line); } .decision-code { color: var(--faint); font-family: var(--mono); font-size: 11px; }
+      .decision strong { display: block; margin-bottom: 6px; } .decision p { margin: 0; color: var(--muted); font-size: 14px; } .decision .tag { justify-self: end; }
+      .handoff { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(300px,.8fr); gap: 16px; }
+      .next-actions { padding: 40px; color: #f7f6f3; background: #242320; border: 1px solid #242320; border-radius: 10px; }
+      .next-actions .tag { color: #dedbd4; background: #3a3935; } .next-actions h3 { max-width: 560px; margin: 22px 0 28px; font-family: var(--serif); font-size: 34px; letter-spacing: -.035em; line-height: 1.15; }
+      .next-actions ol { margin: 0; padding-left: 22px; } .next-actions li { padding: 8px 0; color: #d6d2ca; }
+      .watch-outs { padding: 34px; background: var(--yellow-bg); border: 1px solid var(--line); border-radius: 10px; }
+      .watch-outs h3 { margin: 17px 0 18px; font-family: var(--serif); font-size: 27px; letter-spacing: -.03em; }
+      .footer { padding: 50px 0 70px; color: var(--muted); font-size: 13px; } .footer-inner { display: flex; justify-content: space-between; gap: 30px; padding-top: 24px; border-top: 1px solid var(--line-strong); }
+      .js .reveal { opacity: 0; transform: translateY(12px); } .js .reveal.is-visible { opacity: 1; transform: translateY(0); transition: opacity 600ms cubic-bezier(.16,1,.3,1), transform 600ms cubic-bezier(.16,1,.3,1); }
+      @media (max-width:900px) { .section-heading { grid-template-columns: 1fr; gap: 12px; } .card,.card.wide,.card.half { grid-column: span 6; } .graph-layout,.handoff { grid-template-columns: 1fr; } }
+      @media (max-width:680px) {
+        .page-shell { width: min(100% - 24px,1180px); } .masthead-meta { display: none; } .hero { padding: 78px 0 62px; } .hero::after { opacity: .45; }
+        .hero-facts { grid-template-columns: 1fr; } .hero-fact,.hero-fact + .hero-fact { padding: 16px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+        .section { padding: 70px 0; } .card,.card.wide,.card.half { grid-column: 1/-1; } .architecture { grid-template-columns: 1fr; }
+        .card,.architecture-column,.next-actions,.watch-outs { padding: 25px; } .graph-panel { min-height: 410px; overflow-x: auto; } .graph-visual { min-width: 660px; }
+        .table-wrap table { min-width: 760px; } .definition,.decision { grid-template-columns: 1fr; gap: 8px; } .decision .tag { justify-self: start; } .footer-inner { flex-direction: column; }
+      }
+      @media (prefers-reduced-motion:reduce) { html { scroll-behavior: auto; } *,*::before,*::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } .js .reveal { opacity: 1; transform: none; } }
+      @media print { .masthead,.skip-link { display:none; } body { background:#fff; } .hero,.section { padding:44px 0; break-inside:avoid; } .js .reveal { opacity:1; transform:none; } }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="masthead"><div class="page-shell masthead-inner"><a class="wordmark" href="#top"><strong>Radar</strong><span>Product handoff</span></a><div class="masthead-meta">2026-08-24 · Intelligence Graph</div></div></header>
+    <main id="main">
+      <section class="hero" id="top"><div class="page-shell reveal">
+        <p class="eyebrow">新方向 / 旧 Report 中心路线已封存</p>
+        <h1>Radar 的核心，从生成报告变成沉淀个人情报图谱。</h1>
+        <p class="hero-lede">系统持续寻找、匹配并保存用户在意的情报，建立可检查、可编辑的关联。用户从图谱里嫁接关系、组合 Idea，再手动或按计划生成包含平台稿、图片与完整来源的平台物料包。</p>
+        <div class="hero-facts" aria-label="项目关键状态"><div class="hero-fact"><strong>2 / 7</strong><span>新地图决策已完成</span></div><div class="hero-fact"><strong>5</strong><span>首批输出目标</span></div><div class="hero-fact"><strong>0</strong><span>主分支应用实现</span></div></div>
+      </div></section>
+
+      <section class="section" id="definition"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">01 / Definition</div><div><h2>自动沉淀，主动创造，按需输出</h2><p>Report 仍然重要，但不再是产品的唯一中心。真正可复利的资产是用户自己的情报库、关系与 Idea。</p></div></div>
+        <div class="bento">
+          <article class="card wide soft-blue reveal"><div class="card-kicker">Core job</div><h3>把“我想持续知道什么”变成一个会积累、会关联、能再利用的私有情报空间</h3><p>用户配置自然语言目标后，Radar 持续采集和匹配。通过判断的内容成为情报条目，不因当天没有查看而消失。</p></article>
+          <article class="card reveal"><div class="card-kicker">First user</div><h3>先服务单个内容经营者</h3><p>第一位用户仍是项目所有者本人；先证明它能减少重复筛选并持续产出可运营的素材。</p></article>
+          <article class="card reveal"><div class="card-kicker">Product identity</div><h3>通用个人情报图谱</h3><p>Demand Radar 是首个模板。热点、技术趋势和其他方向以后复用同一套沉淀、关联与输出链路。</p></article>
+          <article class="card reveal"><div class="card-kicker">Automation</div><h3>Report 自动化是可选项</h3><p>用户可手动勾选和组合，也可保存输出方案后定时生成；Radar 不代替用户自动发布社交内容。</p></article>
+          <article class="card reveal"><div class="card-kicker">Ownership</div><h3>Radar 托管，用户可完整带走</h3><p>MVP 使用私有托管情报库并支持完整导出；Obsidian、Notion 和自有数据库连接器后置。</p></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="loop"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">02 / Loop</div><div><h2>新的产品主循环</h2><p>自动化停在“准备好可信素材”，创造和发布仍由用户掌控。</p></div></div>
+        <div class="flow reveal" aria-label="Radar 新主循环">
+          <article class="flow-step"><span class="tag">01</span><b>自然语言目标</b><p>描述关注方向、习惯和用途。</p></article>
+          <article class="flow-step"><span class="tag">02</span><b>Source Network</b><p>跨来源持续采集并隔离失败。</p></article>
+          <article class="flow-step"><span class="tag">03</span><b>Signal</b><p>识别可淘汰的临时候选证据。</p></article>
+          <article class="flow-step"><span class="tag">04</span><b>情报条目</b><p>把证据沉淀为可演化的长期判断。</p></article>
+          <article class="flow-step"><span class="tag">05</span><b>关联图谱</b><p>自动建议，用户检查和嫁接。</p></article>
+          <article class="flow-step"><span class="tag">06</span><b>Idea</b><p>由用户组合节点形成角度或主张。</p></article>
+          <article class="flow-step"><span class="tag">07</span><b>Report</b><p>手动或按输出方案组织阶段结果。</p></article>
+          <article class="flow-step"><span class="tag">08</span><b>平台物料包</b><p>生成平台稿、图片衍生文件与来源。</p></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="graph"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">03 / Knowledge</div><div><h2>图谱不是装饰，而是用户思考和创造的工作台</h2><p>自动图谱负责看见真实关系，手工画布负责嫁接新的关系。两者共用同一份情报库，不是两套数据。</p></div></div>
+        <div class="graph-layout">
+          <article class="graph-panel reveal"><div class="graph-toolbar"><span class="tag blue">局部图谱示意</span><span>证据关系 · Radar 建议 · 用户关系</span></div>
+            <svg class="graph-visual" viewBox="0 0 720 520" role="img" aria-label="个人情报图谱示意">
+              <line class="edge" x1="155" y1="120" x2="350" y2="160"/><line class="edge suggested" x1="350" y1="160" x2="565" y2="106"/><line class="edge" x1="350" y1="160" x2="250" y2="330"/><line class="edge user" x1="250" y1="330" x2="505" y2="345"/><line class="edge" x1="505" y1="345" x2="595" y2="235"/><line class="edge suggested" x1="565" y1="106" x2="595" y2="235"/><line class="edge user" x1="350" y1="160" x2="505" y2="345"/>
+              <circle class="node" cx="155" cy="120" r="36" fill="#dcebf2"/><circle class="node" cx="350" cy="160" r="49" fill="#f1e8c9"/><circle class="node" cx="565" cy="106" r="34" fill="#e1ecde"/><circle class="node" cx="250" cy="330" r="42" fill="#eadde1"/><circle class="node" cx="505" cy="345" r="50" fill="#dcebf2"/><circle class="node" cx="595" cy="235" r="31" fill="#e8e5df"/>
+              <text x="112" y="178">字幕断句需求</text><text x="310" y="229">跨语言视频</text><text x="525" y="161">创作者工具</text><text x="205" y="398">真实用户原话</text><text x="464" y="420">Idea：工具评测系列</text><text x="570" y="287">产品</text>
+            </svg>
+          </article>
+          <dl class="definition-list reveal">
+            <div class="definition"><dt>情报库</dt><dd>一个 Radar 任务长期沉淀的私有知识空间，不是当天看完即消失的 Feed。</dd></div>
+            <div class="definition"><dt>情报条目</dt><dd>由一个或多个 Signal 支撑、以判断而非文章为身份的长期资产，独立于任何 Report 存在。</dd></div>
+            <div class="definition"><dt>证据与修订</dt><dd>来源内容支撑或反驳判断；新证据形成可追溯修订，当前结论不会覆盖历史结论。</dd></div>
+            <div class="definition"><dt>关联</dt><dd>节点之间带含义的连接；来源可能是证据、Radar 建议或用户手工嫁接。</dd></div>
+            <div class="definition"><dt>Idea</dt><dd>用户通过选择和连接情报条目形成的个人假设、角度或内容主张。</dd></div>
+            <div class="definition"><dt>Report</dt><dd>从选定条目、关联与 Idea 生成的阶段性结果，是输出而不是长期存储单元。</dd></div>
+            <div class="definition"><dt>平台物料包</dt><dd>同一 Report 派生的平台稿、可再渲染母版、PNG 预览、平台衍生图、来源与能力快照。</dd></div>
+          </dl>
+        </div>
+      </div></section>
+
+      <section class="section" id="surfaces"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">04 / Surfaces</div><div><h2>四个产品表面，各自只解决一种任务</h2><p>如果把沉淀、图谱、手工组合和输出全部塞进一张图，界面会很生动，但无法处理真实数量的信息。</p></div></div>
+        <div class="bento">
+          <article class="card reveal"><div class="card-kicker">01 · Dashboard</div><h3>沉淀面板</h3><p>查看最近新增、尚未处理、持续变化和需要判断的条目；支持列表、搜索和筛选。</p></article>
+          <article class="card reveal"><div class="card-kicker">02 · Graph</div><h3>自动关系图</h3><p>展示真实链接、Radar 建议和局部关系，用于发现结构和进入某个节点。</p></article>
+          <article class="card reveal"><div class="card-kicker">03 · Canvas</div><h3>手工 Idea 画布</h3><p>用户拖入节点、分组、标注和嫁接新关系，形成自己的观点或内容系列。</p></article>
+          <article class="card half soft-green reveal"><div class="card-kicker">04 · Builder</div><h3>Report 与物料生成器</h3><p>选择一组节点、关系和 Idea，一次生成一个或多个平台物料包。</p></article>
+          <article class="card half reveal"><div class="card-kicker">Prior art</div><h3>图谱负责看见，画布负责构造</h3><p>参考 <a href="https://obsidian.md/help/Plugins/Graph%2Bview">Obsidian Graph View</a> 与 <a href="https://obsidian.md/help/Plugins/Canvas">Canvas</a> 的分工，但节点首先来自 Radar 的采集与判断链路。</p></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="automation"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">05 / Automation</div><div><h2>始终自动的是准备，用户可选自动的是输出</h2><p>这样既服务想省事的人，也保留给愿意探索和组合的用户足够控制权。</p></div></div>
+        <div class="architecture">
+          <article class="architecture-column reveal"><span class="tag green">Always on</span><h3>Radar 持续完成</h3><ul class="clean-list"><li>从 Source Network 增量采集并隔离来源失败</li><li>按 Radar Brief 匹配、判断和形成情报条目</li><li>发现关系、更新历史变化并提出关联建议</li><li>保存证据、来源和可重新渲染的结构</li></ul></article>
+          <article class="architecture-column reveal"><span class="tag blue">User controlled</span><h3>用户决定是否自动</h3><ul class="clean-list"><li>手动：勾选节点、关系或 Idea 后立即生成</li><li>定时：保存输出方案，按频率生成并发送</li><li>条件触发：待手动与定时语义明确后再决定</li><li>发布：始终由用户审核并操作，MVP 不代发</li></ul></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="packs"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">06 / Outputs</div><div><h2>一个 Report，可以长成多套平台物料</h2><p>平台不是文件格式。PNG 是便于查看和下载的交付预览，不是跨平台唯一发布格式；每个目标按自己的能力生成衍生文件。</p></div></div>
+        <div class="table-wrap reveal"><table><thead><tr><th>发布目标</th><th>首批物料</th><th>边界</th></tr></thead><tbody>
+          <tr><td>小红书</td><td>标题与正文、封面和图文卡母版、PNG 预览、JPEG 备用图、来源</td><td>普通笔记的公开一手规格不足，必须用真实账号验收。</td></tr>
+          <tr><td>X</td><td>单条或连续帖平台稿、每帖 1–4 张 PNG/JPEG、来源链接</td><td>标准文案按 280 字符准备；长文能力按账号区分，图片单张不超过 5 MB。</td></tr>
+          <tr><td>Threads</td><td>单条或连续帖平台稿、PNG/JPEG 轮播、来源清单</td><td>普通文案按 500 字符准备；API 轮播最多 20 个媒体项，长文能力另行判断。</td></tr>
+          <tr><td>视频制作准备包</td><td>封面 PNG、分镜 PNG、脚本初步 Idea、镜头清单、引用素材</td><td>没有最终视频文件就不是可直接发布的视频物料；MVP 不渲染 MP4。</td></tr>
+          <tr><td>HTML</td><td>网页、图谱快照 PNG、条目卡片 PNG、可点击证据</td><td>页面可浏览和打印，但不是正式网站托管产品。</td></tr>
+        </tbody></table></div>
+        <div class="bento" style="margin-top:16px">
+          <article class="card half soft-blue reveal"><div class="card-kicker">One source of truth</div><h3>同一份证据，多种平台适配</h3><p>用户只组合一次情报和 Idea；平台物料包共享判断与来源，不分别从 Prompt 重新编一遍事实。</p></article>
+          <article class="card half reveal"><div class="card-kicker">Regeneration</div><h3>交付预览，内部保留结构</h3><p>Radar 保存卡片文字、图表配置、节点关系、模板和证据。观点变化后可重新渲染，不把 PNG 当唯一真相。</p></article>
+          <article class="card full reveal"><div class="card-kicker">Pack anatomy</div><h3>平台稿 → 可再渲染母版 → 平台衍生文件 → 来源 → 能力快照</h3><p>来源信息不混进发布文案；账号和 API 能力也不写死在模板里。详细结论见<a href="https://github.com/2093686099/radar/blob/research/platform-material-constraints/docs/research/platform-material-constraints.md">首批平台物料包能力研究</a>。</p></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="status"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">07 / Map</div><div><h2>新的决策地图已经建立</h2><p>七张票中平台事实与情报边界已经完成；当前前沿转向关联、Idea 与可信度语义。</p></div></div>
+        <div class="decision-list reveal">
+          <article class="decision"><div class="decision-code">DONE</div><div><strong><a href="https://github.com/2093686099/radar/issues/12">定义情报条目与情报库的长期边界</a></strong><p>已确定长期保存判断、来源作为证据、修订保留历史，并提供可迁移的完整导出。</p></div><span class="tag green">已完成</span></article>
+          <article class="decision"><div class="decision-code">DONE</div><div><strong><a href="https://github.com/2093686099/radar/issues/14">查清首批平台物料包的公开能力约束</a></strong><p>已确认 PNG 只能作为交付预览；平台稿、母版、衍生文件、来源和账号能力必须分层。</p></div><span class="tag green">已完成</span></article>
+          <article class="decision"><div class="decision-code">FRONTIER</div><div><strong><a href="https://github.com/2093686099/radar/issues/13">定义关联、Idea 与可信度语义</a></strong><p>现在可以决定关系类型、建议可信度，以及用户嫁接关系与事实关系的边界。</p></div><span class="tag blue">可领取</span></article>
+          <article class="decision"><div class="decision-code">BLOCKED</div><div><strong><a href="https://github.com/2093686099/radar/issues/15">定义 Report、输出方案与平台物料包</a></strong><p>平台研究与数据边界已完成，仍等待关系与 Idea 语义。</p></div><span class="tag">等待</span></article>
+          <article class="decision"><div class="decision-code">BLOCKED</div><div><strong><a href="https://github.com/2093686099/radar/issues/16">定义用户行为如何改变匹配与关联</a></strong><p>重新定义比“有用/噪音”更完整的学习信号。</p></div><span class="tag">等待</span></article>
+          <article class="decision"><div class="decision-code">BLOCKED</div><div><strong><a href="https://github.com/2093686099/radar/issues/17">重新定义个人情报图谱 MVP 的成功标准</a></strong><p>验证沉淀、关系、Idea 和平台物料是否真实减少工作。</p></div><span class="tag">等待</span></article>
+          <article class="decision"><div class="decision-code">FINAL</div><div><strong><a href="https://github.com/2093686099/radar/issues/18">验证个人情报图谱的端到端体验</a></strong><p>用真实情报、图谱、画布、Idea 与多平台物料包完成低保真验证。</p></div><span class="tag">等待</span></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="reality"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">08 / Reality</div><div><h2>产品方向已重画，应用仍未实现</h2><p>当前主分支只有领域词汇、Agent 规则与本交接页。研究和旧原型位于独立分支，不能把它们当作可运行产品。</p></div></div>
+        <div class="bento">
+          <article class="card reveal"><div class="card-kicker">Main branch</div><h3>没有应用代码</h3><p>没有 src、package.json、数据库、API、UI 或部署配置。</p></article>
+          <article class="card reveal"><div class="card-kicker">Domain</div><h3>新语言已同步</h3><p>情报条目、证据、修订、情报反馈、完整导出和平台物料包已经进入 CONTEXT.md。</p></article>
+          <article class="card reveal"><div class="card-kicker">History</div><h3>旧地图已封存</h3><p><a href="https://github.com/2093686099/radar/issues/1">定义个人情报 Radar 的需求雷达 MVP</a>保留已完成研究和决策，但不再作为当前路线。</p></article>
+          <article class="card full soft-yellow reveal"><div class="card-kicker">Current map</div><h3><a href="https://github.com/2093686099/radar/issues/11">定义个人情报图谱 Radar MVP</a></h3><p>目的地是可交给执行阶段的产品定义，以及由用户验证的低保真端到端原型；本地图不实现、部署或运营正式产品。</p></article>
+        </div>
+      </div></section>
+
+      <section class="section" id="scope"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">09 / Scope</div><div><h2>第一版刻意停在哪里</h2><p>边界不是否定长期方向，而是让图谱、沉淀和平台物料先形成可验证闭环。</p></div></div>
+        <div class="table-wrap reveal"><table><thead><tr><th>不进入当前地图</th><th>处理方式</th></tr></thead><tbody>
+          <tr><td>正式实现、部署和运营</td><td>产品定义与原型完成后，另开 walking skeleton 执行计划。</td></tr><tr><td>多人账号、权限、协作和付费</td><td>单用户价值验证后再决定。</td></tr><tr><td>强制连接外部数据库</td><td>MVP 由 Radar 托管并完整导出；连接器后置。</td></tr><tr><td>自动发布社交内容</td><td>只生成并交付物料，用户审核和发布。</td></tr><tr><td>最终视频文件</td><td>视频制作准备包止步于封面、分镜 PNG 与脚本初稿。</td></tr><tr><td>覆盖所有平台和格式</td><td>先验证小红书、X、Threads、视频和 HTML。</td></tr><tr><td>通用手工笔记软件</td><td>节点首先来自 Radar 的持续采集、匹配和判断链路。</td></tr>
+        </tbody></table></div>
+      </div></section>
+
+      <section class="section" id="handoff"><div class="page-shell">
+        <div class="section-heading reveal"><div class="section-index">10 / Next</div><div><h2>现在定义关系怎样成为知识</h2><p>情报条目的身份已经稳定。下一张 HITL 票将区分证据事实、Radar 建议和用户创作关系，并明确可信度如何表达。</p></div></div>
+        <div class="handoff">
+          <article class="next-actions reveal"><span class="tag">Frontier</span><h3>按依赖顺序穿过新地图</h3><ol><li>定义关联、Idea 与可信度语义。</li><li>定义 Report、输出方案和用户学习信号。</li><li>把已完成的平台研究收敛为平台物料包契约。</li><li>重写首轮成功标准。</li><li>最后用端到端低保真原型验证整个主循环。</li></ol></article>
+          <aside class="watch-outs reveal"><span class="tag yellow">Fog</span><h3>先记住，但现在不决定</h3><ul class="clean-list"><li>条件式 Report 的触发和防打扰规则</li><li>Obsidian、Notion 与自有数据库同步</li><li>Newsletter、PDF、DOCX、JSON/API 等扩展输出</li><li>大型图谱的聚类、局部视图与导航</li><li>多人协作、定价、托管与生产可靠性</li></ul></aside>
+        </div>
+      </div></section>
+    </main>
+    <footer class="footer"><div class="page-shell footer-inner"><div>当前路线：<a href="https://github.com/2093686099/radar/issues/11">定义个人情报图谱 Radar MVP</a></div><div>状态截点：2026-08-24 · America/New_York</div></div></footer>
+    <script>
+      const revealItems=document.querySelectorAll(".reveal");
+      const reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if(reduceMotion||!("IntersectionObserver" in window)){revealItems.forEach((item)=>item.classList.add("is-visible"));}
+      else{const observer=new IntersectionObserver((entries)=>{entries.forEach((entry)=>{if(entry.isIntersecting){entry.target.classList.add("is-visible");observer.unobserve(entry.target);}});},{threshold:.08,rootMargin:"0px 0px -30px 0px"});revealItems.forEach((item)=>observer.observe(item));}
+    </script>
+  </body>
+</html>
