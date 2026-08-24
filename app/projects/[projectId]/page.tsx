@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { JudgmentWorkbench } from "@/components/judgment-workbench";
 import { SourceNetwork } from "@/components/source-network";
-import { getIntelligenceWorkspace } from "@/lib/intelligence";
+import { getIntelligenceWorkspace, type IntelligenceWorkspace } from "@/lib/intelligence";
 import { getProject } from "@/lib/projects";
 import { listProjectSources, type ProjectSource } from "@/lib/sources";
 
@@ -16,7 +16,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   if (!project) notFound();
   const sources = listProjectSources(projectId);
   const intelligenceWorkspace = getIntelligenceWorkspace(projectId);
-  const sourceState = projectSourceState(sources);
+  const sourceState = projectSourceState(sources, intelligenceWorkspace, project.currentBriefRevision.id);
 
   return (
     <AppShell>
@@ -74,7 +74,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   );
 }
 
-function projectSourceState(sources: ProjectSource[]) {
+function projectSourceState(
+  sources: ProjectSource[],
+  workspace: IntelligenceWorkspace,
+  briefRevisionId: string,
+) {
   const activeSources = sources.filter((source) => source.active);
   if (activeSources.length === 0) {
     return sources.length === 0
@@ -105,6 +109,37 @@ function projectSourceState(sources: ProjectSource[]) {
       badgeClass: "status-ready",
       heading: "开始采集",
       guidance: "来源已经通过验证。运行首次采集，建立第一批可检查的不可变版本。",
+    };
+  }
+  const currentRuns = workspace.runs.filter((run) => run.briefRevisionId === briefRevisionId);
+  const successfulVersions = new Set(
+    currentRuns.filter((run) => run.status === "success").map((run) => run.sourceVersionId),
+  );
+  const retryableFailure = currentRuns.some(
+    (run) => run.status === "failed" && !successfulVersions.has(run.sourceVersionId),
+  );
+  if (retryableFailure) {
+    return {
+      badge: "判断需重试",
+      badgeClass: "status-attention",
+      heading: "重试 Radar 判断",
+      guidance: "已完成结果仍然保留。查看 Agent 失败原因，然后重试尚未完成的来源版本。",
+    };
+  }
+  if (currentRuns.some((run) => run.status === "running")) {
+    return {
+      badge: "正在判断",
+      badgeClass: "status-ready",
+      heading: "等待 Agent",
+      guidance: "Radar 正在用当前 Brief 修订判断来源版本；完成后会保留匹配、无匹配或失败状态。",
+    };
+  }
+  if (workspace.sourceVersionCount > successfulVersions.size) {
+    return {
+      badge: "待判断",
+      badgeClass: "status-ready",
+      heading: "运行 Radar 判断",
+      guidance: "已有尚未判断的来源版本。运行 Agent，把相关 Signal 沉淀为可追溯的情报条目。",
     };
   }
   return {

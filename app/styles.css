@@ -541,9 +541,11 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .evidence-record + .evidence-record { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line-strong); }
 
-.evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+.evidence-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 24px; background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 
-.evidence-grid section { padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.evidence-grid section { padding: 18px 18px 18px 0; }
+
+.evidence-grid section + section { padding-right: 0; padding-left: 18px; border-left: 1px solid var(--line); }
 
 .evidence-grid blockquote { margin: 0; padding-left: 14px; border-left: 1px solid var(--line-strong); }
 
@@ -551,7 +553,7 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .evidence-grid a { display: inline-block; margin-top: 10px; color: var(--green-ink); font-weight: 700; }
 
-.judgment-provenance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 24px 0 0; border-top: 1px solid var(--line); }
+.judgment-provenance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 18px 0 0; }
 
 .judgment-provenance div { min-width: 0; padding: 14px 14px 0 0; }
 
@@ -653,6 +655,8 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
   .judgment-provenance,
   .agent-history li > dl { grid-template-columns: 1fr; }
   .intelligence-item > header { flex-direction: column; gap: 8px; }
+  .evidence-grid section { padding: 16px 0; }
+  .evidence-grid section + section { padding: 16px 0; border-top: 1px solid var(--line); border-left: 0; }
   .app-footer { flex-direction: column; gap: 4px; }
 }
 

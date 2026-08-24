@@ -79,6 +79,13 @@ function initializeSchema(db: DatabaseSync): void {
       UNIQUE (content_id, content_hash)
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS project_source_versions (
+      project_id TEXT NOT NULL REFERENCES radar_projects(id),
+      source_version_id TEXT NOT NULL REFERENCES source_versions(id),
+      visible_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, source_version_id)
+    ) STRICT;
+
     CREATE TABLE IF NOT EXISTS source_acquisition_runs (
       id TEXT PRIMARY KEY,
       source_id TEXT NOT NULL REFERENCES instance_sources(id),
@@ -96,12 +103,14 @@ function initializeSchema(db: DatabaseSync): void {
       brief_revision_id TEXT NOT NULL REFERENCES radar_brief_revisions(id),
       source_version_id TEXT NOT NULL REFERENCES source_versions(id),
       adapter_kind TEXT NOT NULL,
+      process_instance_id TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
       outcome TEXT CHECK (outcome IN ('matched', 'no_match')),
       reason TEXT,
       error TEXT,
       signal_id TEXT REFERENCES signals(id),
       intelligence_item_id TEXT REFERENCES intelligence_items(id),
+      intelligence_item_revision_id TEXT REFERENCES intelligence_item_revisions(id),
       started_at TEXT NOT NULL,
       completed_at TEXT
     ) STRICT;
@@ -112,7 +121,9 @@ function initializeSchema(db: DatabaseSync): void {
       brief_revision_id TEXT NOT NULL REFERENCES radar_brief_revisions(id),
       source_version_id TEXT NOT NULL REFERENCES source_versions(id),
       evidence_quote TEXT NOT NULL,
-      evidence_locator TEXT NOT NULL,
+      evidence_field TEXT NOT NULL CHECK (evidence_field IN ('title', 'body')),
+      evidence_start INTEGER NOT NULL CHECK (evidence_start >= 0),
+      evidence_end INTEGER NOT NULL CHECK (evidence_end > evidence_start),
       created_at TEXT NOT NULL,
       UNIQUE (project_id, brief_revision_id, source_version_id)
     ) STRICT;
@@ -136,14 +147,15 @@ function initializeSchema(db: DatabaseSync): void {
       UNIQUE (intelligence_item_id, revision_number)
     ) STRICT;
 
-    CREATE TABLE IF NOT EXISTS intelligence_item_signals (
-      intelligence_item_id TEXT NOT NULL REFERENCES intelligence_items(id),
+    CREATE TABLE IF NOT EXISTS intelligence_revision_signals (
+      intelligence_item_revision_id TEXT NOT NULL REFERENCES intelligence_item_revisions(id),
       signal_id TEXT NOT NULL REFERENCES signals(id),
-      PRIMARY KEY (intelligence_item_id, signal_id)
+      PRIMARY KEY (intelligence_item_revision_id, signal_id)
     ) STRICT;
 
     CREATE INDEX IF NOT EXISTS source_contents_by_source ON source_contents(source_id);
     CREATE INDEX IF NOT EXISTS source_versions_by_content ON source_versions(content_id, version_number DESC);
+    CREATE INDEX IF NOT EXISTS project_source_versions_by_project ON project_source_versions(project_id, visible_at DESC);
     CREATE INDEX IF NOT EXISTS source_runs_by_source ON source_acquisition_runs(source_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS agent_runs_by_project ON agent_runs(project_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS agent_runs_by_input ON agent_runs(project_id, brief_revision_id, source_version_id, started_at DESC);

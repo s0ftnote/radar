@@ -47,7 +47,6 @@ export function JudgmentWorkbench({
     <section className="judgment-workbench" aria-labelledby="judgment-title" aria-busy={pending}>
       <div className="judgment-heading">
         <div>
-          <p className="eyebrow">Project intelligence</p>
           <h2 id="judgment-title">Radar 判断</h2>
           <p>用当前 Radar Brief 修订逐一判断来源版本；来源原文与 Project 判断始终分开保存。</p>
         </div>
@@ -110,17 +109,19 @@ export function JudgmentWorkbench({
                           <section>
                             <h4>证据</h4>
                             <blockquote>{evidence.evidenceQuote}</blockquote>
-                            <p>{evidence.evidenceLocator}</p>
+                            <p>{evidenceLocation(evidence)}</p>
                           </section>
                           <section>
                             <h4>来源原文</h4>
                             <p>{evidence.sourceBody || "这个来源版本没有正文。"}</p>
-                            <a href={evidence.sourceOriginUrl} target="_blank" rel="noreferrer">检查完整出处</a>
+                            <a href={evidence.sourceOriginUrl} target="_blank" rel="noreferrer">检查外部原文</a>
                           </section>
                         </div>
 
                         <dl className="judgment-provenance">
                           <div><dt>Signal</dt><dd>{evidence.signalId}</dd></div>
+                          <div><dt>Source Network 来源</dt><dd><a href={evidence.sourceUrl} target="_blank" rel="noreferrer">{evidence.sourceName}</a> · {evidence.sourceId}</dd></div>
+                          <div><dt>来源内容</dt><dd>{evidence.sourceContentId}</dd></div>
                           <div><dt>来源版本</dt><dd>{evidence.sourceVersionId} · 版本 {evidence.sourceVersionNumber}</dd></div>
                           <div><dt>Radar Brief 修订</dt><dd>{evidence.briefRevisionId}</dd></div>
                         </dl>
@@ -197,4 +198,9 @@ function runStatusLabel(run: JudgmentRunView): string {
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function evidenceLocation(evidence: IntelligenceWorkspace["items"][number]["evidence"][number]): string {
+  const field = evidence.evidenceField === "title" ? "来源标题" : "来源正文";
+  return `${field} · 字符 ${evidence.evidenceStart}–${evidence.evidenceEnd}`;
 }

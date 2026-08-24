@@ -21,7 +21,12 @@ export type AgentJudgment =
       title: string;
       judgment: string;
       rationale: string;
-      evidence: { quote: string; locator: string };
+      evidence: {
+        quote: string;
+        field: "title" | "body";
+        start: number;
+        end: number;
+      };
     };
 
 export interface RadarAgent {
@@ -102,10 +107,13 @@ function validateJudgment(value: unknown, input: AgentJudgmentInput): AgentJudgm
   const evidence = asRecord(result.evidence);
   if (!evidence) throw new Error("Agent 匹配响应缺少 evidence，请检查适配器契约后重试。");
   const quote = requiredString(evidence.quote, "evidence.quote");
-  const sourceText = `${input.sourceVersion.title}\n${input.sourceVersion.body}`;
-  if (!sourceText.includes(quote)) {
+  const titleStart = input.sourceVersion.title.indexOf(quote);
+  const bodyStart = input.sourceVersion.body.indexOf(quote);
+  if (titleStart < 0 && bodyStart < 0) {
     throw new Error("Agent 证据摘录无法在当前来源版本中定位，请修正适配器响应后重试。");
   }
+  const field = titleStart >= 0 ? "title" : "body";
+  const start = titleStart >= 0 ? titleStart : bodyStart;
   return {
     match: true,
     judgmentKey: requiredString(result.judgmentKey, "judgmentKey"),
@@ -114,7 +122,9 @@ function validateJudgment(value: unknown, input: AgentJudgmentInput): AgentJudgm
     rationale: requiredString(result.rationale, "rationale"),
     evidence: {
       quote,
-      locator: requiredString(evidence.locator, "evidence.locator"),
+      field,
+      start,
+      end: start + quote.length,
     },
   };
 }

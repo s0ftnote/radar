@@ -4,6 +4,7 @@ export type AgentFixture = {
   endpoint: string;
   token: string;
   requestCount(): number;
+  delayNextResponse(): void;
   close(): Promise<void>;
 };
 
@@ -11,6 +12,7 @@ export async function startAgentFixture(): Promise<AgentFixture> {
   const token = "fixture-agent-secret";
   let requests = 0;
   let revisionThreeAttempts = 0;
+  let delayNextResponse = false;
   const server = createServer(async (request, response) => {
     if (request.method !== "POST" || request.url !== "/judge") {
       response.writeHead(404).end();
@@ -24,7 +26,12 @@ export async function startAgentFixture(): Promise<AgentFixture> {
     requests += 1;
     const body = await requestJson(request);
     const sourceBody = String(body.sourceVersion && asRecord(body.sourceVersion)?.body);
-    await new Promise((resolve) => setTimeout(resolve, 450));
+    if (delayNextResponse) {
+      delayNextResponse = false;
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
 
     if (sourceBody.includes("Revision 1")) {
       sendJson(response, 200, {
@@ -35,7 +42,6 @@ export async function startAgentFixture(): Promise<AgentFixture> {
         rationale: "来源明确表达了保留证据的需求，与当前 Radar Brief 直接相关。",
         evidence: {
           quote: "Revision 1: developers want evidence they can keep.",
-          locator: "RSS description",
         },
       });
       return;
@@ -61,7 +67,19 @@ export async function startAgentFixture(): Promise<AgentFixture> {
         rationale: "来源再次强调证据保留，并形成了独立的出处判断。",
         evidence: {
           quote: "Revision 3: developers want evidence they can keep.",
-          locator: "RSS description",
+        },
+      });
+      return;
+    }
+    if (sourceBody.includes("Revision 4")) {
+      sendJson(response, 200, {
+        match: true,
+        judgmentKey: "recoverable-agent-runs",
+        title: "可恢复的 Agent 运行需求",
+        judgment: "本地 Agent 运行中断后必须保留历史并允许重试。",
+        rationale: "来源强调证据保留；中断恢复是本地工作台可检查性的组成部分。",
+        evidence: {
+          quote: "Revision 4: developers want evidence they can keep.",
         },
       });
       return;
@@ -77,6 +95,7 @@ export async function startAgentFixture(): Promise<AgentFixture> {
     endpoint: `http://127.0.0.1:${address.port}/judge`,
     token,
     requestCount: () => requests,
+    delayNextResponse: () => (delayNextResponse = true),
     close: () => closeServer(server),
   };
 }

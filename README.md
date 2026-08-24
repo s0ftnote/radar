@@ -49,11 +49,11 @@ Radar 会向 endpoint `POST` 当前 `radarBriefRevision` 与一个明确的 `sou
   "title": "情报条目标题",
   "judgment": "证据化判断",
   "rationale": "为什么与当前 Brief 相关",
-  "evidence": { "quote": "来源版本中的原文摘录", "locator": "可读的证据位置" }
+  "evidence": { "quote": "来源版本中的原文摘录" }
 }
 ```
 
-`judgmentKey` 在当前 Project 内标识判断，而不是 feed entry。`evidence.quote` 必须能在提交给 Agent 的来源版本标题或正文中定位。`RADAR_AGENT_TOKEN` 只用于请求授权，不会写入领域记录或页面。
+`judgmentKey` 在当前 Project 内标识判断，而不是 feed entry。`evidence.quote` 必须能在提交给 Agent 的来源版本标题或正文中定位；Radar 会自行记录字段与字符区间。`RADAR_AGENT_TOKEN` 只用于请求授权，不会写入领域记录或页面。
 
 ## 验证
 

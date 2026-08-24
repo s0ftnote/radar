@@ -2,6 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { configuredRadarAgent, type AgentJudgment, type AgentJudgmentInput, type RadarAgent } from "@/lib/agent";
 import { database } from "@/lib/database";
 
+declare global {
+  var __radarProcessInstanceId: string | undefined;
+}
+
+const processInstanceId = globalThis.__radarProcessInstanceId ?? randomUUID();
+globalThis.__radarProcessInstanceId = processInstanceId;
+
 export type JudgmentBatchResult = {
   matched: number;
   noMatch: number;
@@ -37,13 +44,19 @@ export type IntelligenceItemView = {
 export type IntelligenceEvidenceView = {
   signalId: string;
   briefRevisionId: string;
+  sourceId: string;
+  sourceName: string;
+  sourceUrl: string;
+  sourceContentId: string;
   sourceVersionId: string;
   sourceVersionNumber: number;
   sourceTitle: string;
   sourceBody: string;
   sourceOriginUrl: string;
   evidenceQuote: string;
-  evidenceLocator: string;
+  evidenceField: "title" | "body";
+  evidenceStart: number;
+  evidenceEnd: number;
 };
 
 export type IntelligenceWorkspace = {
@@ -83,13 +96,19 @@ type ItemRow = {
   revision_number: number;
   signal_id: string;
   brief_revision_id: string;
+  source_id: string;
+  source_name: string;
+  source_url: string;
+  source_content_id: string;
   source_version_id: string;
   source_version_number: number;
   source_title: string;
   source_body: string;
   source_origin_url: string;
   evidence_quote: string;
-  evidence_locator: string;
+  evidence_field: "title" | "body";
+  evidence_start: number;
+  evidence_end: number;
   created_at: string;
 };
 
@@ -133,10 +152,8 @@ export function getIntelligenceWorkspace(projectId: string): IntelligenceWorkspa
   const db = database();
   const sourceVersionCount = db.prepare(
     `SELECT COUNT(*) AS count
-     FROM project_source_configurations AS config
-     JOIN source_contents AS content ON content.source_id = config.source_id
-     JOIN source_versions AS version ON version.content_id = content.id
-     WHERE config.project_id = ?`,
+     FROM project_source_versions
+     WHERE project_id = ?`,
   ).get(projectId) as { count: number };
   const runs = db.prepare(
     `SELECT run.id, run.status, run.outcome, run.reason, run.error,
@@ -151,15 +168,19 @@ export function getIntelligenceWorkspace(projectId: string): IntelligenceWorkspa
   const items = db.prepare(
     `SELECT item.id, revision.title, revision.judgment, revision.rationale,
       revision.revision_number, signal.id AS signal_id, signal.brief_revision_id,
+      source.id AS source_id, source.name AS source_name, source.url AS source_url,
+      content.id AS source_content_id,
       signal.source_version_id, version.version_number AS source_version_number,
       version.title AS source_title, version.body AS source_body,
       version.origin_url AS source_origin_url, signal.evidence_quote,
-      signal.evidence_locator, revision.created_at
+      signal.evidence_field, signal.evidence_start, signal.evidence_end, revision.created_at
      FROM intelligence_items AS item
      JOIN intelligence_item_revisions AS revision ON revision.intelligence_item_id = item.id
-     JOIN intelligence_item_signals AS item_signal ON item_signal.intelligence_item_id = item.id
-     JOIN signals AS signal ON signal.id = item_signal.signal_id
+     JOIN intelligence_revision_signals AS revision_signal ON revision_signal.intelligence_item_revision_id = revision.id
+     JOIN signals AS signal ON signal.id = revision_signal.signal_id
      JOIN source_versions AS version ON version.id = signal.source_version_id
+     JOIN source_contents AS content ON content.id = version.content_id
+     JOIN instance_sources AS source ON source.id = content.source_id
      WHERE item.project_id = ? AND revision.revision_number = 1
      ORDER BY item.created_at DESC`,
   ).all(projectId) as ItemRow[];
@@ -183,10 +204,9 @@ function projectSourceVersions(projectId: string): SourceVersionRow[] {
   return database().prepare(
     `SELECT version.id, version.version_number, version.title, version.body,
       version.origin_url, version.published_at, version.acquired_at
-     FROM project_source_configurations AS config
-     JOIN source_contents AS content ON content.source_id = config.source_id
-     JOIN source_versions AS version ON version.content_id = content.id
-     WHERE config.project_id = ?
+     FROM project_source_versions AS visible
+     JOIN source_versions AS version ON version.id = visible.source_version_id
+     WHERE visible.project_id = ?
      ORDER BY version.acquired_at, version.id`,
   ).all(projectId) as SourceVersionRow[];
 }
@@ -200,22 +220,48 @@ function claimRun(
   const db = database();
   db.exec("BEGIN IMMEDIATE");
   try {
-    const existing = db.prepare(
-      `SELECT status FROM agent_runs
+    const completed = db.prepare(
+      `SELECT id FROM agent_runs
        WHERE project_id = ? AND brief_revision_id = ? AND source_version_id = ?
-         AND status IN ('running', 'success')
+         AND status = 'success'
        ORDER BY started_at DESC LIMIT 1`,
-    ).get(projectId, briefRevisionId, sourceVersionId) as { status: "running" | "success" } | undefined;
-    if (existing) {
+    ).get(projectId, briefRevisionId, sourceVersionId);
+    if (completed) {
       db.exec("COMMIT");
-      return { kind: existing.status === "success" ? "reused" : "in_progress" };
+      return { kind: "reused" };
+    }
+    const running = db.prepare(
+      `SELECT id, process_instance_id FROM agent_runs
+       WHERE project_id = ? AND brief_revision_id = ? AND source_version_id = ?
+         AND status = 'running'
+       ORDER BY started_at DESC LIMIT 1`,
+    ).get(projectId, briefRevisionId, sourceVersionId) as
+      | { id: string; process_instance_id: string }
+      | undefined;
+    if (running?.process_instance_id === processInstanceId) {
+      db.exec("COMMIT");
+      return { kind: "in_progress" };
+    }
+    if (running) {
+      db.prepare(
+        `UPDATE agent_runs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
+      ).run("Radar 在 Agent 返回前停止；可以重试。", new Date().toISOString(), running.id);
     }
     const runId = randomUUID();
     db.prepare(
       `INSERT INTO agent_runs
-        (id, project_id, brief_revision_id, source_version_id, adapter_kind, status, started_at)
-       VALUES (?, ?, ?, ?, ?, 'running', ?)`,
-    ).run(runId, projectId, briefRevisionId, sourceVersionId, adapterKind, new Date().toISOString());
+        (id, project_id, brief_revision_id, source_version_id, adapter_kind,
+         process_instance_id, status, started_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'running', ?)`,
+    ).run(
+      runId,
+      projectId,
+      briefRevisionId,
+      sourceVersionId,
+      adapterKind,
+      processInstanceId,
+      new Date().toISOString(),
+    );
     db.exec("COMMIT");
     return { kind: "claimed", runId };
   } catch (error) {
@@ -253,42 +299,47 @@ function persistMatch(
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare(
-      `INSERT INTO signals
-        (id, project_id, brief_revision_id, source_version_id, evidence_quote, evidence_locator, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(project_id, brief_revision_id, source_version_id) DO NOTHING`,
-    ).run(signalId, projectId, briefRevisionId, sourceVersionId, judgment.evidence.quote, judgment.evidence.locator, now);
-    db.prepare(
       `INSERT INTO intelligence_items (id, project_id, judgment_key, created_at)
        VALUES (?, ?, ?, ?) ON CONFLICT(project_id, judgment_key) DO NOTHING`,
     ).run(itemId, projectId, judgment.judgmentKey, now);
 
     const existingRevision = db.prepare(
-      `SELECT title, judgment, rationale FROM intelligence_item_revisions
+      `SELECT id FROM intelligence_item_revisions
        WHERE intelligence_item_id = ? AND revision_number = 1`,
-    ).get(itemId) as { title: string; judgment: string; rationale: string } | undefined;
-    if (existingRevision && (
-      existingRevision.title !== judgment.title ||
-      existingRevision.judgment !== judgment.judgment ||
-      existingRevision.rationale !== judgment.rationale
-    )) {
-      throw new Error("Agent 对同一 judgmentKey 返回了不同判断；当前切片不会静默创建后续修订。");
-    }
-    if (!existingRevision) {
-      db.prepare(
-        `INSERT INTO intelligence_item_revisions
-          (id, intelligence_item_id, revision_number, title, judgment, rationale, created_at)
-         VALUES (?, ?, 1, ?, ?, ?, ?)`,
-      ).run(revisionId, itemId, judgment.title, judgment.judgment, judgment.rationale, now);
+    ).get(itemId);
+    if (existingRevision) {
+      throw new Error("新的 Signal 需要形成情报条目后续修订；当前切片不会改写首个修订的证据。");
     }
     db.prepare(
-      `INSERT INTO intelligence_item_signals (intelligence_item_id, signal_id)
-       VALUES (?, ?) ON CONFLICT(intelligence_item_id, signal_id) DO NOTHING`,
-    ).run(itemId, signalId);
+      `INSERT INTO intelligence_item_revisions
+        (id, intelligence_item_id, revision_number, title, judgment, rationale, created_at)
+       VALUES (?, ?, 1, ?, ?, ?, ?)`,
+    ).run(revisionId, itemId, judgment.title, judgment.judgment, judgment.rationale, now);
+    db.prepare(
+      `INSERT INTO signals
+        (id, project_id, brief_revision_id, source_version_id, evidence_quote,
+         evidence_field, evidence_start, evidence_end, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      signalId,
+      projectId,
+      briefRevisionId,
+      sourceVersionId,
+      judgment.evidence.quote,
+      judgment.evidence.field,
+      judgment.evidence.start,
+      judgment.evidence.end,
+      now,
+    );
+    db.prepare(
+      `INSERT INTO intelligence_revision_signals (intelligence_item_revision_id, signal_id)
+       VALUES (?, ?)`,
+    ).run(revisionId, signalId);
     db.prepare(
       `UPDATE agent_runs SET status = 'success', outcome = 'matched', reason = ?,
-        signal_id = ?, intelligence_item_id = ?, completed_at = ? WHERE id = ?`,
-    ).run(judgment.rationale, signalId, itemId, now, runId);
+        signal_id = ?, intelligence_item_id = ?, intelligence_item_revision_id = ?,
+        completed_at = ? WHERE id = ?`,
+    ).run(judgment.rationale, signalId, itemId, revisionId, now, runId);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -344,13 +395,19 @@ function groupItems(rows: ItemRow[]): IntelligenceItemView[] {
     item.evidence.push({
       signalId: row.signal_id,
       briefRevisionId: row.brief_revision_id,
+      sourceId: row.source_id,
+      sourceName: row.source_name,
+      sourceUrl: row.source_url,
+      sourceContentId: row.source_content_id,
       sourceVersionId: row.source_version_id,
       sourceVersionNumber: row.source_version_number,
       sourceTitle: row.source_title,
       sourceBody: row.source_body,
       sourceOriginUrl: row.source_origin_url,
       evidenceQuote: row.evidence_quote,
-      evidenceLocator: row.evidence_locator,
+      evidenceField: row.evidence_field,
+      evidenceStart: row.evidence_start,
+      evidenceEnd: row.evidence_end,
     });
   }
   return [...items.values()];
