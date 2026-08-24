@@ -192,6 +192,9 @@ test("Report 自动派生可离线预览和下载的 HTML 平台物料包", asyn
     const latestPackage = page.locator("article.material-package-record").first();
     await expect(latestPackage.locator("iframe")).toBeVisible();
     await expect(page.locator("article.material-package-record iframe")).toHaveCount(1);
+    const restartedPreview = latestPackage.frameLocator("iframe");
+    await expect(restartedPreview.getByRole("heading", { name: "离线证据交付 · 固定快照" })).toBeVisible();
+    await expect(restartedPreview.getByRole("heading", { name: "完整引用" })).toBeVisible();
     const restartedDownloadPromise = page.waitForEvent("download");
     await latestPackage.getByRole("link", { name: "下载完整 ZIP" }).click();
     const restartedDownload = await restartedDownloadPromise;
