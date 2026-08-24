@@ -462,11 +462,14 @@ function renderIndexHtml(snapshot: MaterialPackageSnapshot): string {
           <div><dt>来源截止点</dt><dd>${escapeHtml(formatUtc(snapshot.report.sourceCutoffAt))}</dd></div>
         </dl>
       </header>
-      <img class="preview" src="assets/preview.png" alt="${escapeAttribute(snapshot.report.title)}的 PNG 预览">
       <section aria-labelledby="claims-title">
         <h2 id="claims-title">可追溯主张</h2>
         <ol class="claims">${claims}</ol>
       </section>
+      <figure>
+        <img class="preview" src="assets/preview.png" alt="${escapeAttribute(snapshot.report.title)}的 PNG 预览">
+        <figcaption>与本文共享同一份 render source 的 PNG 衍生预览</figcaption>
+      </figure>
       ${renderReferences(snapshot)}
     </article>
   </main>
@@ -501,17 +504,19 @@ async function renderPreviewPng(snapshot: MaterialPackageSnapshot): Promise<Uint
   const svg = `<svg width="1200" height="900" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
     <rect width="1200" height="900" fill="#f6f5f1"/>
     <rect x="56" y="56" width="1088" height="788" rx="18" fill="#ffffff" stroke="#c8cac1"/>
-    <text x="92" y="120" class="kicker">RADAR · HTML MATERIAL PACKAGE</text>
+    <text x="92" y="120" class="brand">Radar</text>
+    <text x="1108" y="120" text-anchor="end" class="meta">HTML · PNG PREVIEW</text>
+    <line x1="92" x2="1108" y1="146" y2="146" stroke="#ddded7"/>
     ${titleSvg}
     <line x1="92" x2="1108" y1="${claimStart - 44}" y2="${claimStart - 44}" stroke="#ddded7"/>
     ${claimsSvg}
-    <style>.kicker{font:700 22px sans-serif;letter-spacing:2px;fill:#24664a}.title{font:700 46px sans-serif;fill:#1e211e}.claim{font:400 28px sans-serif;fill:#454a44}</style>
+    <style>.brand{font:700 22px sans-serif;letter-spacing:2px;fill:#24664a}.meta{font:600 18px sans-serif;letter-spacing:1px;fill:#656961}.title{font:700 46px sans-serif;fill:#1e211e}.claim{font:400 28px sans-serif;fill:#454a44}</style>
   </svg>`;
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
 }
 
 function packageStyles(): string {
-  return `:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:16px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:16px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--green);letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font-size:clamp(32px,7vw,54px);line-height:1.15;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:19px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}.preview{display:block;width:100%;height:auto;margin:36px 0;border:1px solid var(--line);border-radius:10px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:19px;font-weight:700}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:2px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl{grid-template-columns:1fr}.angle{font-size:17px}.claim p{font-size:17px}}`;
+  return `:root{color-scheme:light;--paper:#f6f5f1;--surface:#fff;--ink:#1e211e;--muted:#656961;--line:#d8d9d2;--green:#24664a}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main,footer{width:min(860px,calc(100% - 36px));margin:0 auto}article{margin:36px 0;padding:clamp(24px,6vw,64px);background:var(--surface);border:1px solid var(--line);border-radius:14px}.document-masthead{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}.document-masthead strong{color:var(--green);letter-spacing:.08em}h1{max-width:22ch;margin:28px 0 14px;font-size:38px;line-height:1.15;letter-spacing:-.035em}.angle{max-width:62ch;color:var(--muted);font-size:17px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:30px 0 0;padding-top:18px;border-top:1px solid var(--line)}dt,.identity{color:var(--muted);font-size:13px}dd{margin:4px 0 0}figure{margin:42px 0 0;padding-top:28px;border-top:1px solid var(--line)}.preview{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:10px}figcaption{margin-top:8px;color:var(--muted);font-size:13px}section{margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}h2{font-size:24px}.claims,.references ol{margin:0;padding:0;list-style:none}.claim,.references li{padding:22px 0;border-top:1px solid var(--line)}.claim p{margin:8px 0 0;font-size:17px;font-weight:700}.role{display:inline-block;padding:2px 8px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:700}blockquote{margin:0;padding-left:16px;color:var(--muted);border-left:1px solid var(--line)}a{color:var(--green);overflow-wrap:anywhere;text-underline-offset:.2em}footer{padding:0 0 36px;color:var(--muted);font-size:13px}@media(max-width:620px){main,footer{width:min(100% - 20px,860px)}article{margin:10px 0;padding:24px 20px;border-radius:10px}dl{grid-template-columns:1fr}}`;
 }
 
 function snapshotReport(
