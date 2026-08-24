@@ -1,0 +1,774 @@
+<!doctype html>
+<!--
+  PROTOTYPE — 一次性代码，不要合入 main。
+  问题（issue #6）：怎样用一个低保真交互，让用户只描述自己想持续知道什么，
+  AI 就能帮助澄清为可确认、可修改的 Radar Brief，而无需用户先理解人物、时间、平台和关键词等低阶筛选项？
+
+  三个结构上不同的方案，用 ?variant=A|B|C 切换，底部浮动条切换：
+    A 追问式 —— AI 一次问一个问题，问完才给 Brief（问题主导）
+    B 草稿式 —— 立刻给出完整 Brief 草稿，AI 推断处高亮，用自然语言就地改（草稿主导）
+    C 样例式 —— 立刻给出「我会收 / 我会弃」的样例判断，用户纠错，Brief 由判断反推（样例主导）
+
+  右侧 Brief 状态面板始终可见：每次操作后完整打印当前 Brief 状态。
+  无持久化，无后端，所有 AI 回应都是写死的假数据。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE · Radar Brief 的创建与确认</title>
+<style>
+  :root{
+    --bg:#faf9f7; --panel:#fff; --ink:#1c1b19; --muted:#6d6a65; --line:#e5e2dd;
+    --accent:#2f6f4e; --accent-soft:#eaf3ee; --warn:#a8641c; --warn-soft:#fbf1e4;
+    --drop:#8c8781;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.65 -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+  .proto-banner{background:#1c1b19;color:#f7f4ef;font-size:12px;letter-spacing:.06em;
+       padding:6px 16px;text-align:center}
+  .shell{max-width:1180px;margin:0 auto;padding:28px 20px 120px;display:grid;
+       grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+  @media (max-width:900px){.shell{grid-template-columns:1fr}}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .card + .card{margin-top:14px}
+  textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;
+       font:inherit;resize:vertical;background:#fff;color:inherit}
+  textarea:focus,input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+  input[type=text]{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit}
+  button{font:inherit;cursor:pointer;border-radius:999px;border:1px solid var(--line);
+       background:#fff;padding:7px 16px;color:inherit}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.ghost{background:transparent}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+  .tiny{font-size:12px}
+  /* 对话 */
+  .msg{margin:14px 0;max-width:82%}
+  .msg .who{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .msg .bubble{padding:11px 14px;border-radius:12px;background:#f2efe9}
+  .msg.me{margin-left:auto}
+  .msg.me .bubble{background:var(--accent-soft)}
+  .msg.me .who{text-align:right}
+  /* Brief 文档 */
+  .doc h3{font-size:13px;letter-spacing:.08em;color:var(--muted);margin:20px 0 6px;font-weight:600}
+  .doc h3:first-child{margin-top:0}
+  .doc ul{margin:0;padding-left:18px}
+  .guess{background:var(--warn-soft);border-bottom:1px dashed var(--warn);cursor:pointer;
+       padding:1px 3px;border-radius:3px}
+  .guess:hover{background:#f6e3c8}
+  .guess.edited{background:var(--accent-soft);border-bottom-color:var(--accent)}
+  /* 样例 */
+  .sig{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;background:#fff}
+  .sig.kept{border-left:4px solid var(--accent)}
+  .sig.dropped{border-left:4px solid var(--drop);opacity:.72}
+  .sig .src{font-size:12px;color:var(--muted)}
+  .sig .why{font-size:13px;color:var(--muted);margin-top:6px}
+  .verdict{font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line)}
+  .verdict.k{background:var(--accent-soft);color:var(--accent);border-color:#cfe3d7}
+  .verdict.d{background:#f1efec;color:var(--drop)}
+  /* 状态面板 */
+  .state{position:sticky;top:20px}
+  .state pre{margin:0;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+       white-space:pre-wrap;word-break:break-word;color:#3a3833}
+  .state .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:#f1efec;color:var(--muted)}
+  .log{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;
+       font-size:12px;color:var(--muted);max-height:180px;overflow:auto}
+  .log div{margin-bottom:3px}
+  /* 切换条 */
+  .switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:50;
+       display:flex;align-items:center;gap:4px;background:#1c1b19;color:#f7f4ef;
+       padding:6px 8px;border-radius:999px;box-shadow:0 8px 28px rgba(0,0,0,.28);font-size:13px}
+  .switcher button{background:transparent;border:none;color:#f7f4ef;padding:4px 10px;font-size:15px}
+  .switcher .label{padding:0 10px;white-space:nowrap}
+  .stepdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--line);margin-right:5px}
+  .stepdot.on{background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="proto-banner">PROTOTYPE · 一次性原型 · issue #6 验证 Radar Brief 的创建与确认体验 · 数据全部为假</div>
+
+<div class="shell">
+  <main>
+    <h1 id="v-title"></h1>
+    <p class="sub" id="v-desc"></p>
+    <div id="stage"></div>
+  </main>
+
+  <aside class="state">
+    <div class="card">
+      <div class="head">
+        <strong class="small">当前 Radar Brief 状态</strong>
+        <span class="badge" id="brief-status">未开始</span>
+      </div>
+      <pre id="brief-dump">{}</pre>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="switcher" id="switcher"></div>
+
+<script>
+/* ---------------- 共享假数据 ---------------- */
+const SEED = "我想一直知道做 AI Agent 的独立开发者在抱怨什么、缺什么工具，最好能拿来写小红书。";
+
+const EMPTY_BRIEF = () => ({
+  任务名: null,
+  我想持续知道: null,
+  内容用途: null,
+  值得报给我的: [],
+  不要报给我的: [],
+  重点对象: [],
+  交付节奏: null,
+  来源: "由 Radar 自动选择并公开覆盖情况",
+  确认状态: "未确认"
+});
+
+const FULL_GUESS = {
+  任务名: "AI Agent 独立开发者的痛点",
+  我想持续知道: "独立开发者在做 AI Agent 时反复卡住、反复抱怨、以及自己动手补的缺口",
+  内容用途: "写小红书",
+  值得报给我的: [
+    "同一个抱怨在不同地方被反复说起",
+    "有人为了绕开某个缺口自己写了工具",
+    "过去说不通的做法现在开始被接受"
+  ],
+  不要报给我的: [
+    "厂商发布和融资新闻",
+    "纯教程和入门科普",
+    "只有一个人随口一提、没有其他佐证"
+  ],
+  重点对象: ["独立开发者与小团队", "Agent 框架与工具作者"],
+  交付节奏: "每周一份",
+  来源: "由 Radar 自动选择并公开覆盖情况",
+  确认状态: "未确认"
+};
+
+const SAMPLES = [
+  { id:1, title:"「我的 agent 又在第 12 轮开始胡编工具名」", src:"Reddit · r/LocalLLaMA · 340 赞",
+    verdict:"keep", why:"重复出现的执行可靠性抱怨，最近两周至少 4 个地方提到" },
+  { id:2, title:"某公司发布新一代 Agent 平台，融资 6000 万美元", src:"科技媒体 · 头条",
+    verdict:"drop", why:"厂商发布，与个人开发者的实际卡点无关" },
+  { id:3, title:"有人手写了一个 200 行的 agent 轨迹回放器，因为现成的都太重", src:"GitHub · 新仓库 · 一周 800 星",
+    verdict:"keep", why:"自己动手补缺口，是需求已经强到值得付出成本的信号" },
+  { id:4, title:"《从零开始搭建你的第一个 AI Agent》", src:"个人博客",
+    verdict:"drop", why:"入门教程，不含新的需求信息" },
+  { id:5, title:"「做了半年才发现，难的不是让它会做，是让它知道什么时候停」", src:"X · 独立开发者",
+    verdict:"keep", why:"表述方式变化：从能力问题转向控制问题" },
+  { id:6, title:"一位用户说希望 agent 能自动帮他报销", src:"论坛回帖 · 3 条回复",
+    verdict:"drop", why:"孤例，没有其他佐证" }
+];
+
+/* ---------------- 状态 ---------------- */
+let brief = EMPTY_BRIEF();
+let logs = [];
+
+function setBrief(patch, note){
+  brief = Object.assign({}, brief, patch);
+  if(note) logs.unshift("· " + note);
+  render_state();
+}
+function resetState(){ brief = EMPTY_BRIEF(); logs = []; render_state(); }
+
+function render_state(){
+  document.getElementById("brief-dump").textContent =
+    JSON.stringify(brief, null, 2).replace(/"/g,"");
+  document.getElementById("brief-status").textContent = brief.确认状态;
+  document.getElementById("log").innerHTML = logs.map(l=>`<div>${l}</div>`).join("");
+}
+
+/* ---------------- 变体 A：追问式 ---------------- */
+const A_QUESTIONS = [
+  { q: "明白。你说的「抱怨」，是想看到有人明确说难受，还是也包括他们绕开问题、自己动手补的那些做法？",
+    opts: ["只要明确说出口的", "两种都要", "更看重自己动手补的"],
+    apply: (ans)=>({ 值得报给我的: ans === "只要明确说出口的"
+        ? ["有人明确说某件事难受，且不止一个人这么说"]
+        : ["同一个抱怨在不同地方被反复说起", "有人为了绕开某个缺口自己写了工具"] }),
+    note: (a)=>"回答「"+a+"」→ 写入「值得报给我的」" },
+  { q: "如果一件事只有一个人说过一次，你希望我报给你吗？",
+    opts: ["不要，等有人附和再说", "要，但要标明是孤例"],
+    apply: (ans)=>({ 不要报给我的: ans.startsWith("不要")
+        ? ["只有一个人随口一提、没有其他佐证", "厂商发布和融资新闻"]
+        : ["厂商发布和融资新闻"] }),
+    note: (a)=>"回答「"+a+"」→ 写入「不要报给我的」" },
+  { q: "你说要拿来写小红书。是想要现成能发的稿子，还是想要能挑素材的判断和证据？",
+    opts: ["素材和判断就好", "希望接近能发的稿子"],
+    apply: (ans)=>({ 内容用途: "写小红书 · " + (ans==="素材和判断就好" ? "只要素材与判断" : "希望接近成稿"),
+                     交付节奏: "每周一份" }),
+    note: (a)=>"回答「"+a+"」→ 写入「内容用途」与「交付节奏」" }
+];
+
+function renderA(){
+  const stage = document.getElementById("stage");
+  stage.innerHTML = `
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        ${A_QUESTIONS.map((_,i)=>`<span><span class="stepdot" id="dot${i}"></span></span>`).join("")}
+        <span class="tiny muted" id="a-progress">先说一句你想持续知道什么</span>
+      </div>
+      <div id="a-thread"></div>
+      <div id="a-input"></div>
+    </div>`;
+  let step = -1;
+  const thread = ()=>document.getElementById("a-thread");
+
+  function say(who, text, me){
+    thread().insertAdjacentHTML("beforeend",
+      `<div class="msg ${me?'me':''}"><div class="who">${who}</div><div class="bubble">${text}</div></div>`);
+  }
+  function ask(){
+    step++;
+    for(let i=0;i<A_QUESTIONS.length;i++){
+      const d=document.getElementById("dot"+i); if(d) d.className = "stepdot" + (i<step?" on":"");
+    }
+    if(step >= A_QUESTIONS.length){ finish(); return; }
+    document.getElementById("a-progress").textContent = `AI 追问 ${step+1}/${A_QUESTIONS.length}`;
+    const cur = A_QUESTIONS[step];
+    say("Radar", cur.q);
+    document.getElementById("a-input").innerHTML =
+      `<div class="row">${cur.opts.map((o,i)=>`<button data-i="${i}">${o}</button>`).join("")}</div>
+       <div class="tiny muted" style="margin-top:8px">也可以直接打字说，不必选。</div>`;
+    document.querySelectorAll("#a-input button").forEach(b=>{
+      b.onclick = ()=>{
+        const ans = cur.opts[+b.dataset.i];
+        say("我", ans, true);
+        setBrief(cur.apply(ans), cur.note(ans));
+        ask();
+      };
+    });
+  }
+  function finish(){
+    document.getElementById("a-progress").textContent = "追问结束，请确认";
+    setBrief({确认状态:"待确认"}, "AI 追问结束，Brief 草稿完成");
+    say("Radar", "那我这样理解你要的东西，你看对不对：");
+    thread().insertAdjacentHTML("beforeend", `
+      <div class="card doc" style="margin-top:8px">
+        <h3>任务名</h3><div>${FULL_GUESS.任务名}</div>
+        <h3>我想持续知道</h3><div>${brief.我想持续知道 || FULL_GUESS.我想持续知道}</div>
+        <h3>值得报给我的</h3><ul>${brief.值得报给我的.map(x=>`<li>${x}</li>`).join("")}</ul>
+        <h3>不要报给我的</h3><ul>${brief.不要报给我的.map(x=>`<li>${x}</li>`).join("")}</ul>
+        <h3>内容用途 / 节奏</h3><div>${brief.内容用途} · ${brief.交付节奏}</div>
+      </div>`);
+    document.getElementById("a-input").innerHTML =
+      `<div class="row" style="margin-top:12px">
+         <button class="primary" id="a-ok">就这样，开始跑</button>
+         <button class="ghost" id="a-fix">有一处不对</button>
+       </div>`;
+    document.getElementById("a-ok").onclick = ()=>{
+      setBrief({任务名:FULL_GUESS.任务名, 我想持续知道:FULL_GUESS.我想持续知道,
+                重点对象:FULL_GUESS.重点对象, 确认状态:"已确认"}, "用户确认 Brief，Radar 开始运行");
+      say("Radar","好，第一份报告在下周一。之后你说「这条没用」我就会改。");
+      document.getElementById("a-input").innerHTML = "";
+    };
+    document.getElementById("a-fix").onclick = ()=>{
+      document.getElementById("a-input").innerHTML =
+        `<div class="row"><input type="text" id="a-fixin" placeholder="直接说哪里不对，例如：融资新闻我其实想看"></div>
+         <div class="row" style="margin-top:8px"><button class="primary" id="a-fixgo">改</button></div>`;
+      document.getElementById("a-fixgo").onclick = ()=>{
+        const t = document.getElementById("a-fixin").value.trim() || "（空）";
+        say("我", t, true);
+        say("Radar", "改好了，我把这条从「不要报」里拿掉了。");
+        setBrief({不要报给我的: brief.不要报给我的.slice(0,-1)}, "自然语言修正：" + t);
+        document.getElementById("a-input").innerHTML = "";
+      };
+    };
+  }
+
+  document.getElementById("a-input").innerHTML =
+    `<textarea id="a-seed" rows="3">${SEED}</textarea>
+     <div class="row" style="margin-top:10px"><button class="primary" id="a-go">交给 Radar</button></div>`;
+  document.getElementById("a-go").onclick = ()=>{
+    const t = document.getElementById("a-seed").value.trim();
+    say("我", t, true);
+    setBrief({我想持续知道:t, 确认状态:"澄清中"}, "用户一句话描述已收下");
+    document.getElementById("a-input").innerHTML = "";
+    ask();
+  };
+}
+
+/* ---------------- 变体 B：草稿式 ---------------- */
+function renderB(){
+  const stage = document.getElementById("stage");
+  stage.innerHTML = `
+    <div class="card">
+      <div class="tiny muted" style="margin-bottom:8px">一句话就够，剩下的我先替你写，你再改。</div>
+      <textarea id="b-seed" rows="3">${SEED}</textarea>
+      <div class="row" style="margin-top:10px"><button class="primary" id="b-go">让 Radar 先写一版</button></div>
+    </div>
+    <div id="b-doc"></div>`;
+  document.getElementById("b-go").onclick = ()=>{
+    setBrief(Object.assign({}, FULL_GUESS, {确认状态:"待确认"}), "AI 直接给出完整 Brief 草稿（未追问）");
+    drawDoc();
+  };
+
+  function g(path, text){ return `<span class="guess" data-p="${path}">${text}</span>`; }
+
+  function drawDoc(){
+    document.getElementById("b-doc").innerHTML = `
+      <div class="card doc">
+        <div class="row" style="justify-content:space-between;margin-bottom:14px">
+          <strong>${g("任务名", brief.任务名)}</strong>
+          <span class="tiny muted">黄底 = 我猜的，点一下就能改</span>
+        </div>
+        <h3>我想持续知道</h3>
+        <div>${g("我想持续知道", brief.我想持续知道)}</div>
+        <h3>值得报给我的</h3>
+        <ul>${brief.值得报给我的.map((x,i)=>`<li>${g("值得报给我的."+i, x)}</li>`).join("")}</ul>
+        <h3>不要报给我的</h3>
+        <ul>${brief.不要报给我的.map((x,i)=>`<li>${g("不要报给我的."+i, x)}</li>`).join("")}</ul>
+        <h3>重点对象</h3>
+        <div>${brief.重点对象.map((x,i)=>g("重点对象."+i, x)).join("　")}</div>
+        <h3>内容用途 / 节奏 / 来源</h3>
+        <div>${g("内容用途", brief.内容用途)} · ${g("交付节奏", brief.交付节奏)} · <span class="muted">${brief.来源}</span></div>
+        <div class="row" style="margin-top:22px">
+          <button class="primary" id="b-ok">对，就这样</button>
+          <button class="ghost" id="b-more">再给我一版不一样的</button>
+        </div>
+        <div id="b-edit"></div>
+      </div>`;
+    document.querySelectorAll(".guess").forEach(el=>{
+      el.onclick = ()=>openEdit(el.dataset.p, el.textContent);
+    });
+    document.getElementById("b-ok").onclick = ()=>{
+      setBrief({确认状态:"已确认"}, "用户确认草稿，Radar 开始运行");
+    };
+    document.getElementById("b-more").onclick = ()=>{
+      setBrief({
+        值得报给我的:["同一个缺口在不同社区被独立提起","有人放弃现成方案自己造轮子","从抱怨转成付费意愿的表述"],
+        不要报给我的:["厂商发布","教程","招聘与融资"],
+        交付节奏:"每两周一份，或有明显变化时立刻发"
+      }, "用户要了第二版草稿");
+      drawDoc();
+    };
+  }
+
+  function openEdit(path, cur){
+    document.getElementById("b-edit").innerHTML = `
+      <div class="card" style="margin-top:16px;background:#fbfaf8">
+        <div class="tiny muted">正在改：${path}　现在是「${cur}」</div>
+        <div class="row" style="margin-top:8px">
+          <input type="text" id="b-in" placeholder="用自己的话说，例如：这条太窄了，扩到所有开发工具">
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="b-save">改</button>
+          <button class="ghost" id="b-del">删掉这条</button>
+          <button class="ghost" id="b-cancel">算了</button>
+        </div>
+      </div>`;
+    document.getElementById("b-in").focus();
+    document.getElementById("b-save").onclick = ()=>{
+      const t = document.getElementById("b-in").value.trim(); if(!t) return;
+      applyPath(path, t); setBrief({}, `就地修改 ${path}：${t}`); drawDoc();
+    };
+    document.getElementById("b-del").onclick = ()=>{
+      applyPath(path, null); setBrief({}, `删除 ${path}`); drawDoc();
+    };
+    document.getElementById("b-cancel").onclick = ()=>{ document.getElementById("b-edit").innerHTML=""; };
+  }
+
+  function applyPath(path, val){
+    const [k, idx] = path.split(".");
+    if(idx === undefined){ brief[k] = val === null ? "（已删）" : val; return; }
+    if(val === null) brief[k].splice(+idx,1); else brief[k][+idx] = val;
+  }
+}
+
+/* ---------------- 变体 C：样例式 ---------------- */
+function renderC(){
+  const stage = document.getElementById("stage");
+  let judged = {};
+  stage.innerHTML = `
+    <div class="card">
+      <div class="tiny muted" style="margin-bottom:8px">先说一句，我立刻给你看我会收什么、会扔什么。你只要说我判断得对不对。</div>
+      <textarea id="c-seed" rows="3">${SEED}</textarea>
+      <div class="row" style="margin-top:10px"><button class="primary" id="c-go">让我看看你会收什么</button></div>
+    </div>
+    <div id="c-list"></div>`;
+
+  document.getElementById("c-go").onclick = ()=>{
+    setBrief({我想持续知道: document.getElementById("c-seed").value.trim(), 确认状态:"校准中"},
+             "用户一句话 → AI 用 6 条真实样例展示自己的判断");
+    draw();
+  };
+
+  function draw(){
+    const done = Object.keys(judged).length;
+    document.getElementById("c-list").innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:12px">
+          <strong class="small">这是我在过去 7 天里会做的判断</strong>
+          <span class="tiny muted">已校准 ${done}/${SAMPLES.length}</span>
+        </div>
+        ${SAMPLES.map(s=>{
+          const v = judged[s.id] || s.verdict;
+          const flipped = judged[s.id] && judged[s.id] !== s.verdict;
+          return `<div class="sig ${v==='keep'?'kept':'dropped'}">
+            <div class="row" style="justify-content:space-between">
+              <div style="max-width:78%"><div>${s.title}</div><div class="src">${s.src}</div></div>
+              <span class="verdict ${v==='keep'?'k':'d'}">${v==='keep'?'我会收':'我会扔'}</span>
+            </div>
+            <div class="why">因为：${flipped ? '（按你的判断改了）' : s.why}</div>
+            <div class="row" style="margin-top:10px">
+              <button data-id="${s.id}" data-v="keep" class="tiny">这个要</button>
+              <button data-id="${s.id}" data-v="drop" class="tiny">这个不要</button>
+              ${flipped?'<span class="tiny muted">已按你的意思改</span>':''}
+            </div>
+          </div>`;
+        }).join("")}
+        <div class="row" style="margin-top:14px">
+          <button class="primary" id="c-done" ${done<2?'disabled':''}>就按这个口味跑</button>
+          <span class="tiny muted">${done<2?'至少纠正或确认两条，我才敢定口味':'我已经从你的判断里总结出一份 Brief →'}</span>
+        </div>
+      </div>`;
+    document.querySelectorAll("#c-list button[data-id]").forEach(b=>{
+      b.onclick = ()=>{
+        const id = +b.dataset.id, v = b.dataset.v;
+        judged[id] = v;
+        const s = SAMPLES.find(x=>x.id===id);
+        deriveBrief();
+        setBrief({}, (v===s.verdict?"确认":"纠正") + `样例「${s.title.slice(0,14)}…」→ ${v==='keep'?'要':'不要'}`);
+        draw();
+      };
+    });
+    const d = document.getElementById("c-done");
+    if(d) d.onclick = ()=>setBrief({任务名:FULL_GUESS.任务名, 确认状态:"已确认"}, "用户按样例口味确认 Brief");
+  }
+
+  function deriveBrief(){
+    const keep=[], drop=[];
+    SAMPLES.forEach(s=>{
+      const v = judged[s.id]; if(!v) return;
+      (v==='keep'?keep:drop).push(s);
+    });
+    brief.值得报给我的 = keep.map(s=>"像「"+s.title.slice(0,16)+"…」这样的：" + s.why.split("，")[0]);
+    brief.不要报给我的 = drop.map(s=>"像「"+s.title.slice(0,16)+"…」这样的：" + s.why.split("，")[0]);
+    brief.内容用途 = "写小红书";
+    brief.交付节奏 = "每周一份";
+  }
+}
+
+/* ---------------- 变体 D：合并版（草稿主干 + 可选样例检验） ----------------
+   一句话 → 一屏（草稿 + 折起来的样例）→ 一个确认按钮。
+   零必答问题、零分支、零额外步骤。样例默认收起，想看再点。
+   在样例上纠一条，草稿里对应的条目立刻改，并高亮标「刚按你的意思改的」。 */
+function renderD(){
+  const stage = document.getElementById("stage");
+  let judged = {};          // 样例纠正
+  let touched = {};         // 刚变过的 Brief 条目 path -> true
+  let openSamples = false;
+
+  stage.innerHTML = `
+    <div class="card">
+      <div class="tiny muted" style="margin-bottom:8px">说一句你想持续知道什么，剩下的我先写，你再改。</div>
+      <textarea id="d-seed" rows="3">${SEED}</textarea>
+      <div class="row" style="margin-top:10px"><button class="primary" id="d-go">交给 Radar</button></div>
+    </div>
+    <div id="d-body"></div>`;
+
+  document.getElementById("d-go").onclick = ()=>{
+    setBrief(Object.assign({}, FULL_GUESS, {确认状态:"待确认"}), "一句话 → AI 直接给出完整 Brief 草稿");
+    draw();
+  };
+
+  function g(path, text){
+    const hot = touched[path] ? " edited" : "";
+    return `<span class="guess${hot}" data-p="${path}">${text}</span>` +
+           (touched[path] ? ` <span class="tiny" style="color:var(--accent)">刚按你的意思改的</span>` : "");
+  }
+
+  function draw(){
+    const fixed = Object.keys(judged).length;
+    document.getElementById("d-body").innerHTML = `
+      <div class="card doc">
+        <div class="row" style="justify-content:space-between;margin-bottom:14px">
+          <strong>${g("任务名", brief.任务名)}</strong>
+          <span class="tiny muted">黄底 = 我猜的，点一下就能改</span>
+        </div>
+        <h3>我想持续知道</h3><div>${g("我想持续知道", brief.我想持续知道)}</div>
+        <h3>值得报给我的</h3>
+        <ul>${brief.值得报给我的.map((x,i)=>`<li>${g("值得报给我的."+i, x)}</li>`).join("")}</ul>
+        <h3>不要报给我的</h3>
+        <ul>${brief.不要报给我的.map((x,i)=>`<li>${g("不要报给我的."+i, x)}</li>`).join("")}</ul>
+        <h3>重点对象</h3>
+        <div>${brief.重点对象.map((x,i)=>g("重点对象."+i, x)).join("　")}</div>
+        <h3>内容用途 / 节奏 / 来源</h3>
+        <div>${g("内容用途", brief.内容用途)} · ${g("交付节奏", brief.交付节奏)} · <span class="muted">${brief.来源}</span></div>
+
+        <div id="d-edit"></div>
+
+        <div style="margin-top:22px;border-top:1px dashed var(--line);padding-top:14px">
+          <button class="ghost tiny" id="d-toggle" style="padding-left:0;border:none">
+            ${openSamples ? "▾" : "▸"} 想先看看我会收什么？
+            <span class="muted">（${fixed ? "已纠正 "+fixed+" 条" : "可跳过"}）</span>
+          </button>
+          <div id="d-samples"></div>
+        </div>
+
+        <div class="row" style="margin-top:20px">
+          <button class="primary" id="d-ok">就这样，开始跑</button>
+          <span class="tiny muted">之后每期你都能说「这条没用」，我会继续改。</span>
+        </div>
+      </div>`;
+
+    document.querySelectorAll("#d-body .guess").forEach(el=>{
+      el.onclick = ()=>openEdit(el.dataset.p, el.textContent);
+    });
+    document.getElementById("d-toggle").onclick = ()=>{ openSamples = !openSamples; draw(); };
+    document.getElementById("d-ok").onclick = ()=>
+      setBrief({确认状态:"已确认"}, "用户确认 Brief，Radar 开始运行");
+    if(openSamples) drawSamples();
+  }
+
+  function drawSamples(){
+    document.getElementById("d-samples").innerHTML = `
+      <div class="tiny muted" style="margin:10px 0">按上面这份 Brief，我在过去 7 天里会这样取舍。看着不对就纠一条，草稿会跟着改。</div>
+      ${SAMPLES.map(s=>{
+        const v = judged[s.id] || s.verdict;
+        const flipped = judged[s.id] && judged[s.id] !== s.verdict;
+        return `<div class="sig ${v==='keep'?'kept':'dropped'}">
+          <div class="row" style="justify-content:space-between">
+            <div style="max-width:76%"><div class="small">${s.title}</div><div class="src">${s.src}</div></div>
+            <span class="verdict ${v==='keep'?'k':'d'}">${v==='keep'?'我会收':'我会扔'}</span>
+          </div>
+          <div class="why">因为：${flipped ? "你说过这类要"+(v==='keep'?'收':'扔')+"，我改了" : s.why}</div>
+          <div class="row" style="margin-top:8px">
+            <button class="tiny" data-id="${s.id}" data-v="${v==='keep'?'drop':'keep'}">
+              不对，这个${v==='keep'?'不要':'要'}
+            </button>
+          </div>
+        </div>`;
+      }).join("")}`;
+    document.querySelectorAll("#d-samples button[data-id]").forEach(b=>{
+      b.onclick = ()=>{
+        const id = +b.dataset.id, v = b.dataset.v, s = SAMPLES.find(x=>x.id===id);
+        judged[id] = v;
+        touched = {};
+        const path = applyFromSample(s, v);
+        setBrief({}, `样例纠正「${s.title.slice(0,14)}…」→ ${v==='keep'?'要':'不要'}，草稿 ${path} 已跟改`);
+        draw();
+      };
+    });
+  }
+
+  // 样例纠正 → 直接回写草稿条目，并记下改了哪一条以便高亮
+  function applyFromSample(s, v){
+    if(v === "keep"){
+      // 原本会扔，现在要 → 从排除项里摘掉对应那条，并加进值得报
+      const i = brief.不要报给我的.findIndex(x=>x.includes(s.why.slice(0,4)) || s.why.includes(x.slice(0,3)));
+      if(i >= 0) brief.不要报给我的.splice(i,1);
+      brief.值得报给我的.push("像「"+s.title.slice(0,16)+"…」这样的");
+      const p = "值得报给我的." + (brief.值得报给我的.length-1);
+      touched[p] = true; return "「值得报给我的」";
+    }else{
+      const i = brief.值得报给我的.findIndex(x=>x.includes(s.why.slice(0,4)) || s.why.includes(x.slice(0,3)));
+      if(i >= 0) brief.值得报给我的.splice(i,1);
+      brief.不要报给我的.push("像「"+s.title.slice(0,16)+"…」这样的");
+      const p = "不要报给我的." + (brief.不要报给我的.length-1);
+      touched[p] = true; return "「不要报给我的」";
+    }
+  }
+
+  function openEdit(path, cur){
+    const clean = cur.replace(/\s*刚按你的意思改的$/,"");
+    document.getElementById("d-edit").innerHTML = `
+      <div class="card" style="margin-top:16px;background:#fbfaf8">
+        <div class="tiny muted">正在改：${path}　现在是「${clean}」</div>
+        <div class="row" style="margin-top:8px">
+          <input type="text" id="d-in" placeholder="用自己的话说，例如：这条太窄了，扩到所有开发工具">
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="d-save">改</button>
+          <button class="ghost" id="d-del">删掉这条</button>
+          <button class="ghost" id="d-cancel">算了</button>
+        </div>
+      </div>`;
+    document.getElementById("d-in").focus();
+    document.getElementById("d-save").onclick = ()=>{
+      const t = document.getElementById("d-in").value.trim(); if(!t) return;
+      touched = {}; applyPath(path, t); touched[path] = true;
+      setBrief({}, `就地修改 ${path}：${t}`); draw();
+    };
+    document.getElementById("d-del").onclick = ()=>{
+      touched = {}; applyPath(path, null); setBrief({}, `删除 ${path}`); draw();
+    };
+    document.getElementById("d-cancel").onclick = ()=>{ document.getElementById("d-edit").innerHTML=""; };
+  }
+
+  function applyPath(path, val){
+    const [k, idx] = path.split(".");
+    if(idx === undefined){ brief[k] = val === null ? "（已删）" : val; return; }
+    if(val === null) brief[k].splice(+idx,1); else brief[k][+idx] = val;
+  }
+}
+
+/* ---------------- 变体 E：零 Brief 界面（第一性原理重做） ----------------
+   前提修正：用户审不了自己写不出来的条文，只在具体条目上判断可靠。
+   所以界面上不出现 Brief，只出现「你会收到的报告」。
+   一句话 → 样报告 → 在条目上说要/不要，报告当场重排 → 满意就订。
+   Brief 在后台默默长出来（右侧状态面板可见），想看可以点开只读摘要。 */
+
+const POOL = [   // 用户说「多来点这种」时，从这里补条目进来
+  { id:101, title:"「三个月里我第四次自己写 retry 逻辑了，没有一个框架把这事做对」", src:"Hacker News · 210 分",
+    why:"同一个缺口被反复自己动手补" },
+  { id:102, title:"有人把 agent 的中间步骤导出成 CSV 只为了肉眼查错", src:"Discord 截图 · 转发 60+",
+    why:"为了绕开缺口，用了明显笨拙的办法" },
+  { id:103, title:"「以前大家说要更强的模型，最近都在说要更好的日志」", src:"独立开发者周报",
+    why:"表述方式在变，需求重心转移" },
+  { id:104, title:"一个只做 agent 断点续跑的小工具，两周内被 fork 40 次", src:"GitHub",
+    why:"小工具被快速采用，说明痛点真实" }
+];
+
+function renderE(){
+  const stage = document.getElementById("stage");
+  let feed = [];        // 当前样报告里的条目
+  let poolIdx = 0;
+  let tweaks = 0;
+  let showWhy = false;  // 只读的「Radar 是怎么理解我的」
+
+  stage.innerHTML = `
+    <div class="card">
+      <div class="tiny muted" style="margin-bottom:8px">说一句你想持续知道什么。我先跑一遍给你看，你觉得对了再订。</div>
+      <textarea id="e-seed" rows="3">${SEED}</textarea>
+      <div class="row" style="margin-top:10px"><button class="primary" id="e-go">先跑一遍看看</button></div>
+    </div>
+    <div id="e-body"></div>`;
+
+  document.getElementById("e-go").onclick = ()=>{
+    feed = SAMPLES.filter(s=>s.verdict==="keep").map(s=>({...s}));
+    // 冷启动时故意混进一条边界模糊的，让用户有的可纠
+    feed.push({ id:2, title:"某公司发布新一代 Agent 平台，融资 6000 万美元",
+                src:"科技媒体 · 头条", why:"你说的领域里最近最大的动静" });
+    brief = EMPTY_BRIEF();
+    brief.我想持续知道 = document.getElementById("e-seed").value.trim();
+    brief.确认状态 = "试跑中";
+    setBrief({}, "一句话 → 直接跑出一份样报告，Brief 在后台待定");
+    draw();
+  };
+
+  function draw(){
+    document.getElementById("e-body").innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:4px">
+          <strong class="small">如果现在就跑，这周你会收到这些</strong>
+          <span class="tiny muted">${tweaks ? "你调了 "+tweaks+" 次，报告已重排" : "共 "+feed.length+" 条"}</span>
+        </div>
+        <div class="tiny muted" style="margin-bottom:14px">看着不对就说一声，这份报告会当场变。</div>
+
+        ${feed.map(s=>`
+          <div class="sig kept">
+            <div class="small">${s.title}</div>
+            <div class="src">${s.src}</div>
+            <div class="why">为什么给你：${s.why}</div>
+            <div class="row" style="margin-top:8px">
+              <button class="tiny" data-act="drop" data-id="${s.id}">不要这种</button>
+              <button class="tiny" data-act="more" data-id="${s.id}">多来点这种</button>
+            </div>
+          </div>`).join("")}
+
+        <div class="row" style="margin-top:18px">
+          <button class="primary" id="e-sub">就订它，每周一给我</button>
+          <button class="ghost tiny" id="e-why" style="border:none">
+            ${showWhy ? "▾" : "▸"} Radar 是怎么理解我的？
+          </button>
+        </div>
+        <div id="e-whybox"></div>
+      </div>`;
+
+    document.querySelectorAll("#e-body button[data-id]").forEach(b=>{
+      b.onclick = ()=> b.dataset.act === "drop" ? drop(+b.dataset.id) : more(+b.dataset.id);
+    });
+    document.getElementById("e-why").onclick = ()=>{ showWhy = !showWhy; draw(); };
+    document.getElementById("e-sub").onclick = ()=>
+      setBrief({任务名: FULL_GUESS.任务名, 确认状态:"已确认"}, "用户看过实际结果后订阅，Brief 就此定稿");
+    if(showWhy) drawWhy();
+  }
+
+  function drop(id){
+    const s = feed.find(x=>x.id===id);
+    feed = feed.filter(x=>x.id!==id);
+    brief.不要报给我的.push("像「"+s.title.slice(0,16)+"…」这样的");
+    tweaks++;
+    setBrief({}, `「不要这种」：${s.title.slice(0,14)}… → 后台排除项 +1，报告去掉 1 条`);
+    draw();
+  }
+
+  function more(id){
+    const s = feed.find(x=>x.id===id);
+    brief.值得报给我的.push(s.why);
+    const add = POOL[poolIdx % POOL.length]; poolIdx++;
+    if(!feed.some(x=>x.id===add.id)) feed.push({...add});
+    tweaks++;
+    setBrief({}, `「多来点这种」：${s.why} → 后台重点 +1，报告补进 1 条`);
+    draw();
+  }
+
+  function drawWhy(){
+    document.getElementById("e-whybox").innerHTML = `
+      <div class="card" style="margin-top:14px;background:#fbfaf8">
+        <div class="tiny muted" style="margin-bottom:8px">只读。你不用改这里，改上面的报告就行。</div>
+        <div class="small">我在帮你盯：<b>${brief.我想持续知道 || "（还没说）"}</b></div>
+        ${brief.值得报给我的.length ? `<div class="small" style="margin-top:8px">你说过要多给你：${brief.值得报给我的.join("；")}</div>`:""}
+        ${brief.不要报给我的.length ? `<div class="small" style="margin-top:8px">你说过不要：${brief.不要报给我的.join("；")}</div>`:""}
+        ${!brief.值得报给我的.length && !brief.不要报给我的.length
+          ? `<div class="tiny muted" style="margin-top:8px">你还没纠过任何一条，所以我只按你那句话在跑。</div>`:""}
+      </div>`;
+  }
+}
+
+/* ---------------- 切换器 ---------------- */
+const VARIANTS = [
+  { key:"A", name:"追问式 · AI 一次问一个问题",
+    desc:"用户只给一句话，AI 用三个不含筛选术语的问题把它问清楚，最后才拿出 Brief 请确认。澄清发生在生成之前。",
+    render: renderA },
+  { key:"B", name:"草稿式 · 先给完整草稿，就地改",
+    desc:"AI 不问任何问题，立刻写出一整份 Brief，把猜的部分标黄。用户点任意一处，用自己的话改。澄清发生在反应之中。",
+    render: renderB },
+  { key:"C", name:"样例式 · 先看我会收什么",
+    desc:"AI 立刻用六条真实样例展示自己的取舍和理由，用户只判断对错，Brief 由这些判断反推出来。澄清发生在具体案例上。",
+    render: renderC },
+  { key:"D", name:"合并版 · 草稿主干 + 可选样例",
+    desc:"一句话 → 一屏（草稿 + 收起来的样例）→ 一个确认按钮。零必答问题、零分支。样例默认不展开，想看再点；在样例上纠一条，草稿里对应条目立刻跟着改并高亮。",
+    render: renderD },
+  { key:"E", name:"零 Brief · 只看结果，不看条文",
+    desc:"第一性原理重做：用户审不了自己写不出来的条文，只在具体条目上判断可靠。界面上不出现 Brief，只出现「你会收到的报告」——一句话 → 样报告 → 在条目上说要/不要，报告当场变 → 满意就订。Brief 在后台默默长出来。",
+    render: renderE }
+];
+
+function currentKey(){
+  const k = (new URLSearchParams(location.search).get("variant") || "E").toUpperCase();
+  return VARIANTS.some(v=>v.key===k) ? k : "D";
+}
+function go(key){
+  const u = new URL(location.href); u.searchParams.set("variant", key);
+  history.replaceState({}, "", u); mount();
+}
+function mount(){
+  const v = VARIANTS.find(x=>x.key===currentKey());
+  document.getElementById("v-title").textContent = v.key + " — " + v.name;
+  document.getElementById("v-desc").textContent = v.desc;
+  resetState();
+  v.render();
+  const i = VARIANTS.indexOf(v);
+  document.getElementById("switcher").innerHTML =
+    `<button id="prev">←</button><span class="label">${v.key} — ${v.name}</span><button id="next">→</button>`;
+  document.getElementById("prev").onclick = ()=>go(VARIANTS[(i-1+VARIANTS.length)%VARIANTS.length].key);
+  document.getElementById("next").onclick = ()=>go(VARIANTS[(i+1)%VARIANTS.length].key);
+}
+document.addEventListener("keydown", e=>{
+  const t = e.target.tagName;
+  if(t==="INPUT"||t==="TEXTAREA"||e.target.isContentEditable) return;
+  const i = VARIANTS.findIndex(v=>v.key===currentKey());
+  if(e.key==="ArrowLeft") go(VARIANTS[(i-1+VARIANTS.length)%VARIANTS.length].key);
+  if(e.key==="ArrowRight") go(VARIANTS[(i+1)%VARIANTS.length].key);
+});
+mount();
+</script>
+</body>
+</html>
