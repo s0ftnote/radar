@@ -5,6 +5,7 @@ export async function startRadar(dataDirectory: string, port = 33123): Promise<C
     cwd: process.cwd(),
     env: { ...process.env, RADAR_DATA_DIR: dataDirectory, NEXT_TELEMETRY_DISABLED: "1" },
     stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
   });
 
   let diagnostics = "";
@@ -29,11 +30,28 @@ export async function startRadar(dataDirectory: string, port = 33123): Promise<C
   throw new Error(`Timed out waiting for Radar.\n${diagnostics}`);
 }
 
-export async function stopRadar(process: ChildProcess): Promise<void> {
-  if (process.exitCode !== null) return;
-  process.kill("SIGTERM");
+export async function stopRadar(child: ChildProcess, port = 33123): Promise<void> {
+  if (child.exitCode === null) {
+    if (process.platform !== "win32" && child.pid) {
+      process.kill(-child.pid, "SIGTERM");
+    } else {
+      child.kill("SIGTERM");
+    }
+  }
   await Promise.race([
-    new Promise<void>((resolve) => process.once("exit", () => resolve())),
+    new Promise<void>((resolve) => child.once("exit", () => resolve())),
     new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
   ]);
+
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(`http://127.0.0.1:${port}`);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch {
+      return;
+    }
+  }
+
+  throw new Error(`Radar did not release loopback port ${port}.`);
 }
