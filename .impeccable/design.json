@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-24T11:06:32Z",
+  "title": "Design System: Radar",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#f6f5f1",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #f6f5f1)", "color-mix(in oklch, #000 55%, #f6f5f1)", "color-mix(in oklch, #000 40%, #f6f5f1)", "color-mix(in oklch, #000 20%, #f6f5f1)", "#f6f5f1", "color-mix(in oklch, #fff 20%, #f6f5f1)", "color-mix(in oklch, #fff 45%, #f6f5f1)", "color-mix(in oklch, #fff 75%, #f6f5f1)"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Evidence White",
+        "canonical": "#ffffff",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #ffffff)", "color-mix(in oklch, #000 55%, #ffffff)", "color-mix(in oklch, #000 40%, #ffffff)", "color-mix(in oklch, #000 20%, #ffffff)", "#ffffff", "#ffffff", "#ffffff", "#ffffff"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Workbench Ink",
+        "canonical": "#1e211e",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #1e211e)", "color-mix(in oklch, #000 55%, #1e211e)", "color-mix(in oklch, #000 40%, #1e211e)", "color-mix(in oklch, #000 20%, #1e211e)", "#1e211e", "color-mix(in oklch, #fff 20%, #1e211e)", "color-mix(in oklch, #fff 45%, #1e211e)", "color-mix(in oklch, #fff 75%, #1e211e)"]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ledger Ink",
+        "canonical": "#656961",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #656961)", "color-mix(in oklch, #000 55%, #656961)", "color-mix(in oklch, #000 40%, #656961)", "color-mix(in oklch, #000 20%, #656961)", "#656961", "color-mix(in oklch, #fff 20%, #656961)", "color-mix(in oklch, #fff 45%, #656961)", "color-mix(in oklch, #fff 75%, #656961)"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Paper Hairline",
+        "canonical": "#ddded7",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #ddded7)", "color-mix(in oklch, #000 55%, #ddded7)", "color-mix(in oklch, #000 40%, #ddded7)", "color-mix(in oklch, #000 20%, #ddded7)", "#ddded7", "color-mix(in oklch, #fff 20%, #ddded7)", "color-mix(in oklch, #fff 45%, #ddded7)", "color-mix(in oklch, #fff 75%, #ddded7)"]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Shell Hairline",
+        "canonical": "#c8cac1",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #c8cac1)", "color-mix(in oklch, #000 55%, #c8cac1)", "color-mix(in oklch, #000 40%, #c8cac1)", "color-mix(in oklch, #000 20%, #c8cac1)", "#c8cac1", "color-mix(in oklch, #fff 20%, #c8cac1)", "color-mix(in oklch, #fff 45%, #c8cac1)", "color-mix(in oklch, #fff 75%, #c8cac1)"]
+      },
+      "action-green": {
+        "role": "primary",
+        "displayName": "Action Green",
+        "canonical": "#24664a",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #24664a)", "color-mix(in oklch, #000 55%, #24664a)", "color-mix(in oklch, #000 40%, #24664a)", "color-mix(in oklch, #000 20%, #24664a)", "#24664a", "color-mix(in oklch, #fff 20%, #24664a)", "color-mix(in oklch, #fff 45%, #24664a)", "color-mix(in oklch, #fff 75%, #24664a)"]
+      },
+      "action-green-hover": {
+        "role": "primary",
+        "displayName": "Pressed Evergreen",
+        "canonical": "#1d553d",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #1d553d)", "color-mix(in oklch, #000 55%, #1d553d)", "color-mix(in oklch, #000 40%, #1d553d)", "color-mix(in oklch, #000 20%, #1d553d)", "#1d553d", "color-mix(in oklch, #fff 20%, #1d553d)", "color-mix(in oklch, #fff 45%, #1d553d)", "color-mix(in oklch, #fff 75%, #1d553d)"]
+      },
+      "health-green-soft": {
+        "role": "primary",
+        "displayName": "Health Wash",
+        "canonical": "#e4efe8",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #e4efe8)", "color-mix(in oklch, #000 55%, #e4efe8)", "color-mix(in oklch, #000 40%, #e4efe8)", "color-mix(in oklch, #000 20%, #e4efe8)", "#e4efe8", "color-mix(in oklch, #fff 20%, #e4efe8)", "color-mix(in oklch, #fff 45%, #e4efe8)", "color-mix(in oklch, #fff 75%, #e4efe8)"]
+      },
+      "health-green-ink": {
+        "role": "primary",
+        "displayName": "Health Ink",
+        "canonical": "#184b35",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #184b35)", "color-mix(in oklch, #000 55%, #184b35)", "color-mix(in oklch, #000 40%, #184b35)", "color-mix(in oklch, #000 20%, #184b35)", "#184b35", "color-mix(in oklch, #fff 20%, #184b35)", "color-mix(in oklch, #fff 45%, #184b35)", "color-mix(in oklch, #fff 75%, #184b35)"]
+      },
+      "focus-green": {
+        "role": "primary",
+        "displayName": "Focus Green",
+        "canonical": "#2f7556",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #2f7556)", "color-mix(in oklch, #000 55%, #2f7556)", "color-mix(in oklch, #000 40%, #2f7556)", "color-mix(in oklch, #000 20%, #2f7556)", "#2f7556", "color-mix(in oklch, #fff 20%, #2f7556)", "color-mix(in oklch, #fff 45%, #2f7556)", "color-mix(in oklch, #fff 75%, #2f7556)"]
+      },
+      "workbench": {
+        "role": "neutral",
+        "displayName": "Creation Charcoal",
+        "canonical": "#232823",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #232823)", "color-mix(in oklch, #000 55%, #232823)", "color-mix(in oklch, #000 40%, #232823)", "color-mix(in oklch, #000 20%, #232823)", "#232823", "color-mix(in oklch, #fff 20%, #232823)", "color-mix(in oklch, #fff 45%, #232823)", "color-mix(in oklch, #fff 75%, #232823)"]
+      },
+      "workbench-text": {
+        "role": "neutral",
+        "displayName": "Workbench White",
+        "canonical": "#f7f8f5",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #f7f8f5)", "color-mix(in oklch, #000 55%, #f7f8f5)", "color-mix(in oklch, #000 40%, #f7f8f5)", "color-mix(in oklch, #000 20%, #f7f8f5)", "#f7f8f5", "color-mix(in oklch, #fff 20%, #f7f8f5)", "color-mix(in oklch, #fff 45%, #f7f8f5)", "color-mix(in oklch, #fff 75%, #f7f8f5)"]
+      },
+      "workbench-muted": {
+        "role": "neutral",
+        "displayName": "Workbench Muted",
+        "canonical": "#bfc5bd",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #bfc5bd)", "color-mix(in oklch, #000 55%, #bfc5bd)", "color-mix(in oklch, #000 40%, #bfc5bd)", "color-mix(in oklch, #000 20%, #bfc5bd)", "#bfc5bd", "color-mix(in oklch, #fff 20%, #bfc5bd)", "color-mix(in oklch, #fff 45%, #bfc5bd)", "color-mix(in oklch, #fff 75%, #bfc5bd)"]
+      },
+      "field": {
+        "role": "neutral",
+        "displayName": "Field Paper",
+        "canonical": "#fbfcfa",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #fbfcfa)", "color-mix(in oklch, #000 55%, #fbfcfa)", "color-mix(in oklch, #000 40%, #fbfcfa)", "color-mix(in oklch, #000 20%, #fbfcfa)", "#fbfcfa", "color-mix(in oklch, #fff 20%, #fbfcfa)", "color-mix(in oklch, #fff 45%, #fbfcfa)", "color-mix(in oklch, #fff 75%, #fbfcfa)"]
+      },
+      "field-border": {
+        "role": "neutral",
+        "displayName": "Field Edge",
+        "canonical": "#747b72",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #747b72)", "color-mix(in oklch, #000 55%, #747b72)", "color-mix(in oklch, #000 40%, #747b72)", "color-mix(in oklch, #000 20%, #747b72)", "#747b72", "color-mix(in oklch, #fff 20%, #747b72)", "color-mix(in oklch, #fff 45%, #747b72)", "color-mix(in oklch, #fff 75%, #747b72)"]
+      },
+      "field-border-hover": {
+        "role": "neutral",
+        "displayName": "Field Edge Hover",
+        "canonical": "#a3aaa1",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #a3aaa1)", "color-mix(in oklch, #000 55%, #a3aaa1)", "color-mix(in oklch, #000 40%, #a3aaa1)", "color-mix(in oklch, #000 20%, #a3aaa1)", "#a3aaa1", "color-mix(in oklch, #fff 20%, #a3aaa1)", "color-mix(in oklch, #fff 45%, #a3aaa1)", "color-mix(in oklch, #fff 75%, #a3aaa1)"]
+      },
+      "field-border-focus": {
+        "role": "primary",
+        "displayName": "Field Focus Edge",
+        "canonical": "#91bca5",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #91bca5)", "color-mix(in oklch, #000 55%, #91bca5)", "color-mix(in oklch, #000 40%, #91bca5)", "color-mix(in oklch, #000 20%, #91bca5)", "#91bca5", "color-mix(in oklch, #fff 20%, #91bca5)", "color-mix(in oklch, #fff 45%, #91bca5)", "color-mix(in oklch, #fff 75%, #91bca5)"]
+      },
+      "success-text": {
+        "role": "primary",
+        "displayName": "Confirmation Text",
+        "canonical": "#b7d8c5",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #b7d8c5)", "color-mix(in oklch, #000 55%, #b7d8c5)", "color-mix(in oklch, #000 40%, #b7d8c5)", "color-mix(in oklch, #000 20%, #b7d8c5)", "#b7d8c5", "color-mix(in oklch, #fff 20%, #b7d8c5)", "color-mix(in oklch, #fff 45%, #b7d8c5)", "color-mix(in oklch, #fff 75%, #b7d8c5)"]
+      },
+      "success-line": {
+        "role": "primary",
+        "displayName": "Confirmation Line",
+        "canonical": "#7fbea0",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #7fbea0)", "color-mix(in oklch, #000 55%, #7fbea0)", "color-mix(in oklch, #000 40%, #7fbea0)", "color-mix(in oklch, #000 20%, #7fbea0)", "#7fbea0", "color-mix(in oklch, #fff 20%, #7fbea0)", "color-mix(in oklch, #fff 45%, #7fbea0)", "color-mix(in oklch, #fff 75%, #7fbea0)"]
+      },
+      "error-text": {
+        "role": "tertiary",
+        "displayName": "Workbench Error",
+        "canonical": "#ffc1b8",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #ffc1b8)", "color-mix(in oklch, #000 55%, #ffc1b8)", "color-mix(in oklch, #000 40%, #ffc1b8)", "color-mix(in oklch, #000 20%, #ffc1b8)", "#ffc1b8", "color-mix(in oklch, #fff 20%, #ffc1b8)", "color-mix(in oklch, #fff 45%, #ffc1b8)", "color-mix(in oklch, #fff 75%, #ffc1b8)"]
+      },
+      "skeleton": {
+        "role": "neutral",
+        "displayName": "Loading Paper",
+        "canonical": "#e8e7e2",
+        "tonalRamp": ["color-mix(in oklch, #000 70%, #e8e7e2)", "color-mix(in oklch, #000 55%, #e8e7e2)", "color-mix(in oklch, #000 40%, #e8e7e2)", "color-mix(in oklch, #000 20%, #e8e7e2)", "#e8e7e2", "color-mix(in oklch, #fff 20%, #e8e7e2)", "color-mix(in oklch, #fff 45%, #e8e7e2)", "color-mix(in oklch, #fff 75%, #e8e7e2)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Editorial Display", "purpose": "Radar wordmark and page-level headings only." },
+      "headline": { "displayName": "Brief Headline", "purpose": "Readable long-form Radar Brief content." },
+      "title": { "displayName": "Workbench Title", "purpose": "Panel and section headings." },
+      "body": { "displayName": "Operational Body", "purpose": "Default interface copy and evidence." },
+      "label": { "displayName": "Control Label", "purpose": "Fields, badges, status, and compact metadata." }
+    },
+    "shadows": [
+      { "name": "status-halo", "value": "0 0 0 5px var(--green-soft)", "purpose": "The only resting halo; identifies the running local instance." },
+      { "name": "focus-ring", "value": "0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent)", "purpose": "Visible keyboard focus around interactive elements." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "180ms ease-out", "purpose": "Hover, focus-adjacent, and compact transform feedback." },
+      { "name": "confirmation-line", "value": "420ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Success-only line reveal after a Radar Project is saved." },
+      { "name": "skeleton-sweep", "value": "1.4s ease-out infinite", "purpose": "Loading-state shimmer; removed under reduced motion." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Disables all animation and transition while preserving final-state visibility." }
+    ],
+    "breakpoints": [
+      { "name": "stack", "value": "820px" },
+      { "name": "compact", "value": "460px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single high-emphasis action used to advance or create.",
+      "html": "<button class=\"ds-button-primary\" type=\"button\">创建 Radar Project</button>",
+      "css": ".ds-button-primary { display:inline-flex; min-height:42px; align-items:center; justify-content:center; padding:9px 16px; color:#fff; background:var(--green, #24664a); border:0; border-radius:999px; font:700 13px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; cursor:pointer; transition:background-color 180ms ease-out,transform 180ms ease-out; } .ds-button-primary:hover { background:var(--green-hover, #1d553d); transform:translateY(-1px); } .ds-button-primary:active { transform:translateY(0); } .ds-button-primary:focus-visible { outline:3px solid color-mix(in srgb,var(--focus, #2f7556) 35%,transparent); outline-offset:3px; } @media (prefers-reduced-motion:reduce) { .ds-button-primary { transition:none; } }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "A paper-white operational field designed for the dark creation workbench.",
+      "html": "<label class=\"ds-field-label\"><span>Project 名称</span><input class=\"ds-field\" placeholder=\"例如：Agent 工具需求\"></label>",
+      "css": ".ds-field-label { display:grid; gap:7px; color:#d9ddd7; font:650 13px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-field { min-height:44px; padding:9px 11px; color:var(--ink, #1e211e); caret-color:var(--green, #24664a); background:#fbfcfa; border:1px solid #747b72; border-radius:10px; font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-field:hover { border-color:#a3aaa1; } .ds-field:focus { border-color:#91bca5; outline:3px solid rgb(101 173 136 / 24%); }"
+    },
+    {
+      "name": "Evidence Card",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "The default white, bordered container for lists and inspectable evidence.",
+      "html": "<section class=\"ds-evidence-card\"><div class=\"ds-evidence-title\"><strong>Radar Projects</strong><span>2 个空间</span></div><p>来源可以复用，判断彼此隔离。</p></section>",
+      "css": ".ds-evidence-card { padding:24px; color:var(--ink, #1e211e); background:var(--surface, #fff); border:1px solid var(--line, #ddded7); border-radius:14px; font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-evidence-title { display:flex; align-items:baseline; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:1px solid var(--line, #ddded7); } .ds-evidence-title span,.ds-evidence-card p { color:var(--muted, #656961); } .ds-evidence-card p { margin:18px 0 0; }"
+    },
+    {
+      "name": "Creation Workbench",
+      "kind": "card",
+      "refersTo": "creation-workbench",
+      "description": "The charcoal instrument surface reserved for authoring a new Radar Project.",
+      "html": "<section class=\"ds-workbench\"><h2>开始一条长期关注线</h2><p>先用自己的话说明想持续知道什么。</p></section>",
+      "css": ".ds-workbench { padding:24px; color:#f7f8f5; background:#232823; border:1px solid #232823; border-radius:14px; font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-workbench h2 { margin:0 0 8px; font-size:17px; line-height:1.3; letter-spacing:-0.015em; } .ds-workbench p { margin:0; color:#bfc5bd; }"
+    },
+    {
+      "name": "Project Row",
+      "kind": "custom",
+      "description": "A provenance-minded project link with an authored directional SVG affordance.",
+      "html": "<a class=\"ds-project-row\" href=\"#\"><span class=\"ds-project-copy\"><strong>本地优先产品</strong><span>关注用户真正拥有数据和运行权的本地优先软件实践。</span></span><svg class=\"ds-row-arrow\" aria-hidden=\"true\" viewBox=\"0 0 20 20\"><path d=\"M4 10h11M11 6l4 4-4 4\"/></svg></a>",
+      "css": ".ds-project-row { display:flex; align-items:center; justify-content:space-between; gap:28px; padding:22px 4px; color:var(--ink, #1e211e); text-decoration:none; border-bottom:1px solid var(--line, #ddded7); font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; transition:color 180ms ease-out; } .ds-project-copy { display:grid; gap:5px; min-width:0; } .ds-project-copy strong { font-size:16px; } .ds-project-copy>span { color:var(--muted, #656961); } .ds-row-arrow { width:20px; height:20px; overflow:visible; fill:none; stroke:var(--green, #24664a); stroke-linecap:round; stroke-linejoin:round; stroke-width:1.5; transition:transform 180ms ease-out; } .ds-project-row:hover { color:var(--green-ink, #184b35); } .ds-project-row:hover .ds-row-arrow { transform:translateX(3px); } .ds-project-row:focus-visible { outline:3px solid color-mix(in srgb,var(--focus, #2f7556) 35%,transparent); outline-offset:3px; } @media (prefers-reduced-motion:reduce) { .ds-project-row,.ds-row-arrow { transition:none; } }"
+    },
+    {
+      "name": "Ready Status",
+      "kind": "chip",
+      "refersTo": "status-ready",
+      "description": "A compact soft-green state badge for readiness and health.",
+      "html": "<span class=\"ds-status-ready\">准备采集</span>",
+      "css": ".ds-status-ready { display:inline-flex; padding:5px 10px; color:var(--green-ink, #184b35); background:var(--green-soft, #e4efe8); border-radius:999px; font:700 12px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; }"
+    },
+    {
+      "name": "Success Confirmation",
+      "kind": "custom",
+      "description": "A reserved live-region line whose authored underline appears only after successful persistence.",
+      "html": "<p class=\"ds-confirmation\" aria-live=\"polite\">Project 已保存到本地。</p>",
+      "css": ".ds-confirmation { position:relative; min-height:24px; margin:0; color:#b7d8c5; font:400 12px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-confirmation::after { position:absolute; bottom:-2px; left:0; width:36px; height:1px; background:#7fbea0; content:\"\"; transform-origin:left; animation:ds-confirmation-line 420ms cubic-bezier(.16,1,.3,1) both; } @keyframes ds-confirmation-line { from { transform:scaleX(0); } to { transform:scaleX(1); } } @media (prefers-reduced-motion:reduce) { .ds-confirmation::after { animation:none; } }"
+    },
+    {
+      "name": "Masthead Wordmark",
+      "kind": "nav",
+      "description": "A sparse product identity lockup with editorial Radar type and operational sans metadata.",
+      "html": "<a class=\"ds-wordmark\" href=\"#\" aria-label=\"Radar 首页\"><strong>Radar</strong><span>local intelligence</span></a>",
+      "css": ".ds-wordmark { display:inline-flex; align-items:baseline; gap:10px; color:var(--ink, #1e211e); text-decoration:none; } .ds-wordmark strong { font-family:var(--font-editorial),\"Songti SC\",\"Noto Serif CJK SC\",serif; font-size:22px; font-weight:400; letter-spacing:-.03em; } .ds-wordmark span { color:var(--muted, #656961); font:650 11px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif; letter-spacing:.09em; text-transform:uppercase; } .ds-wordmark:focus-visible { outline:3px solid color-mix(in srgb,var(--focus, #2f7556) 35%,transparent); outline-offset:3px; border-radius:8px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Editorial Investigation Desk",
+    "overview": "Radar is an Operate-mode workbench with the calm authority of a well-kept research desk. Warm paper surrounds precise white evidence surfaces, while the charcoal creation panel feels like the active instrument on that desk. The interface is restrained and information-led: identity and provenance remain legible, controls feel deliberate, and valid emptiness receives the same compositional care as populated states.\n\nBrand expression is concentrated rather than spread everywhere. The self-hosted ZCOOL XiaoWei face gives the Radar wordmark and page-level headings an editorial voice; the rest of the workbench uses a durable system sans stack for fast scanning and mixed Chinese/Latin content. Deep green is reserved for action, focus, health, and authored directional affordances—not decoration. The incumbent visual evidence remains `prototypes/radar-brief-prototype.html` and `docs/radar-product-handoff.html`; the shipped implementation is the normative source for exact values.",
+    "keyCharacteristics": [
+      "Warm paper canvas with flat white, hairline-bordered reading surfaces.",
+      "One dark creation workbench that clearly distinguishes making from inspecting.",
+      "Editorial display type used sparingly; system sans carries operational content.",
+      "Deep green communicates action, focus, health, and forward movement.",
+      "Responsive topology puts creation before the project list on narrow screens.",
+      "Surface seed `e2d76f24` identifies this implemented visual direction."
+    ],
+    "rules": [
+      { "name": "The Green Means Something Rule", "body": "Deep green is reserved for action, health, focus, and directional affordances; never use it as ambient decoration.", "section": "colors" },
+      { "name": "The Paper and Instrument Rule", "body": "Reading and evidence live on white paper-like surfaces; the dark workbench is reserved for creation.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "ZCOOL XiaoWei belongs only to the Radar wordmark and page-level `h1`; every workbench control, section title, datum, and paragraph stays in the system sans.", "section": "typography" },
+      { "name": "The Creation-Before-List Rule", "body": "Narrow screens must show the creation workbench before the existing-project list; this ordering is a product topology, not a cosmetic rearrangement.", "section": "layout" },
+      { "name": "The Border-Built Depth Rule", "body": "Use one-pixel hairlines and tonal separation for structure; do not add ambient card shadows.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do preserve the Operate-mode hierarchy: task completion, scanability, and inspectable state come before brand theater.",
+      "Do keep ZCOOL XiaoWei self-hosted and confined to the Radar wordmark and page-level headings.",
+      "Do use white bordered surfaces for evidence and the charcoal surface for creation.",
+      "Do keep deep green semantic and rare: action, focus, health, and forward direction only.",
+      "Do preserve the creation-before-list mobile topology and the authored SVG row affordance.",
+      "Do keep every transition meaningful and provide the global reduced-motion fallback."
+    ],
+    "donts": [
+      "Don't add ambient shadows, gradients, glass effects, or decorative green washes.",
+      "Don't apply the editorial face to controls, metadata, body copy, or dense workbench content.",
+      "Don't convert the project list into a feed or flatten provenance into anonymous metadata.",
+      "Don't animate error or idle messages with the success confirmation line.",
+      "Don't replace the implemented system based only on the evidence prototypes; use them as preserved lineage and the shipped code as exact ground truth."
+    ]
+  }
+}
