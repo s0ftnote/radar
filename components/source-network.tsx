@@ -10,9 +10,11 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const isBusy = pending !== null;
 
   async function addSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isBusy) return;
     const form = event.currentTarget;
     const url = new FormData(form).get("url");
     setPending("add");
@@ -36,6 +38,7 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
   }
 
   async function operate(source: ProjectSource, action: "collect" | "stop") {
+    if (isBusy) return;
     setPending(`${action}:${source.id}`);
     setNotice(null);
     try {
@@ -43,9 +46,19 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
       const response = await fetch(`/api/projects/${projectId}/sources/${source.id}${suffix}`, {
         method: action === "collect" ? "POST" : "DELETE",
       });
-      const result = (await response.json()) as { error?: string; message?: string };
+      const result = (await response.json()) as {
+        error?: string;
+        message?: string;
+        newVersionCount?: number;
+        reusedVersionCount?: number;
+      };
       if (!response.ok) throw new Error(result.error ?? "操作没有完成。");
-      setNotice({ kind: "success", message: result.message ?? "操作已完成。" });
+      setNotice({
+        kind: "success",
+        message: action === "collect"
+          ? acquisitionMessage(result.newVersionCount ?? 0, result.reusedVersionCount ?? 0)
+          : (result.message ?? "操作已完成。"),
+      });
       router.refresh();
     } catch (error) {
       setNotice({ kind: "error", message: error instanceof Error ? error.message : "操作没有完成。" });
@@ -56,26 +69,29 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
   }
 
   return (
-    <section className="source-network" aria-labelledby="source-network-title">
+    <section className="source-network" aria-labelledby="source-network-title" aria-busy={isBusy}>
       <div className="source-network-heading">
         <div>
           <h2 id="source-network-title">Source Network</h2>
           <p>验证一个公开 Feed，再由你决定何时取得新版本。来源事实属于本地实例。</p>
         </div>
-        <form className="source-form" onSubmit={addSource}>
+        <form className="source-form" onSubmit={addSource} aria-busy={pending === "add"}>
           <label>
             <span>公开 RSS/Atom URL</span>
-            <input name="url" type="url" required placeholder="https://example.com/feed.xml" />
+            <input name="url" type="url" required placeholder="https://example.com/feed.xml" disabled={isBusy} />
           </label>
-          <button className="button button-primary" type="submit" disabled={pending === "add"}>
+          <button className="button button-primary" type="submit" disabled={isBusy}>
             {pending === "add" ? "正在验证…" : "验证并保存"}
           </button>
         </form>
       </div>
 
-      <p className={`network-notice ${notice?.kind === "error" ? "network-notice-error" : ""}`} aria-live="polite">
-        {notice?.message ?? "添加另一个来源即可替换当前配置；停止使用不会删除已经取得的版本。"}
-      </p>
+      <p className="network-help">可以添加多个来源；停止使用不会删除已经取得的版本。</p>
+      {notice && (
+        <p className={`network-notice ${notice.kind === "error" ? "network-notice-error" : ""}`} aria-live="polite">
+          {notice.message}
+        </p>
+      )}
 
       {sources.length === 0 ? (
         <div className="network-empty">
@@ -91,8 +107,8 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
                   <h3>{source.name}</h3>
                   <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
                 </div>
-                <span className={`source-health ${source.healthStatus === "unhealthy" ? "source-health-error" : ""}`}>
-                  {source.active ? (source.healthStatus === "healthy" ? "健康" : "异常") : "已停止"}
+                <span className={`source-health ${source.active && source.healthStatus === "unhealthy" ? "source-health-error" : ""} ${!source.active ? "source-health-stopped" : ""}`}>
+                  {healthLabel(source)}
                 </span>
               </div>
 
@@ -102,8 +118,8 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
                 <div><dt>历史</dt><dd>{source.versions.length} 个不可变版本</dd></div>
               </dl>
 
-              <p className={`source-result ${source.healthStatus === "unhealthy" ? "source-result-error" : ""}`}>
-                {source.latestRunMessage}
+              <p className={`source-result ${source.active && source.healthStatus === "unhealthy" ? "source-result-error" : ""} ${!source.active ? "source-result-stopped" : ""}`}>
+                {sourceRunMessage(source)}
               </p>
 
               {source.versions.length > 0 && (
@@ -122,7 +138,7 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
                 <button
                   className="button button-secondary"
                   type="button"
-                  disabled={!source.active || pending === `collect:${source.id}`}
+                  disabled={!source.active || isBusy}
                   onClick={() => operate(source, "collect")}
                 >
                   {pending === `collect:${source.id}` ? "正在采集…" : `采集 ${source.name}`}
@@ -131,7 +147,7 @@ export function SourceNetwork({ projectId, sources }: { projectId: string; sourc
                   <button
                     className="text-action"
                     type="button"
-                    disabled={pending === `stop:${source.id}`}
+                    disabled={isBusy}
                     onClick={() => operate(source, "stop")}
                   >
                     {`停止使用 ${source.name}`}
@@ -153,4 +169,25 @@ function formatDateTime(value: string | null): string {
 
 function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function healthLabel(source: ProjectSource): string {
+  const health = source.healthStatus === "healthy" ? "健康" : "异常";
+  return source.active ? health : `已停止 · 最近${health}`;
+}
+
+function sourceRunMessage(source: ProjectSource): string {
+  if (!source.active) return "已停止后续采集，历史版本保留";
+  if (source.latestRun.status === "running") return "正在采集，完成后会在这里显示结果。";
+  if (source.latestRun.status === "failed") return source.latestRun.error ?? "采集失败，可以重试。";
+  if (source.latestRun.status === "success") {
+    return acquisitionMessage(source.latestRun.newVersionCount, source.latestRun.reusedVersionCount);
+  }
+  return source.versions.length === 0 ? "已验证，等待首次采集" : `${source.versions.length} 个不可变版本`;
+}
+
+function acquisitionMessage(created: number, reused: number): string {
+  if (created > 0) return `本次新增 ${created} 个来源版本`;
+  if (reused > 0) return `未发现内容变化，复用 ${reused} 个来源版本`;
+  return "采集成功，Feed 当前没有来源内容";
 }

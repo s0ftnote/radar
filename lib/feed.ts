@@ -91,13 +91,14 @@ function normalizeFeed(document: Record<string, unknown>, feedUrl: string): Pars
 function normalizeRssEntry(value: unknown, index: number, feedUrl: string): FeedEntry {
   const entry = asRecord(value) ?? {};
   const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
-  const originUrl = text(entry.link) || feedUrl;
+  const entryUrl = text(entry.link);
+  const publishedAt = text(entry.pubDate);
   return {
-    externalId: text(entry.guid) || originUrl || `${title}:${text(entry.pubDate)}`,
+    externalId: text(entry.guid) || entryUrl || `${title}:${publishedAt}`,
     title,
-    originUrl,
+    originUrl: entryUrl || feedUrl,
     body: text(entry.encoded) || text(entry.description) || "",
-    publishedAt: dateOrNull(text(entry.pubDate)),
+    publishedAt: dateOrNull(publishedAt),
     rawPayload: JSON.stringify(entry),
   };
 }
@@ -105,13 +106,14 @@ function normalizeRssEntry(value: unknown, index: number, feedUrl: string): Feed
 function normalizeAtomEntry(value: unknown, index: number, feedUrl: string): FeedEntry {
   const entry = asRecord(value) ?? {};
   const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
-  const originUrl = atomLink(entry.link) || feedUrl;
+  const entryUrl = atomLink(entry.link);
+  const publishedAt = text(entry.published) || text(entry.updated);
   return {
-    externalId: text(entry.id) || originUrl || `${title}:${text(entry.updated)}`,
+    externalId: text(entry.id) || entryUrl || `${title}:${publishedAt}`,
     title,
-    originUrl,
+    originUrl: entryUrl || feedUrl,
     body: text(entry.content) || text(entry.summary) || "",
-    publishedAt: dateOrNull(text(entry.published) || text(entry.updated)),
+    publishedAt: dateOrNull(publishedAt),
     rawPayload: JSON.stringify(entry),
   };
 }

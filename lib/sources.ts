@@ -20,7 +20,12 @@ export type ProjectSource = {
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
-  latestRunMessage: string;
+  latestRun: {
+    status: "not_collected" | "running" | "success" | "failed";
+    newVersionCount: number;
+    reusedVersionCount: number;
+    error: string | null;
+  };
   versions: SourceVersion[];
 };
 
@@ -33,7 +38,7 @@ type SourceRow = {
   last_attempt_at: string | null;
   last_success_at: string | null;
   last_error: string | null;
-  run_status: "success" | "failed" | null;
+  run_status: "running" | "success" | "failed" | null;
   new_version_count: number | null;
   reused_version_count: number | null;
 };
@@ -86,7 +91,10 @@ export async function validateAndLinkSource(projectId: string, rawUrl: string): 
   return getProjectSource(projectId, sourceId);
 }
 
-export async function collectSource(projectId: string, sourceId: string): Promise<{ message: string }> {
+export async function collectSource(
+  projectId: string,
+  sourceId: string,
+): Promise<{ newVersionCount: number; reusedVersionCount: number }> {
   const db = database();
   const source = db.prepare(
     `SELECT source.url FROM instance_sources AS source
@@ -128,7 +136,7 @@ export async function collectSource(projectId: string, sourceId: string): Promis
       db.exec("ROLLBACK");
       throw error;
     }
-    return { message: acquisitionMessage(created, reused) };
+    return { newVersionCount: created, reusedVersionCount: reused };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const failedAt = new Date().toISOString();
@@ -250,25 +258,14 @@ function mapProjectSource(row: SourceRow, versions: SourceVersion[]): ProjectSou
     lastAttemptAt: row.last_attempt_at,
     lastSuccessAt: row.last_success_at,
     lastError: row.last_error,
-    latestRunMessage: latestRunMessage(row, versions.length),
+    latestRun: {
+      status: row.run_status ?? "not_collected",
+      newVersionCount: row.new_version_count ?? 0,
+      reusedVersionCount: row.reused_version_count ?? 0,
+      error: row.last_error,
+    },
     versions,
   };
-}
-
-function latestRunMessage(row: SourceRow, versionCount: number): string {
-  if (!row.active) return "已停止后续采集，历史版本保留";
-  if (row.run_status === "failed") return row.last_error ?? "采集失败，可以重试。";
-  if (row.run_status === "success") {
-    return acquisitionMessage(row.new_version_count ?? 0, row.reused_version_count ?? 0);
-  }
-  if (versionCount === 0) return "已验证，等待首次采集";
-  return `${versionCount} 个不可变版本`;
-}
-
-function acquisitionMessage(created: number, reused: number): string {
-  if (created > 0) return `本次新增 ${created} 个来源版本`;
-  if (reused > 0) return `未发现内容变化，复用 ${reused} 个来源版本`;
-  return "采集成功，Feed 当前没有来源内容";
 }
 
 function httpUrl(value: string): string {

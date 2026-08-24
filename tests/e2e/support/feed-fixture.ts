@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 export type FeedFixture = {
   url: string;
   publishChangedEntry(): void;
+  delayNextResponse(): void;
   breakFeed(): void;
   restoreFeed(): void;
   close(): Promise<void>;
@@ -11,7 +12,8 @@ export type FeedFixture = {
 export async function startFeedFixture(): Promise<FeedFixture> {
   let revision = 1;
   let malformed = false;
-  const server = createServer((request, response) => {
+  let delayNextResponse = false;
+  const server = createServer(async (request, response) => {
     if (request.url === "/broken") {
       response.writeHead(200, { "content-type": "application/xml" });
       response.end("<rss><channel><item></rss>");
@@ -22,9 +24,18 @@ export async function startFeedFixture(): Promise<FeedFixture> {
       response.end(emptyRssDocument());
       return;
     }
+    if (request.url === "/fallback") {
+      response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
+      response.end(fallbackIdentityRssDocument());
+      return;
+    }
     if (request.url !== "/feed") {
       response.writeHead(404).end();
       return;
+    }
+    if (delayNextResponse) {
+      delayNextResponse = false;
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
     }
     response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
     response.end(malformed ? "<rss><channel>broken" : rssDocument(revision));
@@ -37,6 +48,7 @@ export async function startFeedFixture(): Promise<FeedFixture> {
   return {
     url: `http://127.0.0.1:${address.port}`,
     publishChangedEntry: () => (revision += 1),
+    delayNextResponse: () => (delayNextResponse = true),
     breakFeed: () => (malformed = true),
     restoreFeed: () => (malformed = false),
     close: () => closeServer(server),
@@ -50,6 +62,27 @@ function emptyRssDocument(): string {
         <title>Empty Radar Fixture Feed</title>
         <link>https://example.test/empty-fixture</link>
         <description>A valid feed with no entries</description>
+      </channel>
+    </rss>`;
+}
+
+function fallbackIdentityRssDocument(): string {
+  return `<?xml version="1.0" encoding="UTF-8" ?>
+    <rss version="2.0">
+      <channel>
+        <title>Fallback Identity Feed</title>
+        <link>https://example.test/fallback-fixture</link>
+        <description>Valid entries without guid or link</description>
+        <item>
+          <title>Identity fallback alpha</title>
+          <pubDate>Mon, 24 Aug 2026 08:00:00 GMT</pubDate>
+          <description>Alpha stays distinct.</description>
+        </item>
+        <item>
+          <title>Identity fallback beta</title>
+          <pubDate>Mon, 24 Aug 2026 09:00:00 GMT</pubDate>
+          <description>Beta stays distinct.</description>
+        </item>
       </channel>
     </rss>`;
 }
