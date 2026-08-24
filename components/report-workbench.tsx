@@ -19,11 +19,16 @@ export function ReportWorkbench({
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [selectedRevisionIds, setSelectedRevisionIds] = useState<Set<string>>(new Set());
   const isBusy = pending !== null;
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isBusy) return;
+    if (selectedRevisionIds.size === 0) {
+      setNotice({ kind: "error", message: "请至少选择一个情报条目。" });
+      return;
+    }
     const data = new FormData(event.currentTarget);
     await requestGeneration({
       purpose: data.get("purpose"),
@@ -85,6 +90,15 @@ export function ReportWorkbench({
                     type="checkbox"
                     name="intelligenceItemRevisionIds"
                     value={item.revisionId}
+                    checked={selectedRevisionIds.has(item.revisionId)}
+                    onChange={(event) => {
+                      setSelectedRevisionIds((current) => {
+                        const next = new Set(current);
+                        if (event.target.checked) next.add(item.revisionId);
+                        else next.delete(item.revisionId);
+                        return next;
+                      });
+                    }}
                     aria-label={`选择 ${item.title} 修订 ${item.revisionNumber}`}
                   />
                   <span><strong>{item.title}</strong><small>固定修订 {item.revisionNumber} · {item.evidence.length} 条 Signal 证据</small></span>
@@ -94,11 +108,11 @@ export function ReportWorkbench({
           )}
         </fieldset>
         <div className="report-input-grid">
-          <label><span>内容目的</span><input name="purpose" required maxLength={200} disabled={isBusy} /></label>
-          <label><span>目标受众</span><input name="audience" required maxLength={200} disabled={isBusy} /></label>
-          <label className="report-angle"><span>核心角度</span><textarea name="angle" required maxLength={500} rows={3} disabled={isBusy} /></label>
+          <label><span>内容目的</span><input name="purpose" required maxLength={200} disabled={isBusy || availableItems.length === 0} /></label>
+          <label><span>目标受众</span><input name="audience" required maxLength={200} disabled={isBusy || availableItems.length === 0} /></label>
+          <label className="report-angle"><span>核心角度</span><textarea name="angle" required maxLength={500} rows={3} disabled={isBusy || availableItems.length === 0} /></label>
         </div>
-        <button className="button button-primary" type="submit" disabled={isBusy || availableItems.length === 0}>
+        <button className="button button-primary" type="submit" disabled={isBusy || availableItems.length === 0 || selectedRevisionIds.size === 0}>
           {pending === "generate" ? "正在生成 Report…" : "生成 Report"}
         </button>
       </form>
@@ -135,12 +149,27 @@ export function ReportWorkbench({
                   <div><dt>触发方式</dt><dd>{report.triggerMethod === "manual" ? "手动生成" : report.triggerMethod}</dd></div>
                   <div><dt>生成上下文</dt><dd>{report.generationContext.adapterKind} · 契约 {report.generationContext.contractVersion}</dd></div>
                 </dl>
+                <section className="report-fixed-input">
+                  <h4>固定输入</h4>
+                  <ul>
+                    {report.selectedRevisions.map((revision) => (
+                      <li key={revision.id}>
+                        <a href={`#intelligence-revision-${revision.id}`}>
+                          {revision.title} · 修订 {revision.revisionNumber}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
                 <section className="report-claims">
                   <h4>可追溯主张</h4>
                   <ol>
                     {report.claims.map((claim) => (
                       <li className="report-claim" key={claim.id}>
-                        <p>{claim.text}</p>
+                        <div className="report-claim-heading">
+                          <span>{epistemicRoleLabel(claim.epistemicRole)}</span>
+                          <p>{claim.text}</p>
+                        </div>
                         {claim.evidence.map((evidence) => (
                           <div className="report-claim-evidence" key={evidence.signalId}>
                             <blockquote>{evidence.evidenceQuote}</blockquote>
@@ -174,7 +203,28 @@ export function ReportWorkbench({
                   <strong>{run.purpose}</strong>
                 </div>
                 <p>{run.audience} · {run.angle}</p>
-                <p>{run.error ?? `固定 ${run.selectedTitles.join("、")}；来源截止 ${formatDateTime(run.sourceCutoffAt)}`}</p>
+                <div className="report-run-meta">
+                  <span>运行身份 · {run.id}</span>
+                  <span>开始时间 · {formatDateTime(run.startedAt)}</span>
+                  <span>来源截止 · {formatDateTime(run.sourceCutoffAt)}</span>
+                  {run.retriedFromRunId && <span>重试自运行 · {run.retriedFromRunId}</span>}
+                  {run.reportId && <a href={`#report-${run.reportId}`}>打开对应 Report</a>}
+                </div>
+                {run.error && <p className="report-run-error">{run.error}</p>}
+                <section className="report-run-input" aria-label="固定输入快照">
+                  {run.selectedRevisions.map((revision) => (
+                    <div key={revision.id}>
+                      <a href={`#intelligence-revision-${revision.id}`}>
+                        {revision.title} · 修订 {revision.revisionNumber}
+                      </a>
+                      <nav aria-label={`${revision.title} 的固定 Signal`}>
+                        {revision.signals.map((signal, index) => (
+                          <a href={`#signal-${signal.id}`} key={signal.id}>固定 Signal {index + 1}</a>
+                        ))}
+                      </nav>
+                    </div>
+                  ))}
+                </section>
                 {run.status === "failed" && (
                   <button className="text-action" type="button" disabled={isBusy} onClick={() => retry(run.id)}>
                     {pending === `retry:${run.id}` ? "正在重试…" : "重试这次生成"}
@@ -187,6 +237,14 @@ export function ReportWorkbench({
       </section>
     </section>
   );
+}
+
+function epistemicRoleLabel(
+  role: "evidence" | "inference" | "user_viewpoint",
+): string {
+  if (role === "evidence") return "证据";
+  if (role === "user_viewpoint") return "用户观点";
+  return "推断";
 }
 
 function runStatus(status: "running" | "success" | "failed"): string {

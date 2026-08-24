@@ -31,6 +31,7 @@ export type AgentJudgment =
 
 export type ReportGenerationInput = {
   projectId: string;
+  triggerMethod: "manual";
   purpose: string;
   audience: string;
   angle: string;
@@ -55,6 +56,7 @@ export type AgentReportGeneration = {
   title: string;
   claims: Array<{
     text: string;
+    epistemicRole: "evidence" | "inference" | "user_viewpoint";
     intelligenceItemRevisionId: string;
     signalIds: string[];
   }>;
@@ -197,8 +199,18 @@ function validateReportGeneration(
       throw new Error("Agent Report 主张引用了不属于该情报条目修订输入的 Signal。");
     }
     usedRevisions.add(intelligenceItemRevisionId);
+    const epistemicRole = requiredString(
+      claim.epistemicRole,
+      `claims[${index}].epistemicRole`,
+    );
+    if (!isEpistemicRole(epistemicRole)) {
+      throw new Error(
+        "Agent Report 主张的 epistemicRole 必须是 evidence、inference 或 user_viewpoint。",
+      );
+    }
     return {
       text: requiredString(claim.text, `claims[${index}].text`),
+      epistemicRole,
       intelligenceItemRevisionId,
       signalIds,
     };
@@ -207,6 +219,12 @@ function validateReportGeneration(
     throw new Error("Agent Report 必须为每个选中的情报条目修订形成至少一项主张。");
   }
   return { title: requiredString(result.title, "title"), claims };
+}
+
+function isEpistemicRole(
+  value: string,
+): value is "evidence" | "inference" | "user_viewpoint" {
+  return value === "evidence" || value === "inference" || value === "user_viewpoint";
 }
 
 function requiredString(value: unknown, field: string): string {

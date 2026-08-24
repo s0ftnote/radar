@@ -40,6 +40,7 @@ export async function startReportAgentFixture(): Promise<ReportAgentFixture> {
             : [];
           return {
             text: `${String(revision.title)}：${String(revision.judgment)}`,
+            epistemicRole: "inference",
             intelligenceItemRevisionId: String(revision.id),
             signalIds: signals.slice(0, 1).map((signal) => String(signal.id)),
           };

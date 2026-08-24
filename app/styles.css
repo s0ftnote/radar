@@ -687,7 +687,7 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .report-record > header p { margin: 0; color: var(--muted); font-size: 13px; font-weight: 700; }
 
-.report-record > header h3 { margin: 5px 0 0; font-family: var(--editorial); font-size: 24px; font-weight: 400; letter-spacing: -0.02em; }
+.report-record > header h3 { margin: 5px 0 0; font-size: 24px; font-weight: 650; letter-spacing: -0.02em; }
 
 .report-record > header time { flex: none; color: var(--muted); font-size: 13px; }
 
@@ -701,7 +701,15 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .report-context dd { margin: 3px 0 0; overflow-wrap: anywhere; }
 
-.report-claims { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line-strong); }
+.report-fixed-input { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+
+.report-fixed-input h4 { margin: 0; font-size: 13px; }
+
+.report-fixed-input ul { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 9px 0 0; padding: 0; list-style: none; }
+
+.report-fixed-input a { color: var(--green-ink); font-size: 13px; font-weight: 700; }
+
+.report-claims { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line-strong); }
 
 .report-claims h4 { margin: 0; font-size: 15px; }
 
@@ -709,7 +717,11 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .report-claim { padding: 18px 0; border-top: 1px solid var(--line); }
 
-.report-claim > p { max-width: 76ch; margin: 0; font-size: 17px; font-weight: 700; line-height: 1.55; }
+.report-claim-heading { display: flex; gap: 10px; align-items: baseline; }
+
+.report-claim-heading > span { flex: none; padding: 2px 7px; color: var(--green-ink); background: var(--green-soft); border-radius: 999px; font-size: 13px; font-weight: 800; }
+
+.report-claim-heading > p { max-width: 76ch; margin: 0; font-size: 17px; font-weight: 700; line-height: 1.55; }
 
 .report-claim-evidence { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; margin-top: 14px; padding-left: 14px; border-left: 1px solid var(--line-strong); }
 
@@ -725,9 +737,23 @@ textarea:focus { border-color: #91bca5; outline: 3px solid rgb(101 173 136 / 24%
 
 .report-run { padding: 16px 0; border-bottom: 1px solid var(--line); }
 
-.report-run > div { display: flex; gap: 12px; align-items: center; }
+.report-run > div:first-child { display: flex; gap: 12px; align-items: center; }
 
 .report-run > p { margin: 6px 0 0; color: var(--muted); }
+
+.report-run-meta { display: flex; flex-wrap: wrap; gap: 5px 16px; margin-top: 10px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+
+.report-run-meta a { color: var(--green-ink); font-weight: 700; }
+
+.report-run > .report-run-error { color: var(--error); }
+
+.report-run-input { display: grid; gap: 6px; margin-top: 10px; }
+
+.report-run-input > div { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+.report-run-input a { color: var(--green-ink); font-size: 13px; font-weight: 700; }
+
+.report-run-input nav { display: flex; flex-wrap: wrap; gap: 6px 12px; }
 
 .report-run .text-action { margin-top: 6px; color: var(--green-ink); }
 

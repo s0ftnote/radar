@@ -202,6 +202,7 @@ function initializeSchema(db: DatabaseSync): void {
       report_revision_id TEXT NOT NULL REFERENCES report_revisions(id),
       position INTEGER NOT NULL CHECK (position >= 0),
       text TEXT NOT NULL,
+      epistemic_role TEXT NOT NULL CHECK (epistemic_role IN ('evidence', 'inference', 'user_viewpoint')),
       intelligence_item_revision_id TEXT NOT NULL REFERENCES intelligence_item_revisions(id),
       UNIQUE (report_revision_id, position)
     ) STRICT;

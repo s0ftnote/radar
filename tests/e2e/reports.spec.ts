@@ -37,7 +37,9 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
 
     await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
     await expect(page.getByText("还没有 Report")).toBeVisible();
+    await expect(page.getByRole("button", { name: "生成 Report" })).toBeDisabled();
     await page.getByLabel("选择 可报告的本地证据需求 修订 1").check();
+    await expect(page.getByRole("button", { name: "生成 Report" })).toBeEnabled();
     await page.getByLabel("内容目的").fill("解释本地证据工作流");
     await page.getByLabel("目标受众").fill("构建个人情报工具的产品工程师");
     await page.getByLabel("核心角度").fill("证据链比内容堆叠更重要");
@@ -55,7 +57,10 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
     await expect(firstReport.getByText("构建个人情报工具的产品工程师")).toBeVisible();
     await expect(firstReport.getByText("证据链比内容堆叠更重要")).toBeVisible();
     await expect(firstReport.getByText("手动生成", { exact: true })).toBeVisible();
+    await expect(firstReport.getByText("固定输入", { exact: true })).toBeVisible();
+    await expect(firstReport.getByRole("link", { name: "可报告的本地证据需求 · 修订 1" })).toBeVisible();
     await expect(firstReport.getByText("可报告的本地证据需求：开发者需要把本地证据链组织成可追溯主张。")).toBeVisible();
+    await expect(firstReport.getByText("推断", { exact: true })).toBeVisible();
     for (const linkName of ["情报条目修订 1", "Signal 证据", "来源版本 1"]) {
       const upstreamLink = firstReport.getByRole("link", { name: linkName });
       const href = await upstreamLink.getAttribute("href");
@@ -65,7 +70,10 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
       await expect(page.locator(href!)).toBeVisible();
     }
     const firstReportId = await firstReport.getByText(/^Report 身份/).textContent();
-
+    const firstGenerationRun = page.locator("li.report-run").first();
+    await expect(firstGenerationRun.getByText(/^运行身份/)).toBeVisible();
+    await expect(firstGenerationRun.getByText(/^开始时间/)).toBeVisible();
+    await expect(firstGenerationRun.getByRole("link", { name: "打开对应 Report" })).toBeVisible();
     await page.getByRole("button", { name: "生成 Report" }).click();
     await expect(page.locator("article.report-record")).toHaveCount(2);
     const secondReportId = await page.locator("article.report-record").first().getByText(/^Report 身份/).textContent();
@@ -79,11 +87,14 @@ test("用户从情报修订生成固定且可追溯的 Report", async ({ browser
     await expect(failedRun.getByText("失败", { exact: true })).toBeVisible();
     await expect(failedRun).toContainText("Agent 返回 HTTP 503");
     await expect(failedRun.getByText("解释本地证据工作流")).toBeVisible();
+    await expect(failedRun.getByRole("link", { name: "可报告的本地证据需求 · 修订 1" })).toBeVisible();
+    await expect(failedRun.getByRole("link", { name: "固定 Signal 1" })).toBeVisible();
     await expect(page.locator("article.report-record")).toHaveCount(2);
 
     await failedRun.getByRole("button", { name: "重试这次生成" }).click();
     await expect(page.locator("article.report-record")).toHaveCount(3);
     await expect(page.getByText("Agent 返回 HTTP 503")).toBeVisible();
+    await expect(page.locator("li.report-run").first().getByText(/^重试自运行/)).toBeVisible();
 
     feed.publishChangedEntry();
     await page.getByRole("button", { name: "采集 Radar Fixture Feed" }).click();

@@ -27,7 +27,7 @@ export type ReportRunView = {
   audience: string;
   angle: string;
   sourceCutoffAt: string;
-  selectedTitles: string[];
+  selectedRevisions: ReportRunSelectedRevisionView[];
   reportId: string | null;
   startedAt: string;
   completedAt: string | null;
@@ -47,11 +47,27 @@ export type ReportEvidenceView = {
 export type ReportClaimView = {
   id: string;
   text: string;
+  epistemicRole: "evidence" | "inference" | "user_viewpoint";
   position: number;
   intelligenceItemRevisionId: string;
   intelligenceTitle: string;
   intelligenceRevisionNumber: number;
   evidence: ReportEvidenceView[];
+};
+
+export type ReportSelectedRevisionView = {
+  id: string;
+  title: string;
+  revisionNumber: number;
+};
+
+export type ReportRunSelectedRevisionView = ReportSelectedRevisionView & {
+  signals: Array<{
+    id: string;
+    evidenceQuote: string;
+    sourceVersionId: string;
+    sourceVersionNumber: number;
+  }>;
 };
 
 export type ReportView = {
@@ -66,6 +82,7 @@ export type ReportView = {
   triggerMethod: "manual";
   generationContext: { adapterKind: string; contractVersion: number };
   createdAt: string;
+  selectedRevisions: ReportSelectedRevisionView[];
   claims: ReportClaimView[];
 };
 
@@ -74,7 +91,7 @@ export type ReportWorkspace = {
   runs: ReportRunView[];
 };
 
-type ReportInputSnapshot = ReportGenerationInput & { triggerMethod: "manual" };
+type ReportInputSnapshot = ReportGenerationInput;
 
 type RunRow = {
   id: string;
@@ -102,6 +119,7 @@ type ReportRow = {
   claim_id: string;
   claim_position: number;
   claim_text: string;
+  epistemic_role: ReportClaimView["epistemicRole"];
   intelligence_item_revision_id: string;
   intelligence_title: string;
   intelligence_revision_number: number;
@@ -110,6 +128,13 @@ type ReportRow = {
   source_version_id: string;
   source_version_number: number;
   source_title: string;
+};
+
+type ReportSelectedRevisionRow = {
+  report_id: string;
+  intelligence_item_revision_id: string;
+  title: string;
+  revision_number: number;
 };
 
 export async function generateManualReport(
@@ -151,6 +176,7 @@ export function getReportWorkspace(projectId: string): ReportWorkspace {
       revision.angle, revision.source_cutoff_at, revision.trigger_method,
       revision.generation_context_json, revision.created_at,
       claim.id AS claim_id, claim.position AS claim_position, claim.text AS claim_text,
+      claim.epistemic_role,
       intelligence_revision.id AS intelligence_item_revision_id,
       intelligence_revision.title AS intelligence_title,
       intelligence_revision.revision_number AS intelligence_revision_number,
@@ -167,8 +193,21 @@ export function getReportWorkspace(projectId: string): ReportWorkspace {
      WHERE report.project_id = ? AND revision.revision_number = 1
      ORDER BY report.created_at DESC, report.id DESC, claim.position, signal.created_at, signal.id`,
   ).all(projectId) as ReportRow[];
+  const selectedRows = db.prepare(
+    `SELECT report.id AS report_id,
+      intelligence_revision.id AS intelligence_item_revision_id,
+      intelligence_revision.title, intelligence_revision.revision_number
+     FROM reports AS report
+     JOIN report_revisions AS revision ON revision.report_id = report.id
+     JOIN report_revision_intelligence AS selected
+       ON selected.report_revision_id = revision.id
+     JOIN intelligence_item_revisions AS intelligence_revision
+       ON intelligence_revision.id = selected.intelligence_item_revision_id
+     WHERE report.project_id = ? AND revision.revision_number = 1
+     ORDER BY report.created_at DESC, report.id DESC, intelligence_revision.created_at, intelligence_revision.id`,
+  ).all(projectId) as ReportSelectedRevisionRow[];
   return {
-    reports: groupReports(rows),
+    reports: groupReports(rows, selectedRows),
     runs: runs.map((run) => mapRun(run)),
   };
 }
@@ -256,15 +295,22 @@ function persistReport(
     for (const revision of snapshot.intelligenceRevisions) linkRevision.run(revisionId, revision.id);
     const insertClaim = db.prepare(
       `INSERT INTO report_claims
-        (id, report_revision_id, position, text, intelligence_item_revision_id)
-       VALUES (?, ?, ?, ?, ?)`,
+        (id, report_revision_id, position, text, epistemic_role, intelligence_item_revision_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     );
     const linkSignal = db.prepare(
       "INSERT INTO report_claim_signals (report_claim_id, signal_id) VALUES (?, ?)",
     );
     generated.claims.forEach((claim, position) => {
       const claimId = randomUUID();
-      insertClaim.run(claimId, revisionId, position, claim.text, claim.intelligenceItemRevisionId);
+      insertClaim.run(
+        claimId,
+        revisionId,
+        position,
+        claim.text,
+        claim.epistemicRole,
+        claim.intelligenceItemRevisionId,
+      );
       for (const signalId of claim.signalIds) linkSignal.run(claimId, signalId);
     });
     db.prepare(
@@ -355,14 +401,32 @@ function mapRun(row: RunRow): ReportRunView {
     audience: snapshot.audience,
     angle: snapshot.angle,
     sourceCutoffAt: snapshot.sourceCutoffAt,
-    selectedTitles: snapshot.intelligenceRevisions.map((revision) => revision.title),
+    selectedRevisions: snapshot.intelligenceRevisions.map((revision) => ({
+      id: revision.id,
+      title: revision.title,
+      revisionNumber: revision.revisionNumber,
+      signals: revision.signals,
+    })),
     reportId: row.report_id,
     startedAt: row.started_at,
     completedAt: row.completed_at,
   };
 }
 
-function groupReports(rows: ReportRow[]): ReportView[] {
+function groupReports(
+  rows: ReportRow[],
+  selectedRows: ReportSelectedRevisionRow[],
+): ReportView[] {
+  const selectedByReport = new Map<string, ReportSelectedRevisionView[]>();
+  for (const row of selectedRows) {
+    const selected = selectedByReport.get(row.report_id) ?? [];
+    selected.push({
+      id: row.intelligence_item_revision_id,
+      title: row.title,
+      revisionNumber: row.revision_number,
+    });
+    selectedByReport.set(row.report_id, selected);
+  }
   const reports = new Map<string, ReportView>();
   const claims = new Map<string, ReportClaimView>();
   for (const row of rows) {
@@ -384,6 +448,7 @@ function groupReports(rows: ReportRow[]): ReportView[] {
         triggerMethod: row.trigger_method,
         generationContext: context,
         createdAt: row.created_at,
+        selectedRevisions: selectedByReport.get(row.report_id) ?? [],
         claims: [],
       };
       reports.set(row.report_id, report);
@@ -393,6 +458,7 @@ function groupReports(rows: ReportRow[]): ReportView[] {
       claim = {
         id: row.claim_id,
         text: row.claim_text,
+        epistemicRole: row.epistemic_role,
         position: row.claim_position,
         intelligenceItemRevisionId: row.intelligence_item_revision_id,
         intelligenceTitle: row.intelligence_title,
