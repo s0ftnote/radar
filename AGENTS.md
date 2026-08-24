@@ -25,3 +25,13 @@ This repository uses a single-context domain documentation layout. See `docs/age
 - 在可能复用既有知识的工作前，扫描 `lore/MAP.md`；完成实质性工作后，运行一次 `$lorekeeper` skills 记录持久经验。
 - 保持项目原有来源为权威，MAP 条目只作指针。仅在确认内容与目标后毕业。
 <!-- lorekeeper:end -->
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
