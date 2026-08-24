@@ -153,6 +153,65 @@ function initializeSchema(db: DatabaseSync): void {
       PRIMARY KEY (intelligence_item_revision_id, signal_id)
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS report_generation_runs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES radar_projects(id),
+      retried_from_run_id TEXT REFERENCES report_generation_runs(id),
+      adapter_kind TEXT NOT NULL,
+      process_instance_id TEXT NOT NULL,
+      trigger_method TEXT NOT NULL CHECK (trigger_method IN ('manual')),
+      status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
+      source_cutoff_at TEXT NOT NULL,
+      input_snapshot_json TEXT NOT NULL,
+      error TEXT,
+      report_id TEXT REFERENCES reports(id),
+      started_at TEXT NOT NULL,
+      completed_at TEXT
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS reports (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES radar_projects(id),
+      generation_run_id TEXT NOT NULL UNIQUE REFERENCES report_generation_runs(id),
+      created_at TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS report_revisions (
+      id TEXT PRIMARY KEY,
+      report_id TEXT NOT NULL REFERENCES reports(id),
+      revision_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      audience TEXT NOT NULL,
+      angle TEXT NOT NULL,
+      source_cutoff_at TEXT NOT NULL,
+      trigger_method TEXT NOT NULL CHECK (trigger_method IN ('manual')),
+      generation_context_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (report_id, revision_number)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS report_revision_intelligence (
+      report_revision_id TEXT NOT NULL REFERENCES report_revisions(id),
+      intelligence_item_revision_id TEXT NOT NULL REFERENCES intelligence_item_revisions(id),
+      PRIMARY KEY (report_revision_id, intelligence_item_revision_id)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS report_claims (
+      id TEXT PRIMARY KEY,
+      report_revision_id TEXT NOT NULL REFERENCES report_revisions(id),
+      position INTEGER NOT NULL CHECK (position >= 0),
+      text TEXT NOT NULL,
+      intelligence_item_revision_id TEXT NOT NULL REFERENCES intelligence_item_revisions(id),
+      UNIQUE (report_revision_id, position)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS report_claim_signals (
+      report_claim_id TEXT NOT NULL REFERENCES report_claims(id),
+      signal_id TEXT NOT NULL REFERENCES signals(id),
+      PRIMARY KEY (report_claim_id, signal_id)
+    ) STRICT;
+
     CREATE INDEX IF NOT EXISTS source_contents_by_source ON source_contents(source_id);
     CREATE INDEX IF NOT EXISTS source_versions_by_content ON source_versions(content_id, version_number DESC);
     CREATE INDEX IF NOT EXISTS project_source_versions_by_project ON project_source_versions(project_id, visible_at DESC);
@@ -161,5 +220,8 @@ function initializeSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS agent_runs_by_input ON agent_runs(project_id, brief_revision_id, source_version_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS signals_by_project ON signals(project_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS intelligence_items_by_project ON intelligence_items(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS report_runs_by_project ON report_generation_runs(project_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS reports_by_project ON reports(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS report_claims_by_revision ON report_claims(report_revision_id, position);
   `);
 }

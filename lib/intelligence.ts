@@ -1,13 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { configuredRadarAgent, type AgentJudgment, type AgentJudgmentInput, type RadarAgent } from "@/lib/agent";
 import { database } from "@/lib/database";
-
-declare global {
-  var __radarProcessInstanceId: string | undefined;
-}
-
-const processInstanceId = globalThis.__radarProcessInstanceId ?? randomUUID();
-globalThis.__radarProcessInstanceId = processInstanceId;
+import { processInstanceId } from "@/lib/process-instance";
 
 export type JudgmentBatchResult = {
   matched: number;
@@ -33,6 +27,7 @@ export type JudgmentRunView = {
 
 export type IntelligenceItemView = {
   id: string;
+  revisionId: string;
   title: string;
   judgment: string;
   rationale: string;
@@ -90,6 +85,7 @@ type RunRow = {
 };
 type ItemRow = {
   id: string;
+  revision_id: string;
   title: string;
   judgment: string;
   rationale: string;
@@ -166,7 +162,7 @@ export function getIntelligenceWorkspace(projectId: string): IntelligenceWorkspa
      ORDER BY run.started_at DESC`,
   ).all(projectId) as RunRow[];
   const items = db.prepare(
-    `SELECT item.id, revision.title, revision.judgment, revision.rationale,
+    `SELECT item.id, revision.id AS revision_id, revision.title, revision.judgment, revision.rationale,
       revision.revision_number, signal.id AS signal_id, signal.brief_revision_id,
       source.id AS source_id, source.name AS source_name, source.url AS source_url,
       content.id AS source_content_id,
@@ -383,6 +379,7 @@ function groupItems(rows: ItemRow[]): IntelligenceItemView[] {
     if (!item) {
       item = {
         id: row.id,
+        revisionId: row.revision_id,
         title: row.title,
         judgment: row.judgment,
         rationale: row.rationale,

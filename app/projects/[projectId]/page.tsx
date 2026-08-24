@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { JudgmentWorkbench } from "@/components/judgment-workbench";
+import { ReportWorkbench } from "@/components/report-workbench";
 import { SourceNetwork } from "@/components/source-network";
 import { getIntelligenceWorkspace, type IntelligenceWorkspace } from "@/lib/intelligence";
 import { getProject } from "@/lib/projects";
+import { getReportWorkspace, type ReportWorkspace } from "@/lib/reports";
 import {
   listAvailableInstanceSources,
   listProjectSources,
@@ -22,9 +24,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const sources = listProjectSources(projectId);
   const availableSources = listAvailableInstanceSources(projectId);
   const intelligenceWorkspace = getIntelligenceWorkspace(projectId);
+  const reportWorkspace = getReportWorkspace(projectId);
   const sourceState = projectSourceState(
     sources,
     intelligenceWorkspace,
+    reportWorkspace,
     project.currentBriefRevision.id,
     availableSources,
   );
@@ -80,6 +84,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
         <SourceNetwork projectId={projectId} sources={sources} availableSources={availableSources} />
         <JudgmentWorkbench projectId={projectId} workspace={intelligenceWorkspace} />
+        <ReportWorkbench
+          projectId={projectId}
+          availableItems={intelligenceWorkspace.items}
+          workspace={reportWorkspace}
+        />
       </main>
     </AppShell>
   );
@@ -88,6 +97,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 function projectSourceState(
   sources: ProjectSource[],
   workspace: IntelligenceWorkspace,
+  reportWorkspace: ReportWorkspace,
   briefRevisionId: string,
   availableSources: AvailableInstanceSource[],
 ) {
@@ -170,12 +180,50 @@ function projectSourceState(
       guidance: "已有尚未判断的来源版本。运行 Agent，把相关 Signal 沉淀为可追溯的情报条目。",
     };
   }
+  if (reportWorkspace.runs.some((run) => run.status === "running")) {
+    return {
+      badge: "正在生成 Report",
+      badgeClass: "status-ready",
+      heading: "等待 Report Agent",
+      guidance: "本次输入快照已经固定；Agent 完成后会创建新 Report，历史结果不会被覆盖。",
+    };
+  }
+  if (hasUnresolvedReportFailure(reportWorkspace)) {
+    return {
+      badge: "Report 需重试",
+      badgeClass: "status-attention",
+      heading: "重试 Report 生成",
+      guidance: "失败运行保留了完整输入快照和原因；按原输入重试不会影响已有 Report。",
+    };
+  }
+  if (workspace.items.length > 0 && reportWorkspace.reports.length === 0) {
+    return {
+      badge: "准备输出",
+      badgeClass: "status-ready",
+      heading: "生成固定 Report",
+      guidance: "选择一个或多个情报条目，明确目的、受众和角度，生成第一份固定快照 Report。",
+    };
+  }
   return {
     badge: "持续观察",
     badgeClass: "status-ready",
     heading: "保持节奏",
     guidance: "需要新鲜事实时再次手动采集；没有变化的内容会复用既有版本。",
   };
+}
+
+function hasUnresolvedReportFailure(workspace: ReportWorkspace): boolean {
+  const runsById = new Map(workspace.runs.map((run) => [run.id, run]));
+  const resolvedFailures = new Set<string>();
+  for (const run of workspace.runs) {
+    if (run.status !== "success") continue;
+    let retriedFromRunId = run.retriedFromRunId;
+    while (retriedFromRunId) {
+      resolvedFailures.add(retriedFromRunId);
+      retriedFromRunId = runsById.get(retriedFromRunId)?.retriedFromRunId ?? null;
+    }
+  }
+  return workspace.runs.some((run) => run.status === "failed" && !resolvedFailures.has(run.id));
 }
 
 function formatDateTime(value: string): string {
