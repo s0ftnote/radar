@@ -12,7 +12,7 @@
 
 ### Issue tracker
 
-Issues are tracked in GitHub Issues for `2093686099/radar`. See `docs/agents/issue-tracker.md`.
+Issues are tracked in GitHub Issues for `s0ftnote/radar`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

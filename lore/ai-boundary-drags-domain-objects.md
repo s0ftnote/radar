@@ -38,7 +38,7 @@ Radar 定了「本体不调任何模型，AI 全在用户 Agent」之后，收�
 
 ## Sources
 
-- 决议与逐条理由：https://github.com/2093686099/radar/issues/40（Resolution 评论）
-- 地图：https://github.com/2093686099/radar/issues/37
+- 决议与逐条理由：https://github.com/s0ftnote/radar/issues/40（Resolution 评论）
+- 地图：https://github.com/s0ftnote/radar/issues/37
 - 边界 ADR：`docs/adr/0009-radar-does-no-ai-and-owns-no-knowledge.md`
-- 变更：PR https://github.com/2093686099/radar/pull/48
+- 变更：PR https://github.com/s0ftnote/radar/pull/48
