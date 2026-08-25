@@ -22,8 +22,14 @@ export async function startRadar(
       throw new Error(`Radar exited before becoming ready.\n${diagnostics}`);
     }
     try {
-      const response = await fetch(`http://127.0.0.1:${port}`);
-      if (response.ok) return child;
+      // Web 上已没有页面（ADR 0013），就绪探针改打一个 API 路由：
+      // 空 body 必然被拒为 400，收到它即证明路由已编译、服务可写。
+      const response = await fetch(`http://127.0.0.1:${port}/api/briefs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (response.status === 400) return child;
     } catch {
       // The loopback listener is not ready yet.
     }
