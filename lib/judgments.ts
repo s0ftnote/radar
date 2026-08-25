@@ -1,190 +1,253 @@
 import { randomUUID } from "node:crypto";
 import { currentBriefRevision } from "./briefs.js";
-import { database } from "./database.js";
+import { database, inTransaction } from "./database.js";
+import { getOpenQueueEntry } from "./queue.js";
 
-export type PendingContent = {
-  id: string;
-  sourceId: string;
-  sourceName: string;
+export type JudgmentSignal = {
+  sourceContentId: string;
+  endpointId: string;
+  endpointName: string;
   title: string;
-  body: string;
   originUrl: string;
-  publishedAt: string | null;
-  acquiredAt: string;
 };
 
 export type Judgment = {
   id: string;
+  briefId: string;
   briefRevisionId: string;
+  queueEntryId: string;
   sourceContentId: string;
   relevant: boolean;
-  reason: string;
+  /** 四块给用户的说明。判不相关时前三块留空，whyForYou 变成淘汰理由，照样必填。 */
+  whatItIs: string;
+  evidence: string;
+  uncertainty: string;
+  whyForYou: string;
+  judgedBy: string;
   createdAt: string;
   signals: JudgmentSignal[];
-};
-
-export type JudgmentSignal = {
-  sourceContentId: string;
-  sourceId: string;
-  sourceName: string;
-  title: string;
-  originUrl: string;
+  relatedJudgmentIds: string[];
 };
 
 export type RecordJudgmentInput = {
-  sourceContentId: string;
+  queueEntryId: string;
   relevant: boolean;
-  reason: string;
+  whatItIs?: string;
+  evidence?: string;
+  uncertainty?: string;
+  whyForYou: string;
+  judgedBy: string;
   signalContentIds?: string[];
+  /** 防同一调用者的网络重试；重复判断由队列代次挡下，不靠这个。 */
+  idempotencyKey?: string;
 };
 
-type PendingRow = {
-  id: string;
-  source_id: string;
-  source_name: string;
-  title: string;
-  body: string;
-  origin_url: string;
-  published_at: string | null;
-  acquired_at: string;
-};
+export class QueueEntryConsumedError extends Error {
+  constructor() {
+    super("这个队列代次已经判过了。要重判须显式回捞，那会开一个新的代次。");
+    this.name = "QueueEntryConsumedError";
+  }
+}
 
 type JudgmentRow = {
   id: string;
+  brief_id: string;
   brief_revision_id: string;
+  queue_entry_id: string;
   source_content_id: string;
   relevant: number;
-  reason: string;
+  what_it_is: string;
+  evidence: string;
+  uncertainty: string;
+  why_for_you: string;
+  judged_by: string;
   created_at: string;
 };
 
-type SignalRow = {
-  judgment_id: string;
-  source_content_id: string;
-  source_id: string;
-  source_name: string;
-  title: string;
-  origin_url: string;
-};
-
-/** 待判断队列：这个 Brief 已采集、还没有任何判断的来源内容。 */
-export function listPendingContents(briefId: string): PendingContent[] {
-  const rows = database().prepare(
-    `SELECT content.id, content.source_id, source.name AS source_name, content.title,
-      content.body, content.origin_url, content.published_at, content.acquired_at
-     FROM brief_pending_contents AS queued
-     JOIN source_contents AS content ON content.id = queued.source_content_id
-     JOIN instance_sources AS source ON source.id = content.source_id
-     WHERE queued.brief_id = ?
-       AND NOT EXISTS (
-         SELECT 1 FROM judgments AS judged
-         WHERE judged.brief_id = queued.brief_id
-           AND judged.source_content_id = queued.source_content_id
-       )
-     ORDER BY queued.queued_at, content.id`,
-  ).all(briefId) as PendingRow[];
-  return rows.map((row) => ({
-    id: row.id,
-    sourceId: row.source_id,
-    sourceName: row.source_name,
-    title: row.title,
-    body: row.body,
-    originUrl: row.origin_url,
-    publishedAt: row.published_at,
-    acquiredAt: row.acquired_at,
-  }));
-}
-
-export function listJudgments(briefId: string): Judgment[] {
-  const db = database();
-  const rows = db.prepare(
-    `SELECT id, brief_revision_id, source_content_id, relevant, reason, created_at
-     FROM judgments WHERE brief_id = ? ORDER BY created_at DESC, id DESC`,
-  ).all(briefId) as JudgmentRow[];
-  const signals = db.prepare(
-    `SELECT signal.judgment_id, signal.source_content_id, content.source_id,
-      source.name AS source_name, content.title, content.origin_url
-     FROM judgment_signals AS signal
-     JOIN judgments AS judgment ON judgment.id = signal.judgment_id
-     JOIN source_contents AS content ON content.id = signal.source_content_id
-     JOIN instance_sources AS source ON source.id = content.source_id
-     WHERE judgment.brief_id = ?
-     ORDER BY content.acquired_at, content.id`,
-  ).all(briefId) as SignalRow[];
-
-  const byJudgment = new Map<string, JudgmentSignal[]>();
-  for (const signal of signals) {
-    const list = byJudgment.get(signal.judgment_id) ?? [];
-    list.push({
-      sourceContentId: signal.source_content_id,
-      sourceId: signal.source_id,
-      sourceName: signal.source_name,
-      title: signal.title,
-      originUrl: signal.origin_url,
-    });
-    byJudgment.set(signal.judgment_id, list);
-  }
-
-  return rows.map((row) => ({
-    id: row.id,
-    briefRevisionId: row.brief_revision_id,
-    sourceContentId: row.source_content_id,
-    relevant: row.relevant === 1,
-    reason: row.reason,
-    createdAt: row.created_at,
-    signals: byJudgment.get(row.id) ?? [],
-  }));
-}
-
 /**
- * 记录 Agent 对一份来源内容作出的一次判定。判断以这一次判定为身份：
- * Radar 只追加，不合并、不修订、不跨判断汇总。
+ * 写回一次判定。队列代次的消费与判断的写入在同一个事务里——代次的唯一约束
+ * 就是挡下重复写回的那道门。
  */
-export function recordJudgment(briefId: string, input: RecordJudgmentInput): Judgment {
+export function recordJudgment(input: RecordJudgmentInput): Judgment {
   const db = database();
-  const revision = currentBriefRevision(briefId);
-  const queued = db.prepare(
-    `SELECT source_content_id FROM brief_pending_contents
-     WHERE brief_id = ? AND source_content_id = ?`,
-  ).get(briefId, input.sourceContentId);
-  if (!queued) throw new Error("这份来源内容不在这个 Radar Brief 的待判断队列里。");
 
-  const signalIds = [...new Set(input.signalContentIds ?? (input.relevant ? [input.sourceContentId] : []))];
-  for (const signalId of signalIds) {
-    const visible = db.prepare(
-      `SELECT source_content_id FROM brief_pending_contents
-       WHERE brief_id = ? AND source_content_id = ?`,
-    ).get(briefId, signalId);
-    if (!visible) throw new Error("判断引用的 Signal 不在这个 Radar Brief 的来源内容里。");
+  if (input.idempotencyKey) {
+    const replayed = db
+      .prepare("SELECT judgment_id FROM idempotent_judgments WHERE key = ?")
+      .get(input.idempotencyKey) as { judgment_id: string } | undefined;
+    if (replayed) return getJudgment(replayed.judgment_id)!;
   }
+
+  const entry = getOpenQueueEntry(input.queueEntryId);
+  if (!entry) throw new QueueEntryConsumedError();
+
+  const revision = currentBriefRevision(entry.briefId);
+  const signalIds = [
+    ...new Set(input.signalContentIds ?? (input.relevant ? [entry.sourceContentId] : [])),
+  ];
+  for (const signalId of signalIds) assertQueuedInBrief(entry.briefId, signalId);
 
   const judgmentId = randomUUID();
   const createdAt = new Date().toISOString();
-  db.exec("BEGIN IMMEDIATE");
-  try {
+
+  inTransaction(() => {
+    const consumed = db
+      .prepare(
+        `UPDATE queue_entries SET closed_at = ?, closed_because = 'judged'
+         WHERE id = ? AND closed_at IS NULL`,
+      )
+      .run(createdAt, entry.id);
+    if (consumed.changes === 0) throw new QueueEntryConsumedError();
+
     db.prepare(
       `INSERT INTO judgments
-        (id, brief_id, brief_revision_id, source_content_id, relevant, reason, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (id, brief_id, brief_revision_id, queue_entry_id, source_content_id, relevant,
+         what_it_is, evidence, uncertainty, why_for_you, judged_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       judgmentId,
-      briefId,
+      entry.briefId,
       revision.id,
-      input.sourceContentId,
+      entry.id,
+      entry.sourceContentId,
       input.relevant ? 1 : 0,
-      input.reason,
+      input.relevant ? (input.whatItIs ?? "") : "",
+      input.relevant ? (input.evidence ?? "") : "",
+      input.relevant ? (input.uncertainty ?? "") : "",
+      input.whyForYou,
+      input.judgedBy,
       createdAt,
     );
+
     for (const signalId of signalIds) {
       db.prepare(
-        `INSERT INTO judgment_signals (judgment_id, source_content_id) VALUES (?, ?)`,
+        "INSERT INTO judgment_signals (judgment_id, source_content_id) VALUES (?, ?)",
       ).run(judgmentId, signalId);
     }
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
+    if (input.idempotencyKey) {
+      db.prepare(
+        "INSERT INTO idempotent_judgments (key, judgment_id, created_at) VALUES (?, ?, ?)",
+      ).run(input.idempotencyKey, judgmentId, createdAt);
+    }
+  });
 
-  return listJudgments(briefId).find((judgment) => judgment.id === judgmentId)!;
+  return getJudgment(judgmentId)!;
+}
+
+export function getJudgment(id: string): Judgment | null {
+  const row = database().prepare("SELECT * FROM judgments WHERE id = ?").get(id) as
+    | JudgmentRow
+    | undefined;
+  return row ? hydrate([row])[0]! : null;
+}
+
+export function listJudgments(briefId: string): Judgment[] {
+  return hydrate(
+    database()
+      .prepare("SELECT * FROM judgments WHERE brief_id = ? ORDER BY created_at DESC, id DESC")
+      .all(briefId) as JudgmentRow[],
+  );
+}
+
+/** 工作包里的「最近判断的紧凑清单」：只有标题与相关与否，用来认出已经判过的同一件事。 */
+export function listRecentJudgmentSummaries(
+  briefId: string,
+  limit: number,
+): Array<{ id: string; title: string; relevant: boolean; createdAt: string }> {
+  return (
+    database().prepare(
+      `SELECT judgment.id, content.title, judgment.relevant, judgment.created_at
+       FROM judgments AS judgment
+       JOIN source_contents AS content ON content.id = judgment.source_content_id
+       WHERE judgment.brief_id = ?
+       ORDER BY judgment.created_at DESC, judgment.id DESC
+       LIMIT ?`,
+    ).all(briefId, limit) as Array<{
+      id: string;
+      title: string;
+      relevant: number;
+      created_at: string;
+    }>
+  ).map((row) => ({
+    id: row.id,
+    title: row.title,
+    relevant: row.relevant === 1,
+    createdAt: row.created_at,
+  }));
+}
+
+/** 引用得了的 Signal，是这个 Brief 曾经入过队的内容——判过的照样可以再被引用。 */
+function assertQueuedInBrief(briefId: string, sourceContentId: string): void {
+  const queued = database()
+    .prepare("SELECT 1 FROM queue_entries WHERE brief_id = ? AND source_content_id = ?")
+    .get(briefId, sourceContentId);
+  if (!queued) throw new Error("判断引用的 Signal 不在这个 Radar Brief 的来源内容里。");
+}
+
+/** Signal 与关联各取一次，不按判断条数发查询。 */
+function hydrate(rows: JudgmentRow[]): Judgment[] {
+  if (rows.length === 0) return [];
+  const db = database();
+  const placeholders = rows.map(() => "?").join(", ");
+  const ids = rows.map((row) => row.id);
+
+  const signals = db.prepare(
+    `SELECT signal.judgment_id, signal.source_content_id, content.endpoint_id,
+      endpoint.name AS endpoint_name, content.title, content.origin_url
+     FROM judgment_signals AS signal
+     JOIN source_contents AS content ON content.id = signal.source_content_id
+     JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
+     WHERE signal.judgment_id IN (${placeholders})
+     ORDER BY content.acquired_at, content.id`,
+  ).all(...ids) as Array<{
+    judgment_id: string;
+    source_content_id: string;
+    endpoint_id: string;
+    endpoint_name: string;
+    title: string;
+    origin_url: string;
+  }>;
+
+  const relations = db.prepare(
+    `SELECT judgment_id, related_judgment_id FROM judgment_relations
+     WHERE judgment_id IN (${placeholders}) ORDER BY related_judgment_id`,
+  ).all(...ids) as Array<{ judgment_id: string; related_judgment_id: string }>;
+
+  const signalsByJudgment = groupBy(signals, (signal) => signal.judgment_id);
+  const relationsByJudgment = groupBy(relations, (relation) => relation.judgment_id);
+
+  return rows.map((row) => ({
+    id: row.id,
+    briefId: row.brief_id,
+    briefRevisionId: row.brief_revision_id,
+    queueEntryId: row.queue_entry_id,
+    sourceContentId: row.source_content_id,
+    relevant: row.relevant === 1,
+    whatItIs: row.what_it_is,
+    evidence: row.evidence,
+    uncertainty: row.uncertainty,
+    whyForYou: row.why_for_you,
+    judgedBy: row.judged_by,
+    createdAt: row.created_at,
+    signals: (signalsByJudgment.get(row.id) ?? []).map((signal) => ({
+      sourceContentId: signal.source_content_id,
+      endpointId: signal.endpoint_id,
+      endpointName: signal.endpoint_name,
+      title: signal.title,
+      originUrl: signal.origin_url,
+    })),
+    relatedJudgmentIds: (relationsByJudgment.get(row.id) ?? []).map(
+      (relation) => relation.related_judgment_id,
+    ),
+  }));
+}
+
+function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const bucket = grouped.get(key(row)) ?? [];
+    bucket.push(row);
+    grouped.set(key(row), bucket);
+  }
+  return grouped;
 }

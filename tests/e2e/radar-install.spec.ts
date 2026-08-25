@@ -173,7 +173,7 @@ test.describe("装好的 Radar", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: "重启之后还得在",
-          description: "本地实例的资产不因为进程走了就没了。",
+          body: "本地实例的资产不因为进程走了就没了。",
         }),
       });
       expect(created.status).toBe(201);
