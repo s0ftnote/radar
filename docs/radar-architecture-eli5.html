@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新版 Radar 怎么跑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --canvas:#f6f5f1; --surface:#ffffff; --ink:#1e211e; --muted:#656961;
+  --line:#ddded7; --line-strong:#c8cac1;
+  --green:#24664a; --green-soft:#e4efe8; --green-ink:#184b35;
+  --bench:#232823; --bench-text:#f7f8f5; --bench-muted:#bfc5bd;
+  --amber:#8a6512; --amber-soft:#f3ecdc;
+  --grey-out:#9aa09a;
+  --editorial:"ZCOOL XiaoWei","Songti SC","Noto Serif CJK SC",serif;
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans CJK SC",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --canvas:#181b18; --surface:#232823; --ink:#f2f4f0; --muted:#a6ada4;
+    --line:#333a33; --line-strong:#48513f;
+    --green:#7fbea0; --green-soft:#1e3a2c; --green-ink:#b7d8c5;
+    --bench:#0f120f; --bench-text:#f7f8f5; --bench-muted:#bfc5bd;
+    --amber:#d9b45f; --amber-soft:#3a3116;
+    --grey-out:#666d66;
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#181b18; --surface:#232823; --ink:#f2f4f0; --muted:#a6ada4;
+  --line:#333a33; --line-strong:#48513f;
+  --green:#7fbea0; --green-soft:#1e3a2c; --green-ink:#b7d8c5;
+  --bench:#0f120f; --bench-text:#f7f8f5; --bench-muted:#bfc5bd;
+  --amber:#d9b45f; --amber-soft:#3a3116;
+  --grey-out:#666d66;
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--canvas); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+}
+.wrap{max-width:960px; margin:0 auto; padding:0 24px 120px}
+header.hero{padding:96px 0 72px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-size:12px; font-weight:650; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--muted); margin:0 0 20px;
+}
+h1{
+  font-family:var(--editorial); font-weight:400; font-size:clamp(40px,7vw,72px);
+  line-height:1.08; letter-spacing:-.035em; margin:0; text-wrap:balance;
+}
+h1 em{font-style:normal; color:var(--green)}
+.lede{
+  font-size:clamp(18px,2.4vw,22px); line-height:1.55; color:var(--muted);
+  max-width:34em; margin:28px 0 0;
+}
+section{padding:72px 0; border-bottom:1px solid var(--line)}
+section:last-of-type{border-bottom:0}
+h2{
+  font-family:var(--editorial); font-weight:400; font-size:clamp(28px,4vw,40px);
+  line-height:1.15; letter-spacing:-.03em; margin:0 0 8px; text-wrap:balance;
+}
+.sub{color:var(--muted); font-size:17px; margin:0 0 40px; max-width:36em}
+figure{margin:0}
+figure svg{display:block; width:100%; height:auto; color:var(--ink)}
+.scroller{overflow-x:auto; -webkit-overflow-scrolling:touch}
+.scroller svg{min-width:640px}
+.scroller.wide svg{min-width:900px}
+.note{margin-top:18px; font-size:14px; line-height:1.6; color:var(--muted); padding-left:16px; border-left:2px solid var(--line-strong); max-width:44em}
+figcaption{
+  margin-top:18px; font-size:14px; line-height:1.6; color:var(--muted);
+  padding-left:16px; border-left:2px solid var(--line-strong); max-width:44em;
+}
+.cards{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:22px 22px 24px;
+}
+.card h3{
+  font-size:17px; font-weight:700; letter-spacing:-.015em; margin:0 0 8px;
+  display:flex; align-items:baseline; gap:10px;
+}
+.card p{margin:0; font-size:15px; color:var(--muted); line-height:1.6}
+.tag{
+  font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.04em;
+  padding:3px 8px; border-radius:999px; background:var(--green-soft); color:var(--green-ink);
+  white-space:nowrap;
+}
+.tag.warm{background:var(--amber-soft); color:var(--amber)}
+.tag.off{background:transparent; color:var(--grey-out); border:1px solid var(--line-strong)}
+ol.flow{list-style:none; margin:0; padding:0; counter-reset:step}
+ol.flow li{
+  counter-increment:step; position:relative; padding:20px 0 20px 62px;
+  border-top:1px solid var(--line);
+}
+ol.flow li:first-child{border-top:0}
+ol.flow li::before{
+  content:counter(step,decimal-leading-zero);
+  position:absolute; left:0; top:20px;
+  font-family:var(--mono); font-size:13px; font-weight:500;
+  color:var(--green); font-variant-numeric:tabular-nums;
+}
+ol.flow b{display:block; font-size:17px; font-weight:700; letter-spacing:-.015em; margin-bottom:4px}
+ol.flow span{color:var(--muted); font-size:15px}
+ol.flow .who{
+  font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--muted);
+  display:block; margin-top:6px;
+}
+code{
+  font-family:var(--mono); font-size:.9em; background:var(--green-soft); color:var(--green-ink);
+  padding:2px 6px; border-radius:6px;
+}
+.bench{
+  background:var(--bench); color:var(--bench-text); border-radius:14px;
+  padding:36px 32px; margin-top:8px;
+}
+.bench h2{color:var(--bench-text); margin-bottom:28px}
+.laws{display:grid; gap:26px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.laws div p:first-child{
+  font-family:var(--editorial); font-size:22px; line-height:1.3; margin:0 0 8px;
+  color:var(--bench-text);
+}
+.laws div p:last-child{margin:0; font-size:14px; line-height:1.65; color:var(--bench-muted)}
+.four{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); margin-top:8px}
+.four div{
+  border:1px solid var(--line); background:var(--surface); border-radius:12px; padding:18px;
+}
+.four b{display:block; font-size:15px; margin-bottom:6px}
+.four span{font-size:14px; color:var(--muted); line-height:1.6}
+footer{padding:56px 0 0; color:var(--muted); font-size:13px; line-height:1.8}
+footer a{color:var(--green)}
+@media (prefers-reduced-motion:no-preference){
+  a{transition:opacity .15s ease}
+}
+a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--green); outline-offset:3px; border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">Radar · 架构与流程</p>
+  <h1>Radar 只搬东西，<br><em>不动脑子。</em></h1>
+  <p class="lede">动脑子的是你自己的 Agent。这一条决定了下面所有事情长什么样——谁存什么、谁调模型、谁写报告、Web 上还剩几个页面。</p>
+</header>
+
+<section>
+  <h2>全景</h2>
+  <p class="sub">一张图看完：东西从哪进来、存在哪、谁去动它、最后去了哪。</p>
+  <figure class="scroller wide">
+    <svg viewBox="0 0 980 800" role="img" aria-label="Radar 全景架构：无登录态平台由 Radar 自采，登录态平台由用户 Agent 采集后经 radar CLI 推送；Radar 本地存储来源目录、队列、判断与反馈并提供一张 Web 来源页；用户 Agent 承担全部 AI 工作并把沉淀写进用户自己的知识库">
+      <defs>
+        <marker id="aro" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="argo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--green)"/>
+        </marker>
+      </defs>
+
+      <rect x="40" y="24" width="380" height="74" rx="10" fill="none" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="4 4"/>
+      <text x="60" y="50" font-size="12" font-weight="700" fill="currentColor">不用登录的平台</text>
+      <text x="60" y="76" font-size="11" fill="var(--muted)">RSS/Atom · GitHub · V2EX · YouTube</text>
+
+      <rect x="580" y="24" width="360" height="74" rx="10" fill="none" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="4 4"/>
+      <text x="600" y="50" font-size="12" font-weight="700" fill="currentColor">要登录的平台</text>
+      <text x="600" y="76" font-size="11" fill="var(--muted)">Reddit · B 站 · X · 小红书 · LinkedIn</text>
+
+      <rect x="40" y="150" width="380" height="430" rx="14" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+      <text x="62" y="184" font-size="18" font-weight="700" fill="currentColor">Radar 实例</text>
+      <text x="62" y="205" font-size="11" fill="var(--muted)">你自己机器上跑 · 一直在 · 不聪明</text>
+
+      <rect x="60" y="222" width="340" height="54" rx="10" fill="var(--green-soft)" stroke="var(--green)" stroke-width="1"/>
+      <text x="78" y="245" font-size="13" font-weight="700" fill="var(--green-ink)">采集器</text>
+      <text x="78" y="265" font-size="11" fill="var(--green-ink)">按渠道节奏跑，只采不用登录的骨干</text>
+
+      <rect x="60" y="296" width="340" height="180" rx="10" fill="none" stroke="var(--line-strong)" stroke-width="1"/>
+      <text x="78" y="320" font-size="13" font-weight="700" fill="currentColor">只存自己运转要用的</text>
+      <text x="80" y="346" font-size="11" fill="var(--muted)">出厂来源目录</text>
+      <text x="80" y="372" font-size="11" fill="var(--muted)">采集端点 + 状态</text>
+      <text x="80" y="398" font-size="11" fill="var(--muted)">来源内容</text>
+      <text x="80" y="424" font-size="11" fill="var(--muted)">待判断队列</text>
+      <text x="80" y="450" font-size="11" fill="var(--muted)">Brief + 修订</text>
+      <text x="245" y="346" font-size="11" fill="var(--muted)">排队策略</text>
+      <text x="245" y="372" font-size="11" fill="var(--muted)">判断 + Signal</text>
+      <text x="245" y="398" font-size="11" fill="var(--muted)">反馈</text>
+      <text x="245" y="424" font-size="11" fill="var(--muted)">交付记录</text>
+      <text x="245" y="450" font-size="11" fill="var(--muted)">命中统计</text>
+
+      <rect x="60" y="496" width="160" height="62" rx="10" fill="none" stroke="currentColor" stroke-width="1"/>
+      <text x="76" y="521" font-size="12" font-weight="700" fill="currentColor">Web 来源页</text>
+      <text x="76" y="542" font-size="11" fill="var(--muted)">唯一的页面</text>
+
+      <rect x="240" y="496" width="160" height="62" rx="10" fill="none" stroke="currentColor" stroke-width="1"/>
+      <text x="256" y="521" font-size="12" font-weight="700" fill="currentColor">SQLite</text>
+      <text x="256" y="542" font-size="11" fill="var(--muted)">服务是唯一写者</text>
+
+      <rect x="580" y="150" width="360" height="430" rx="14" fill="var(--bench)" stroke="var(--line-strong)" stroke-width="1"/>
+      <text x="602" y="184" font-size="18" font-weight="700" fill="var(--bench-text)">你自己的 Agent</text>
+      <text x="602" y="205" font-size="11" fill="var(--bench-muted)">Claude Code / Codex / …</text>
+
+      <rect x="600" y="222" width="320" height="54" rx="10" fill="none" stroke="#5a6459" stroke-width="1"/>
+      <text x="618" y="245" font-size="13" font-weight="700" fill="var(--bench-text)">采集工具（agent-reach 等）</text>
+      <text x="618" y="265" font-size="11" fill="var(--bench-muted)">替 Radar 去采要登录的平台</text>
+
+      <rect x="600" y="296" width="100" height="58" rx="10" fill="none" stroke="#5a6459" stroke-width="1"/>
+      <text x="650" y="322" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bench-text)">判断角色</text>
+      <text x="650" y="341" text-anchor="middle" font-size="10" fill="var(--bench-muted)">判相不相关</text>
+
+      <rect x="710" y="296" width="100" height="58" rx="10" fill="none" stroke="#5a6459" stroke-width="1"/>
+      <text x="760" y="322" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bench-text)">取数角色</text>
+      <text x="760" y="341" text-anchor="middle" font-size="10" fill="var(--bench-muted)">出报告</text>
+
+      <rect x="820" y="296" width="100" height="58" rx="10" fill="none" stroke="#5a6459" stroke-width="1"/>
+      <text x="870" y="322" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bench-text)">管家角色</text>
+      <text x="870" y="341" text-anchor="middle" font-size="10" fill="var(--bench-muted)">改 Brief、来源</text>
+
+      <rect x="600" y="374" width="320" height="46" rx="10" fill="none" stroke="#5a6459" stroke-width="1"/>
+      <text x="618" y="403" font-size="12" font-weight="700" fill="var(--bench-text)">模型 key 在这边 · AI 全在这边</text>
+
+      <text x="602" y="452" font-size="11" fill="var(--bench-muted)">它不跑的时候：Radar 照采，不判。</text>
+      <text x="602" y="474" font-size="11" fill="var(--bench-muted)">它自己的取舍不算偏好——只有你明说的才是反馈。</text>
+      <text x="602" y="496" font-size="11" fill="var(--bench-muted)">三份 Skill 各自被话题唤醒，互不载入。</text>
+
+      <line x1="500" y1="164" x2="500" y2="560" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 5"/>
+      <text x="500" y="140" text-anchor="middle" font-size="13" font-weight="700" fill="var(--green)">radar</text>
+      <text x="500" y="156" text-anchor="middle" font-size="10" fill="var(--green)">唯一通道 · 不做 MCP</text>
+
+      <line x1="424" y1="300" x2="576" y2="300" stroke="var(--green)" stroke-width="1.5" marker-end="url(#argo)"/>
+      <text x="500" y="292" text-anchor="middle" font-size="11" fill="var(--green)">取工作包</text>
+
+      <line x1="576" y1="360" x2="424" y2="360" stroke="var(--green)" stroke-width="1.5" marker-end="url(#argo)"/>
+      <text x="500" y="352" text-anchor="middle" font-size="11" fill="var(--green)">写回判断</text>
+
+      <line x1="576" y1="420" x2="424" y2="420" stroke="var(--green)" stroke-width="1.5" marker-end="url(#argo)"/>
+      <text x="500" y="412" text-anchor="middle" font-size="11" fill="var(--green)">推来源内容</text>
+
+      <line x1="576" y1="480" x2="424" y2="480" stroke="var(--green)" stroke-width="1.5" marker-end="url(#argo)"/>
+      <text x="500" y="472" text-anchor="middle" font-size="11" fill="var(--green)">写反馈 · 改配置</text>
+
+      <line x1="230" y1="102" x2="230" y2="218" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+      <text x="242" y="168" font-size="11" fill="var(--muted)">Radar 自己采</text>
+
+      <line x1="860" y1="102" x2="860" y2="218" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+      <text x="848" y="168" text-anchor="end" font-size="11" fill="var(--muted)">Agent 自己采</text>
+
+      <rect x="60" y="650" width="260" height="80" rx="12" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="82" y="684" font-size="16" font-weight="700" fill="currentColor">你</text>
+      <text x="82" y="708" font-size="11" fill="var(--muted)">说人话，不填表</text>
+
+      <line x1="190" y1="648" x2="190" y2="562" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+      <text x="202" y="608" font-size="11" fill="var(--muted)">看来源 · 开关</text>
+
+      <path d="M320 690 H460 V612 H700 V584" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+      <text x="580" y="604" text-anchor="middle" font-size="11" fill="var(--muted)">对话（主入口）</text>
+
+      <rect x="620" y="700" width="320" height="76" rx="12" fill="none" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="4 4"/>
+      <text x="642" y="730" font-size="14" font-weight="700" fill="currentColor">你的知识库</text>
+      <text x="642" y="754" font-size="11" fill="var(--muted)">Obsidian / Notion / llm-wiki —— Radar 不知道它存在</text>
+
+      <line x1="810" y1="584" x2="810" y2="698" stroke="currentColor" stroke-width="1.5" marker-end="url(#aro)"/>
+      <text x="822" y="648" font-size="11" fill="var(--muted)">写入沉淀</text>
+    </svg>
+    <figcaption>三条线值得盯：绿色那条是 Radar 与 Agent 之间<b>唯一</b>的通道；左上进来的是 Radar 自己采的，右上进来的是 Agent 替它采的；右下出去的是沉淀，它离开 Radar 就再也不回来。</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>那条线</h2>
+  <p class="sub">整套东西只有一条重要的分界线。左边是一台永不下班的笨机器，右边是一个聪明但只在你叫它的时候才在的脑子。</p>
+  <figure class="scroller">
+    <svg viewBox="0 0 880 400" role="img" aria-label="Radar 负责采集、排队与存储，用户 Agent 负责判断与输出，两者只通过 radar CLI 通信">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--green)"/>
+        </marker>
+      </defs>
+
+      <line x1="440" y1="20" x2="440" y2="380" stroke="var(--green)" stroke-width="2" stroke-dasharray="6 6"/>
+      <text x="440" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="var(--green)">唯一通道</text>
+
+      <rect x="30" y="52" width="360" height="300" rx="14" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="52" y="84" font-size="20" font-weight="700" fill="currentColor">Radar</text>
+      <text x="52" y="106" font-size="12" fill="var(--muted)">本地跑 · 一直在 · 不聪明</text>
+
+      <text x="52" y="146" font-size="13" fill="currentColor">按计划采集</text>
+      <text x="52" y="176" font-size="13" fill="currentColor">去重、排队（只排序，不丢）</text>
+      <text x="52" y="206" font-size="13" fill="currentColor">存 Brief、队列、判断、反馈</text>
+      <text x="52" y="236" font-size="13" fill="currentColor">数命中率</text>
+      <line x1="52" y1="262" x2="368" y2="262" stroke="var(--line-strong)" stroke-width="1"/>
+      <text x="52" y="288" font-size="13" fill="var(--muted)">✕ 不调模型</text>
+      <text x="52" y="312" font-size="13" fill="var(--muted)">✕ 不判断相关性</text>
+      <text x="52" y="336" font-size="13" fill="var(--muted)">✕ 不写报告、不存知识</text>
+
+      <rect x="490" y="52" width="360" height="300" rx="14" fill="var(--bench)" stroke="var(--line-strong)" stroke-width="1"/>
+      <text x="512" y="84" font-size="20" font-weight="700" fill="var(--bench-text)">你自己的 Agent</text>
+      <text x="512" y="106" font-size="12" fill="var(--bench-muted)">Claude Code / Codex / OpenClaw …</text>
+
+      <text x="512" y="146" font-size="13" fill="var(--bench-text)">读 Brief，判断内容相不相关</text>
+      <text x="512" y="176" font-size="13" fill="var(--bench-text)">写「为什么给你」</text>
+      <text x="512" y="206" font-size="13" fill="var(--bench-text)">出报告 / 写进你的知识库</text>
+      <text x="512" y="236" font-size="13" fill="var(--bench-text)">采登录态平台，推给 Radar</text>
+      <line x1="512" y1="262" x2="828" y2="262" stroke="#48513f" stroke-width="1"/>
+      <text x="512" y="288" font-size="13" fill="var(--bench-muted)">模型 key 在这边</text>
+      <text x="512" y="312" font-size="13" fill="var(--bench-muted)">跟你对话的也是它</text>
+      <text x="512" y="336" font-size="13" fill="var(--bench-muted)">它不在时，Radar 照采不判</text>
+
+      <line x1="392" y1="170" x2="488" y2="170" stroke="var(--green)" stroke-width="2" marker-end="url(#arg)"/>
+      <text x="440" y="162" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--green)">radar pending</text>
+
+      <line x1="488" y1="230" x2="392" y2="230" stroke="var(--green)" stroke-width="2" marker-end="url(#arg)"/>
+      <text x="440" y="222" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--green)">写回判断</text>
+    </svg>
+    <figcaption>两边只通过一个 <code>radar</code> 命令说话——没有 HTTP API 契约，没有 MCP。能跑 bash 的 Agent 就能接上（ADR 0012）。</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>东西从哪来</h2>
+  <p class="sub">来源分三档。这一档同时回答了两件事：要不要你配东西，以及谁负责去采。</p>
+  <div class="cards">
+    <div class="card">
+      <h3>装好即用 <span class="tag">Radar 自己采</span></h3>
+      <p>RSS/Atom、GitHub、V2EX、YouTube 这类不用登录的。装好实例就开始采，一个字不用配。</p>
+    </div>
+    <div class="card">
+      <h3>配置后解锁 <span class="tag warm">Agent 采完推进来</span></h3>
+      <p>Reddit、B 站、小红书、Twitter 这类要登录态的。Radar 不写适配器、不保管你的 Cookie——你的 Agent 用自己的工具采完，推给 Radar（ADR 0011）。</p>
+    </div>
+    <div class="card">
+      <h3>够不着 <span class="tag off">谁也采不了</span></h3>
+      <p>灰着摆在那儿，作为「我们没覆盖这块」的诚实表达。不写免责声明。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>传送带</h2>
+  <p class="sub">采进来的东西排成一条队。Radar 只决定<b>先看哪条</b>，永远不决定<b>什么算相关</b>。</p>
+  <figure class="scroller">
+    <svg viewBox="0 0 880 260" role="img" aria-label="来源内容进入待判断队列，按排队策略排序，Agent 取头部若干条判断后写回，再由取数角色送去交付去处">
+      <rect x="20" y="70" width="150" height="76" rx="12" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+      <text x="95" y="102" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">来源内容</text>
+      <text x="95" y="124" text-anchor="middle" font-size="11" fill="var(--muted)">采到的原始条目</text>
+
+      <rect x="235" y="46" width="200" height="124" rx="12" fill="var(--green-soft)" stroke="var(--green)" stroke-width="1.5"/>
+      <text x="335" y="78" text-anchor="middle" font-size="14" font-weight="700" fill="var(--green-ink)">待判断队列</text>
+      <text x="335" y="100" text-anchor="middle" font-size="11" fill="var(--green-ink)">按排队策略排序</text>
+      <line x1="260" y1="114" x2="410" y2="114" stroke="var(--green)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="335" y="134" text-anchor="middle" font-size="11" fill="var(--green-ink)">只排序 · 不丢弃</text>
+      <text x="335" y="152" text-anchor="middle" font-size="11" fill="var(--green-ink)">超期移出但不删</text>
+
+      <rect x="500" y="70" width="150" height="76" rx="12" fill="var(--bench)" stroke="var(--line-strong)" stroke-width="1"/>
+      <text x="575" y="102" text-anchor="middle" font-size="14" font-weight="700" fill="var(--bench-text)">判断</text>
+      <text x="575" y="124" text-anchor="middle" font-size="11" fill="var(--bench-muted)">Agent 取头部 N 条</text>
+
+      <rect x="715" y="70" width="145" height="76" rx="12" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+      <text x="787" y="102" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">交付去处</text>
+      <text x="787" y="124" text-anchor="middle" font-size="11" fill="var(--muted)">周报 / obsidian …</text>
+
+      <line x1="172" y1="108" x2="232" y2="108" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="437" y1="108" x2="497" y2="108" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="652" y1="108" x2="712" y2="108" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+      <path d="M575 152 L575 205 L335 205 L335 174" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arg)"/>
+      <text x="455" y="223" text-anchor="middle" font-size="11" fill="var(--green)">判完回写 → Radar 数命中率 → Agent 改排序公式</text>
+
+      <text x="335" y="34" text-anchor="middle" font-size="11" fill="var(--muted)">排队策略：Agent 写公式，Radar 机械执行</text>
+    </svg>
+    <figcaption>Radar 一旦按规则丢内容，你就会把「Radar 没给我」读成「世界上没发生」。所以它宁可让队列变长，也不丢（ADR 0010）。</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>一次判断长什么样</h2>
+  <p class="sub">不是一个分数，是一段说得清的话。判为不相关也要写清为什么淘汰——你问「这条为什么没给我」，得答得出。</p>
+  <div class="four">
+    <div><b>是什么</b><span>这条内容讲了什么</span></div>
+    <div><b>凭什么</b><span>依据在哪，可回链</span></div>
+    <div><b>哪里不确定</b><span>别装作全都知道</span></div>
+    <div><b>为什么给你</b><span>对着你的 Brief 说</span></div>
+  </div>
+  <p class="note">拆成四块，是为了出报告的时候能机械组装，不必去解析别人写的散文。Radar 存四个字符串，照样不理解内容。</p>
+</section>
+
+<section>
+  <h2>三份 Skill，三个时机</h2>
+  <p class="sub">装进你 Agent 的是三份技能，各自在不同的时候自己醒过来。</p>
+  <div class="cards">
+    <div class="card">
+      <h3>判断角色</h3>
+      <p>你说「跑一遍 Radar」。先把要推的内容推进去，再 <code>radar pending</code> 一次取齐工作包，判完写回。</p>
+    </div>
+    <div class="card">
+      <h3>取数角色</h3>
+      <p>你说「出个周报」「写进 Obsidian」。取还没送到这个去处的判断，输出，标记送达。</p>
+    </div>
+    <div class="card">
+      <h3>管家角色</h3>
+      <p>你说「改一下关注点」「这条没意思」「加个来源」。它得认得出随口一句也是反馈。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>从零开始，一遍走完</h2>
+  <p class="sub">没有向导、没有配置页、没有「首次设置」。第 1 期和第 20 期在 Radar 眼里完全一样。</p>
+  <ol class="flow">
+    <li><b>你说一句话</b><span>「我想持续知道 AI 产品的用户在抱怨什么」</span><span class="who">你 → 管家角色</span></li>
+    <li><b>管家写下 Brief</b><span>一段自然语言，不给你看条文让你校对——人只在面对具体条目时判断才可靠</span><span class="who">管家角色</span></li>
+    <li><b>立刻催一次采集</b><span><code>radar collect --now</code>。装好那会儿其实已经在采了，这一下是补齐</span><span class="who">管家角色 → Radar</span></li>
+    <li><b>Radar 排队</b><span>去重、排序。没有策略时按新鲜度加端点保底配额</span><span class="who">Radar</span></li>
+    <li><b>判断角色跑第一遍</b><span>取工作包，判，写回。这就是「我先跑一遍你看」——不是特殊路径，就是正常的第一次</span><span class="who">判断角色</span></li>
+    <li><b>你在具体条目上说要不要</b><span>「这种别再给我了」——管家把它写成反馈，此后每个工作包都原样带上</span><span class="who">你 → 管家角色</span></li>
+    <li><b>之后就一直这样</b><span>Radar 一直采一直排；你想看的时候叫 Agent 跑一遍、出一份</span><span class="who">循环</span></li>
+  </ol>
+</section>
+
+<section>
+  <h2>Web 上只剩一张页</h2>
+  <p class="sub">来源页，就是首页。没有第二个页面。</p>
+  <div class="cards">
+    <div class="card">
+      <h3>页面上有</h3>
+      <p>渠道分组的来源清单、每个端点是正常/失败/等推送、实例级停用开关、粘个网址加源，以及唯一一处设置（你的 RSSHub 地址）。</p>
+    </div>
+    <div class="card">
+      <h3>页面上没有</h3>
+      <p>Brief 列表、Brief 正文、判断台、报告台、队列仪表盘。这些要么在对话里，要么不存在。</p>
+    </div>
+    <div class="card">
+      <h3>为什么还留着它</h3>
+      <p>因为「看」——几十行来源清单在对话里逐条念出来很糟，一眼扫完的页面赢。改反而是顺带的（ADR 0013）。</p>
+    </div>
+  </div>
+</section>
+
+<section style="border-bottom:0">
+  <div class="bench">
+    <h2>三条不会变的</h2>
+    <div class="laws">
+      <div>
+        <p>Radar 不调模型</p>
+        <p>没有 BYOK、没有 Plan、没有「模型不可用」这种状态。key 在你的 Agent 里，AI 全在那边（ADR 0009）。</p>
+      </div>
+      <div>
+        <p>Radar 不丢内容</p>
+        <p>只排序，从不按规则筛掉。关键词只能加减分，不能用来排除（ADR 0010）。</p>
+      </div>
+      <div>
+        <p>Radar 不拥有沉淀</p>
+        <p>它只存自己运转要用的东西。知识去你自己的 Obsidian / Notion，由 Agent 写入——Radar 不知道它存在。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>决策地图：<a href="https://github.com/s0ftnote/radar/issues/37">定义 Radar 聚合站与 Radar Skill 的 MVP 边界 · #37</a><br>
+  词汇以 <code>CONTEXT.md</code> 为准，决策依据见 <code>docs/adr/</code> 0007–0014。</p>
+</footer>
+
+</div>
+</body>
+</html>
