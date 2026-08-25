@@ -1,28 +1,36 @@
 {
   "name": "radar",
   "version": "0.1.0",
-  "private": true,
+  "description": "开源、本地运行的个性化信号聚合站",
+  "license": "MIT",
+  "type": "module",
   "engines": {
     "node": ">=24.14"
   },
+  "bin": {
+    "radar": "dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "README.md"
+  ],
   "scripts": {
-    "radar": "node scripts/radar.mjs",
-    "build": "next build",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "radar": "npm run build --silent && node dist/cli/main.js",
+    "typecheck": "tsc -p tsconfig.test.json",
     "test:e2e": "playwright test",
-    "test": "npm run test:e2e"
+    "test": "npm run build --silent && npm run test:e2e"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
     "fast-xml-parser": "^5.11.0",
-    "next": "16.3.2",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "hono": "^4.13.4"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@types/node": "26.2.0",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
     "typescript": "5.9.3"
   }
 }

@@ -1,22 +1,29 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { radarDataDirectory } from "@/lib/data-directory";
+import { radarDataDirectory } from "./data-directory.js";
 
-declare global {
-  var __radarDatabase: DatabaseSync | undefined;
-}
+/**
+ * 只有 Radar 服务进程碰这个句柄——它是 SQLite 的唯一写者（ADR 0012），
+ * CLI 一律走 HTTP。
+ */
+let openDatabase: DatabaseSync | undefined;
 
 export function database(): DatabaseSync {
-  if (globalThis.__radarDatabase?.isOpen) return globalThis.__radarDatabase;
+  if (openDatabase?.isOpen) return openDatabase;
 
   const dataDirectory = radarDataDirectory();
   mkdirSync(dataDirectory, { recursive: true });
   const db = new DatabaseSync(resolve(dataDirectory, "radar.sqlite"), { timeout: 5_000 });
   db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
   initializeSchema(db);
-  globalThis.__radarDatabase = db;
+  openDatabase = db;
   return db;
+}
+
+export function closeDatabase(): void {
+  if (openDatabase?.isOpen) openDatabase.close();
+  openDatabase = undefined;
 }
 
 function initializeSchema(db: DatabaseSync): void {

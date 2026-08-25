@@ -1,0 +1,85 @@
+@font-face {
+  font-family: "ZCOOL XiaoWei";
+  src: url("/assets/fonts/ZCOOLXiaoWei-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --canvas: #f6f5f1;
+  --surface: #ffffff;
+  --surface-soft: #efeee9;
+  --ink: #1e211e;
+  --muted: #656961;
+  --faint: #8b8f87;
+  --line: #ddded7;
+  --line-strong: #c8cac1;
+  --green: #24664a;
+  --green-hover: #1d553d;
+  --green-soft: #e4efe8;
+  --green-ink: #184b35;
+  --error: #9c382f;
+  --error-soft: #f7e8e4;
+  --focus: #2f7556;
+  --radius: 14px;
+  --editorial: "ZCOOL XiaoWei", "Songti SC", "Noto Serif CJK SC", serif;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--canvas); }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--canvas);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { color: #fff; background: var(--green); }
+
+a { color: inherit; text-underline-offset: 0.22em; }
+
+button,
+input,
+textarea { font: inherit; }
+
+button,
+a,
+input,
+textarea { -webkit-tap-highlight-color: transparent; }
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus) 35%, transparent);
+  outline-offset: 3px;
+}
+.page {
+  width: min(760px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 84px 0;
+}
+
+h1 {
+  margin: 0 0 18px;
+  font-family: var(--editorial);
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.lede { font-size: 17px; }
+
+.meta { color: var(--muted); font-size: 13px; }
+
+code {
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--surface-soft);
+  border-radius: 5px;
+}
