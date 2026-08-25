@@ -7,7 +7,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="masthead">
         <Link className="wordmark" href="/" aria-label="Radar 首页">
           <strong>Radar</strong>
-          <span>local intelligence</span>
+          <span>local signal station</span>
         </Link>
         <div className="masthead-meta">
           <span>单用户</span>
@@ -17,8 +17,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       {children}
       <footer className="app-footer">
-        <span>数据与判断保存在你控制的设备上。</span>
-        <span>Radar · 本地情报工作台</span>
+        <span>来源内容与判断保存在你控制的设备上。</span>
+        <span>Radar · 本地信号聚合站</span>
       </footer>
     </div>
   );

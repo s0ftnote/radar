@@ -1,6 +1,6 @@
 ---
 name: Radar
-description: A warm-paper editorial workbench for private, evidence-backed local intelligence.
+description: A warm-paper editorial workbench for a private, local-first Radar Brief station.
 colors:
   canvas: "#f6f5f1"
   surface: "#ffffff"
@@ -108,7 +108,7 @@ components:
 
 Radar is an Operate-mode workbench with the calm authority of a well-kept research desk. Warm paper surrounds precise white evidence surfaces, while the charcoal creation panel feels like the active instrument on that desk. The interface is restrained and information-led: identity and provenance remain legible, controls feel deliberate, and valid emptiness receives the same compositional care as populated states.
 
-Brand expression is concentrated rather than spread everywhere. The self-hosted ZCOOL XiaoWei face gives the Radar wordmark and page-level headings an editorial voice; the rest of the workbench uses a durable system sans stack for fast scanning and mixed Chinese/Latin content. Deep green is reserved for action, focus, health, and authored directional affordances—not decoration. The incumbent visual evidence remains `prototypes/radar-brief-prototype.html` and `docs/radar-product-handoff.html`; the shipped implementation is the normative source for exact values.
+Brand expression is concentrated rather than spread everywhere. The self-hosted ZCOOL XiaoWei face gives the Radar wordmark and page-level headings an editorial voice; the rest of the workbench uses a durable system sans stack for fast scanning and mixed Chinese/Latin content. Deep green is reserved for action, focus, health, and authored directional affordances—not decoration. The incumbent visual evidence remains `docs/prototypes/radar-brief-prototype.html` and `docs/radar-product-handoff.html`; the shipped implementation is the normative source for exact values.
 
 **Key Characteristics:**
 
@@ -116,7 +116,7 @@ Brand expression is concentrated rather than spread everywhere. The self-hosted 
 - One dark creation workbench that clearly distinguishes making from inspecting.
 - Editorial display type used sparingly; system sans carries operational content.
 - Deep green communicates action, focus, health, and forward movement.
-- Responsive topology puts creation before the project list on narrow screens.
+- Responsive topology puts creation before the Brief list on narrow screens.
 - Surface seed `e2d76f24` identifies this implemented visual direction.
 
 ## Colors
@@ -169,9 +169,9 @@ The shell is centered at a maximum width of 1180px with 20px side clearance on d
 
 At desktop widths, the primary workspace is a two-column grid: the inspection area receives roughly twice the space of the creation workbench (`1.55fr / 0.8fr`), with a 24px gutter and a 320px minimum for the right column. The creation workbench sticks 24px from the viewport top while scrolling. Cards normally use 24px internal padding; the Brief document uses 28px.
 
-Below 820px the shell narrows to 14px side clearance, the page rhythm compresses, and every two-column work area becomes one column. On the home screen the creation workbench explicitly moves to grid row one, ahead of the Radar Project list. Heading groups stack, dates can disappear from project rows, provenance pairs become one-column, and the footer becomes a short vertical stack. Below 460px panel padding reduces to 20px and project summaries may wrap.
+Below 820px the shell narrows to 14px side clearance, the page rhythm compresses, and every two-column work area becomes one column. On the home screen the creation workbench explicitly moves to grid row one, ahead of the Radar Brief list. Heading groups stack, dates can disappear from Brief rows, provenance pairs become one-column, and the footer becomes a short vertical stack. Below 460px panel padding reduces to 20px and Brief summaries may wrap.
 
-**The Creation-Before-List Rule.** Narrow screens must show the creation workbench before the existing-project list; this ordering is a product topology, not a cosmetic rearrangement.
+**The Creation-Before-List Rule.** Narrow screens must show the creation workbench before the existing-Brief list; this ordering is a product topology, not a cosmetic rearrangement.
 
 ## Elevation & Depth
 
@@ -185,7 +185,7 @@ Radar is flat by default and uses no card shadows. Depth comes from material con
 
 The form language is gently rounded and practical. Major panels use 14px corners, fields use 10px corners, and compact floating utilities use 8px. Buttons and status badges are full pills. The running-status indicator is circular. Borders are thin and visible; shapes do not rely on clipping or ornamental geometry.
 
-The authored project-row arrow is a 20px inline SVG with rounded stroke caps and joins. Its simple rightward line is the recurring directional silhouette and shifts 3px on hover.
+The authored Brief-row arrow is a 20px inline SVG with rounded stroke caps and joins. Its simple rightward line is the recurring directional silhouette and shifts 3px on hover.
 
 ## Components
 
@@ -199,7 +199,7 @@ The authored project-row arrow is a 20px inline SVG with rounded stroke caps and
 ### Cards / Containers
 
 - **Corner Style:** Gently rounded major surfaces (14px).
-- **Background:** Evidence White for reading and inspection; Workbench Charcoal for the create-project surface.
+- **Background:** Evidence White for reading and inspection; Workbench Charcoal for the create-brief surface.
 - **Shadow Strategy:** None; use canvas contrast and one-pixel borders.
 - **Border:** Standard Hairline for panels; the dark workbench matches border and fill.
 - **Internal Padding:** 24px normally, 28px for the Brief document, and 20px on the narrowest screens.
@@ -214,7 +214,7 @@ The authored project-row arrow is a 20px inline SVG with rounded stroke caps and
 
 The masthead is deliberately spare: Radar wordmark at left, compact uppercase local-instance context at right, separated from content by a strong hairline. On mobile, secondary wordmark and instance metadata disappear before the identity does. Detail pages use a small, muted breadcrumb whose links move to Health Green Ink on hover.
 
-### Project Rows
+### Brief Rows
 
 Rows are border-separated links with a strong title, a truncating or wrapping Brief summary, compact date metadata, and an authored SVG arrow. Hover changes the row text toward green and translates only the arrow by 3px; the affordance remains legible without motion.
 
@@ -241,6 +241,6 @@ Loading uses rounded neutral skeleton blocks with a restrained white sweep. The 
 
 - **Don't** add ambient shadows, gradients, glass effects, or decorative green washes.
 - **Don't** apply the editorial face to controls, metadata, body copy, or dense workbench content.
-- **Don't** convert the project list into a feed or flatten provenance into anonymous metadata.
+- **Don't** convert the Brief list into a feed or flatten provenance into anonymous metadata.
 - **Don't** animate error or idle messages with the success confirmation line.
 - **Don't** replace the implemented system based only on the evidence prototypes; use them as preserved lineage and the shipped code as exact ground truth.

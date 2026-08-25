@@ -2,17 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import type { AvailableInstanceSource, ProjectSource } from "@/lib/sources";
+import type { AvailableInstanceSource, BriefSource } from "@/lib/sources";
 
 type Notice = { kind: "success" | "error"; message: string } | null;
 
-export function SourceNetwork({
-  projectId,
+export function BriefSources({
+  briefId,
   sources,
   availableSources,
 }: {
-  projectId: string;
-  sources: ProjectSource[];
+  briefId: string;
+  sources: BriefSource[];
   availableSources: AvailableInstanceSource[];
 }) {
   const router = useRouter();
@@ -28,7 +28,7 @@ export function SourceNetwork({
     setPending("add");
     setNotice(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/sources`, {
+      const response = await fetch(`/api/briefs/${briefId}/sources`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ url }),
@@ -36,7 +36,7 @@ export function SourceNetwork({
       const result = (await response.json()) as { error?: string; name?: string };
       if (!response.ok) throw new Error(result.error ?? "来源没有保存。");
       form.reset();
-      setNotice({ kind: "success", message: `${result.name} 已验证并加入 Source Network。` });
+      setNotice({ kind: "success", message: `${result.name} 已验证并加入这个 Brief。` });
       router.refresh();
     } catch (error) {
       setNotice({ kind: "error", message: error instanceof Error ? error.message : "来源没有保存。" });
@@ -45,26 +45,26 @@ export function SourceNetwork({
     }
   }
 
-  async function operate(source: ProjectSource, action: "collect" | "stop") {
+  async function operate(source: BriefSource, action: "collect" | "stop") {
     if (isBusy) return;
     setPending(`${action}:${source.id}`);
     setNotice(null);
     try {
       const suffix = action === "collect" ? "/collect" : "";
-      const response = await fetch(`/api/projects/${projectId}/sources/${source.id}${suffix}`, {
+      const response = await fetch(`/api/briefs/${briefId}/sources/${source.id}${suffix}`, {
         method: action === "collect" ? "POST" : "DELETE",
       });
       const result = (await response.json()) as {
         error?: string;
         message?: string;
-        newVersionCount?: number;
-        reusedVersionCount?: number;
+        newContentCount?: number;
+        reusedContentCount?: number;
       };
       if (!response.ok) throw new Error(result.error ?? "操作没有完成。");
       setNotice({
         kind: "success",
         message: action === "collect"
-          ? acquisitionMessage(result.newVersionCount ?? 0, result.reusedVersionCount ?? 0)
+          ? acquisitionMessage(result.newContentCount ?? 0, result.reusedContentCount ?? 0)
           : (result.message ?? "操作已完成。"),
       });
       router.refresh();
@@ -81,24 +81,24 @@ export function SourceNetwork({
     setPending(`link:${source.id}`);
     setNotice(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/sources`, {
+      const response = await fetch(`/api/briefs/${briefId}/sources`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ sourceId: source.id }),
       });
-      const result = (await response.json()) as ProjectSource & { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "已保存来源没有接入这个 Project。");
+      const result = (await response.json()) as BriefSource & { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "已保存来源没有接入这个 Brief。");
       setNotice({
         kind: "success",
-        message: result.versions.length > 0
-          ? `已从本地实例复用 ${result.name} 和 ${result.versions.length} 个来源版本；没有重新取得内容。`
+        message: result.contents.length > 0
+          ? `已从本地实例复用 ${result.name} 和 ${result.contents.length} 份来源内容；没有重新取得内容。`
           : `${result.name} 已从本地实例接入；无需再次验证，请运行首次采集。`,
       });
       router.refresh();
     } catch (error) {
       setNotice({
         kind: "error",
-        message: error instanceof Error ? error.message : "已保存来源没有接入这个 Project。",
+        message: error instanceof Error ? error.message : "已保存来源没有接入这个 Brief。",
       });
     } finally {
       setPending(null);
@@ -106,11 +106,11 @@ export function SourceNetwork({
   }
 
   return (
-    <section className="source-network" aria-labelledby="source-network-title" aria-busy={isBusy}>
-      <div className="source-network-heading">
+    <section className="brief-source-list" aria-labelledby="brief-sources-title" aria-busy={isBusy}>
+      <div className="source-heading">
         <div>
-          <h2 id="source-network-title">Source Network</h2>
-          <p>验证一个公开 Feed，再由你决定何时取得新版本。来源事实属于本地实例。</p>
+          <h2 id="brief-sources-title">来源</h2>
+          <p>验证一个公开 Feed，再由你决定何时取得新的来源内容。来源内容属于本地实例。</p>
         </div>
         <form className="source-form" onSubmit={addSource} aria-busy={pending === "add"}>
           <label>
@@ -123,9 +123,9 @@ export function SourceNetwork({
         </form>
       </div>
 
-      <p className="network-help">可以添加多个来源；停止使用不会删除已经取得的版本。</p>
+      <p className="source-help">可以添加多个来源；停止使用不会删除已经取得的来源内容。</p>
       <p
-        className={`network-notice ${notice?.kind === "error" ? "network-notice-error" : ""}`}
+        className={`source-notice ${notice?.kind === "error" ? "source-notice-error" : ""}`}
         aria-live="polite"
         aria-atomic="true"
       >
@@ -136,7 +136,7 @@ export function SourceNetwork({
         <section className="available-sources" aria-labelledby="available-sources-title">
           <div>
             <h3 id="available-sources-title">本地实例已有来源</h3>
-            <p>已有版本会直接复用；尚未采集的来源也无需再次验证。</p>
+            <p>已有来源内容会直接复用；尚未采集的来源也无需再次验证。</p>
           </div>
           <div className="available-source-list">
             {availableSources.map((source) => (
@@ -144,7 +144,7 @@ export function SourceNetwork({
                 <div>
                   <h3>{source.name}</h3>
                   <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
-                  <p>{source.versionCount > 0 ? `${source.versionCount} 个已取得版本` : "尚未取得版本"} · {source.usedByProjectCount} 个 Project 使用</p>
+                  <p>{source.contentCount > 0 ? `${source.contentCount} 份已取得来源内容` : "尚未取得来源内容"} · {source.usedByBriefCount} 个 Brief 使用</p>
                 </div>
                 <span className={`source-health ${source.healthStatus === "unhealthy" ? "source-health-error" : ""}`}>
                   {source.healthStatus === "healthy" ? "健康" : "异常"}
@@ -158,7 +158,7 @@ export function SourceNetwork({
                     ? `正在接入 ${source.name} ${source.url}`
                     : `使用已保存来源 ${source.name} ${source.url}`}
                 >
-                  {pending === `link:${source.id}` ? "正在接入…" : "接入这个 Project"}
+                  {pending === `link:${source.id}` ? "正在接入…" : "接入这个 Brief"}
                 </button>
               </article>
             ))}
@@ -167,8 +167,8 @@ export function SourceNetwork({
       )}
 
       {sources.length === 0 ? (
-        <div className={`network-empty ${availableSources.length > 0 ? "network-empty-compact" : ""}`}>
-          <strong>{availableSources.length > 0 ? "这个 Project 还没有接入来源" : "还没有来源"}</strong>
+        <div className={`source-empty ${availableSources.length > 0 ? "source-empty-compact" : ""}`}>
+          <strong>{availableSources.length > 0 ? "这个 Brief 还没有接入来源" : "还没有来源"}</strong>
           <p>{availableSources.length > 0
             ? "选择上方来源立即复用，或验证一个新的公开 Feed。"
             : "保存前会先验证 Feed；无效或不可达的 URL 不会显示为健康来源。"}</p>
@@ -190,21 +190,20 @@ export function SourceNetwork({
               <dl className="source-facts">
                 <div><dt>最近尝试</dt><dd>{formatDateTime(source.lastAttemptAt)}</dd></div>
                 <div><dt>最近成功</dt><dd>{formatDateTime(source.lastSuccessAt)}</dd></div>
-                <div><dt>共享范围</dt><dd>{source.usedByProjectCount} 个 Project 使用</dd></div>
-                <div><dt>历史</dt><dd>{source.versions.length} 个不可变版本</dd></div>
+                <div><dt>共享范围</dt><dd>{source.usedByBriefCount} 个 Brief 使用</dd></div>
+                <div><dt>历史</dt><dd>{source.contents.length} 份来源内容</dd></div>
               </dl>
 
               <p className={`source-result ${source.active && source.healthStatus === "unhealthy" ? "source-result-error" : ""} ${!source.active ? "source-result-stopped" : ""}`}>
                 {sourceRunMessage(source)}
               </p>
 
-              {source.versions.length > 0 && (
-                <ol className="version-list">
-                  {source.versions.map((version) => (
-                    <li id={`source-version-${version.id}`} key={version.id}>
-                      <span className="version-number">版本 {version.number}</span>
-                      <a href={version.originUrl} target="_blank" rel="noreferrer">{version.title}</a>
-                      <time dateTime={version.acquiredAt}>{formatShortDate(version.acquiredAt)}</time>
+              {source.contents.length > 0 && (
+                <ol className="source-content-list">
+                  {source.contents.map((content) => (
+                    <li id={`source-content-${content.id}`} key={content.id}>
+                      <a href={content.originUrl} target="_blank" rel="noreferrer">{content.title}</a>
+                      <time dateTime={content.acquiredAt}>{formatShortDate(content.acquiredAt)}</time>
                     </li>
                   ))}
                 </ol>
@@ -258,23 +257,23 @@ function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
-function healthLabel(source: ProjectSource): string {
+function healthLabel(source: BriefSource): string {
   const health = source.healthStatus === "healthy" ? "健康" : "异常";
   return source.active ? health : `已停止 · 最近${health}`;
 }
 
-function sourceRunMessage(source: ProjectSource): string {
-  if (!source.active) return "已停止后续采集，历史版本保留";
+function sourceRunMessage(source: BriefSource): string {
+  if (!source.active) return "已停止后续采集，已取得的来源内容保留";
   if (source.latestRun.status === "running") return "正在采集，完成后会在这里显示结果。";
   if (source.latestRun.status === "failed") return source.latestRun.error ?? "采集失败，可以重试。";
   if (source.latestRun.status === "success") {
-    return acquisitionMessage(source.latestRun.newVersionCount, source.latestRun.reusedVersionCount);
+    return acquisitionMessage(source.latestRun.newContentCount, source.latestRun.reusedContentCount);
   }
-  return source.versions.length === 0 ? "已验证，等待首次采集" : `${source.versions.length} 个不可变版本`;
+  return source.contents.length === 0 ? "已验证，等待首次采集" : `${source.contents.length} 份来源内容`;
 }
 
 function acquisitionMessage(created: number, reused: number): string {
-  if (created > 0) return `本次新增 ${created} 个来源版本`;
-  if (reused > 0) return `未发现内容变化，复用 ${reused} 个来源版本`;
+  if (created > 0) return `本次新增 ${created} 份来源内容`;
+  if (reused > 0) return `未发现内容变化，复用 ${reused} 份来源内容`;
   return "采集成功，Feed 当前没有来源内容";
 }
