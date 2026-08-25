@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { database } from "@/lib/database";
-import { fetchFeed, type FeedEntry } from "@/lib/feed";
+import { database } from "./database.js";
+import { fetchFeed, type FeedEntry } from "./feed.js";
 
 export type SourceContent = {
   id: string;

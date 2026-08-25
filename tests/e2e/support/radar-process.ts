@@ -1,67 +1,73 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
+import { resolve } from "node:path";
 
+export const repositoryRoot = resolve(import.meta.dirname, "../../..");
+
+export type RunningRadar = { process: ChildProcess; port: number; output(): string };
+
+/**
+ * 起一个真正的 `radar up`——验收的是装好之后用户敲的那条命令，
+ * 不是一个测试专用的内嵌服务器。
+ */
 export async function startRadar(
   dataDirectory: string,
-  port = 33123,
-  environment: Record<string, string> = {},
-): Promise<ChildProcess> {
-  const child = spawn("npm", ["run", "radar", "--", "--port", String(port)], {
-    cwd: process.cwd(),
-    env: { ...process.env, ...environment, RADAR_DATA_DIR: dataDirectory, NEXT_TELEMETRY_DISABLED: "1" },
+  options: { port?: number; command?: string[]; cwd?: string } = {},
+): Promise<RunningRadar> {
+  const port = options.port ?? 33123;
+  const [executable, ...argv] = options.command ?? [
+    process.execPath,
+    resolve(repositoryRoot, "dist/cli/main.js"),
+  ];
+  const child = spawn(executable!, [...argv, "up", "--port", String(port)], {
+    cwd: options.cwd ?? repositoryRoot,
+    env: { ...process.env, RADAR_DATA_DIR: dataDirectory },
     stdio: ["ignore", "pipe", "pipe"],
-    detached: process.platform !== "win32",
   });
 
-  let diagnostics = "";
-  child.stdout?.on("data", (chunk) => (diagnostics += chunk.toString()));
-  child.stderr?.on("data", (chunk) => (diagnostics += chunk.toString()));
+  let output = "";
+  child.stdout?.on("data", (chunk) => (output += chunk.toString()));
+  child.stderr?.on("data", (chunk) => (output += chunk.toString()));
 
-  const deadline = Date.now() + 60_000;
+  const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(`Radar exited before becoming ready.\n${diagnostics}`);
-    }
+    if (child.exitCode !== null) throw new Error(`Radar 起来之前就退出了。\n${output}`);
     try {
-      // Web 上已没有页面（ADR 0013），就绪探针改打一个 API 路由：
-      // 空 body 必然被拒为 400，收到它即证明路由已编译、服务可写。
-      const response = await fetch(`http://127.0.0.1:${port}/api/briefs`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
-      if (response.status === 400) return child;
+      const response = await fetch(`http://127.0.0.1:${port}/health`);
+      if (response.ok) return { process: child, port, output: () => output };
     } catch {
-      // The loopback listener is not ready yet.
+      // loopback 还没听上。
     }
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await delay(100);
   }
 
-  await stopRadar(child);
-  throw new Error(`Timed out waiting for Radar.\n${diagnostics}`);
+  await stopRadar({ process: child, port, output: () => output });
+  throw new Error(`等 Radar 起来超时。\n${output}`);
 }
 
-export async function stopRadar(child: ChildProcess, port = 33123): Promise<void> {
-  if (child.exitCode === null) {
-    if (process.platform !== "win32" && child.pid) {
-      process.kill(-child.pid, "SIGTERM");
-    } else {
-      child.kill("SIGTERM");
-    }
+export async function stopRadar(radar: RunningRadar, signal: NodeJS.Signals = "SIGINT"): Promise<void> {
+  if (radar.process.exitCode === null && radar.process.signalCode === null) {
+    radar.process.kill(signal);
+    await Promise.race([once(radar.process, "exit"), delay(10_000)]);
   }
-  await Promise.race([
-    new Promise<void>((resolve) => child.once("exit", () => resolve())),
-    new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
-  ]);
 
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
-    try {
-      await fetch(`http://127.0.0.1:${port}`);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } catch {
-      return;
-    }
+    if (!(await portIsListening(radar.port))) return;
+    await delay(100);
   }
+  throw new Error(`Radar 没有释放 loopback 端口 ${radar.port}。\n${radar.output()}`);
+}
 
-  throw new Error(`Radar did not release loopback port ${port}.`);
+export async function portIsListening(port: number): Promise<boolean> {
+  try {
+    await fetch(`http://127.0.0.1:${port}/health`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }

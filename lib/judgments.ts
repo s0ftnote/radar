@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { currentBriefRevision } from "@/lib/briefs";
-import { database } from "@/lib/database";
+import { currentBriefRevision } from "./briefs.js";
+import { database } from "./database.js";
 
 export type PendingContent = {
   id: string;

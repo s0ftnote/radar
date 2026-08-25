@@ -1,14 +1,13 @@
-import type { ChildProcess } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { startFeedFixture, type FeedFixture } from "./support/feed-fixture";
-import { startRadar, stopRadar } from "./support/radar-process";
+import { startFeedFixture, type FeedFixture } from "./support/feed-fixture.js";
+import { startRadar, stopRadar, type RunningRadar } from "./support/radar-process.js";
 
 /**
- * Web 上只剩一张来源页（ADR 0013），Brief 列表与详情页已删除，
- * 所以验收改打 Radar 服务端——那正是 `radar` CLI 将要连的东西（ADR 0012）。
+ * 验收打的是 `radar up` 起来的那个服务端——Web 上只剩一张来源页（ADR 0013），
+ * 领域行为全部经由 CLI 将要连的那条内部 HTTP 面（ADR 0012）。
  */
 
 type BriefSource = {
@@ -34,25 +33,25 @@ type JudgmentsView = {
 test.setTimeout(90_000);
 
 async function createBrief(request: APIRequestContext, name: string, description: string) {
-  const response = await request.post("/api/briefs", { data: { name, description } });
+  const response = await request.post("/briefs", { data: { name, description } });
   expect(response.status()).toBe(201);
   return (await response.json()) as { id: string; name: string };
 }
 
 async function linkFeed(request: APIRequestContext, briefId: string, url: string) {
-  const response = await request.post(`/api/briefs/${briefId}/sources`, { data: { url } });
+  const response = await request.post(`/briefs/${briefId}/sources`, { data: { url } });
   expect(response.status()).toBe(201);
   return (await response.json()) as BriefSource;
 }
 
 async function collect(request: APIRequestContext, briefId: string, sourceId: string) {
-  const response = await request.post(`/api/briefs/${briefId}/sources/${sourceId}/collect`);
+  const response = await request.post(`/briefs/${briefId}/sources/${sourceId}/collect`);
   expect(response.ok()).toBeTruthy();
   return (await response.json()) as { newContentCount: number; reusedContentCount: number };
 }
 
 async function judgments(request: APIRequestContext, briefId: string) {
-  const response = await request.get(`/api/briefs/${briefId}/judgments`);
+  const response = await request.get(`/briefs/${briefId}/judgments`);
   expect(response.ok()).toBeTruthy();
   return (await response.json()) as JudgmentsView;
 }
@@ -60,7 +59,7 @@ async function judgments(request: APIRequestContext, briefId: string) {
 test("干净实例跑通 Brief → 来源 → 采集 → 判断，并在重启后原样保留", async ({ request }) => {
   let dataDirectory: string | null = null;
   let feed: FeedFixture | null = null;
-  let radar: ChildProcess | null = null;
+  let radar: RunningRadar | null = null;
 
   try {
     dataDirectory = await mkdtemp(join(tmpdir(), "radar-service-"));
@@ -88,7 +87,7 @@ test("干净实例跑通 Brief → 来源 → 采集 → 判断，并在重启�
     expect(queued.judgments).toHaveLength(0);
 
     const pending = queued.pendingContents[0];
-    const written = await request.post(`/api/briefs/${brief.id}/judgments`, {
+    const written = await request.post(`/briefs/${brief.id}/judgments`, {
       data: {
         sourceContentId: pending.id,
         relevant: true,
@@ -124,7 +123,7 @@ test("干净实例跑通 Brief → 来源 → 采集 → 判断，并在重启�
 test("两个 Brief 共享同一份来源内容，判断彼此隔离", async ({ request }) => {
   let dataDirectory: string | null = null;
   let feed: FeedFixture | null = null;
-  let radar: ChildProcess | null = null;
+  let radar: RunningRadar | null = null;
 
   try {
     dataDirectory = await mkdtemp(join(tmpdir(), "radar-isolation-"));
@@ -146,7 +145,7 @@ test("两个 Brief 共享同一份来源内容，判断彼此隔离", async ({ r
     await collect(request, briefA.id, sourceA.id);
 
     // B 直接接已保存来源：同一个采集端点，不必重新验证 URL。
-    const linkedB = await request.post(`/api/briefs/${briefB.id}/sources`, {
+    const linkedB = await request.post(`/briefs/${briefB.id}/sources`, {
       data: { sourceId: sourceA.id },
     });
     expect(linkedB.status()).toBe(201);
@@ -160,7 +159,7 @@ test("两个 Brief 共享同一份来源内容，判断彼此隔离", async ({ r
     // 同一份来源内容进了两个队列，各自独立判断。
     expect(queuedB.pendingContents[0].id).toBe(queuedA.pendingContents[0].id);
 
-    const written = await request.post(`/api/briefs/${briefA.id}/judgments`, {
+    const written = await request.post(`/briefs/${briefA.id}/judgments`, {
       data: {
         sourceContentId: queuedA.pendingContents[0].id,
         relevant: true,
@@ -186,7 +185,7 @@ test("两个 Brief 共享同一份来源内容，判断彼此隔离", async ({ r
 test("来源验证拒绝坏 feed，重复采集复用已有来源内容", async ({ request }) => {
   let dataDirectory: string | null = null;
   let feed: FeedFixture | null = null;
-  let radar: ChildProcess | null = null;
+  let radar: RunningRadar | null = null;
 
   try {
     dataDirectory = await mkdtemp(join(tmpdir(), "radar-sources-"));
@@ -199,7 +198,7 @@ test("来源验证拒绝坏 feed，重复采集复用已有来源内容", async 
       "观察公开 RSS 来源的验证、采集与去重在本地实例上的实际表现。",
     );
 
-    const broken = await request.post(`/api/briefs/${brief.id}/sources`, {
+    const broken = await request.post(`/briefs/${brief.id}/sources`, {
       data: { url: `${feed.url}/broken` },
     });
     expect(broken.status()).toBe(400);
@@ -221,7 +220,7 @@ test("来源验证拒绝坏 feed，重复采集复用已有来源内容", async 
     expect(secondRun.reusedContentCount).toBe(2);
 
     // 停用之后已取得的来源内容照样留着（ADR 0010：只排序不丢弃）。
-    const stopped = await request.delete(`/api/briefs/${brief.id}/sources/${fallback.id}`);
+    const stopped = await request.delete(`/briefs/${brief.id}/sources/${fallback.id}`);
     expect(stopped.ok()).toBeTruthy();
     const stillQueued = await judgments(request, brief.id);
     expect(stillQueued.pendingContents.length).toBeGreaterThanOrEqual(2);

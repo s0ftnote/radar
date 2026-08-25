@@ -34,13 +34,3 @@ This repository uses a single-context domain documentation layout. See `docs/age
 端点的 `id` 一旦发布就**永不复用、永不改写**；换地址改 `url` 字段，不要新开一条。下架用 `retired` + 一句理由，不要删行。见 [ADR 0014](docs/adr/0014-the-factory-catalog-ships-with-the-version-and-reconciles-on-upgrade.md)。
 
 <!-- lorekeeper:enabled -->
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->

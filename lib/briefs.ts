@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { database } from "@/lib/database";
+import { database } from "./database.js";
 
 export type RadarBrief = {
   id: string;
