@@ -22,6 +22,17 @@ Use the five canonical triage labels without overrides. See `docs/agents/triage-
 
 This repository uses a single-context domain documentation layout. See `docs/agents/domain.md`.
 
+## 往出厂来源目录加源
+
+目录是仓库里的一个数据文件，改动走普通 PR，没有投稿或审核机制。一条端点要进目录，四条都得满足：
+
+- **许可允许机器读取**——存疑就不进（AIHOT、follow-builders、last30days 已按此排除，见 [#39](https://github.com/s0ftnote/radar/issues/39)）。
+- **无需登录态**，或明确归入 `配置后解锁` 渠道由用户 Agent 采集推送。
+- **端点稳定、能长期存在**，不是某人临时搭的转发。
+- **不是观点清单**。「值得盯的人」这类名单不进目录（[#42](https://github.com/s0ftnote/radar/issues/42)）。
+
+端点的 `id` 一旦发布就**永不复用、永不改写**；换地址改 `url` 字段，不要新开一条。下架用 `retired` + 一句理由，不要删行。见 [ADR 0014](docs/adr/0014-the-factory-catalog-ships-with-the-version-and-reconciles-on-upgrade.md)。
+
 <!-- lorekeeper:enabled -->
 
 <!-- BEGIN:nextjs-agent-rules -->
