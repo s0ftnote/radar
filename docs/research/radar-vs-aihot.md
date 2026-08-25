@@ -1,10 +1,10 @@
 # Radar 与 AIHOT 的产品差异
 
-> 决策票：[界定 Radar 与 AIHOT 的产品差异](https://github.com/2093686099/radar/issues/2)
+> 决策票：[界定 Radar 与 AIHOT 的产品差异](https://github.com/s0ftnote/radar/issues/2)
 >
 > 核查日期：2026-08-20
 >
-> 范围：只依据 Radar 当前 [`CONTEXT.md`](https://github.com/2093686099/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)，以及 AIHOT 当前官网、公开 Skill、MCP/API/RSS 说明、使用规则和更新日志。没有把 AIHOT 未公开的内部实现当成事实。
+> 范围：只依据 Radar 当前 [`CONTEXT.md`](https://github.com/s0ftnote/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)，以及 AIHOT 当前官网、公开 Skill、MCP/API/RSS 说明、使用规则和更新日志。没有把 AIHOT 未公开的内部实现当成事实。
 
 ## 决策结论
 
@@ -39,9 +39,9 @@ AIHOT 自称“AI 行业动态聚合”，首页给所有读者同一套 AI 精�
 
 ### Radar：用户委托的长期关注任务
 
-Radar 当前领域定义不是新闻聚合，而是：“用户描述自己想持续知道什么，Radar 按此形成长期运行的关注任务并交付报告”。Radar Brief 由 AI 从自然语言目标中整理关注目标、重点对象、判断标准、排除项与交付偏好，并须由用户确认或修改；Report 应共享来源证据，并按该场景解释其意义。[Radar `CONTEXT.md`](https://github.com/2093686099/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
+Radar 当前领域定义不是新闻聚合，而是：“用户描述自己想持续知道什么，Radar 按此形成长期运行的关注任务并交付报告”。Radar Brief 由 AI 从自然语言目标中整理关注目标、重点对象、判断标准、排除项与交付偏好，并须由用户确认或修改；Report 应共享来源证据，并按该场景解释其意义。[Radar `CONTEXT.md`](https://github.com/s0ftnote/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
 
-首个场景 Demand Radar 又进一步限制了任务：关注“高呼声、正在变化且可能尚未被充分满足的需求与痛点”，不是通用趋势榜或竞品监控。[Radar `CONTEXT.md`](https://github.com/2093686099/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
+首个场景 Demand Radar 又进一步限制了任务：关注“高呼声、正在变化且可能尚未被充分满足的需求与痛点”，不是通用趋势榜或竞品监控。[Radar `CONTEXT.md`](https://github.com/s0ftnote/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
 
 所以 Radar 应回答的是：**对我正在追踪的需求问题，今天新增了什么证据，它为什么改变或没有改变已有判断，我下一步应验证什么。**
 
@@ -53,7 +53,7 @@ Radar 当前领域定义不是新闻聚合，而是：“用户描述自己想�
 |---|---|---|---|
 | **用户任务** | 面向中文 AI 读者与 Agent 的公共行业精选、热点、搜索和报告；Skill 的默认意图也是“今天/最近 AI 新闻、热点、日报、指定公司或主题”。[Skill 工作流](https://aihot.virxact.com/aihot-skill/SKILL.md) | 用户委托一个长期存在的关注任务；Demand Radar 的对象是未满足需求及其证据，而不是 AI 新闻。 | **真实差异**，但必须以“需求判断”而非“内容摘要”验收。 |
 | **个性化位置** | 用户可搜索关键词、选固定分类、收藏和标记已读；Agent 可按问题查询。收藏与已读只保存在当前浏览器，换设备不继承。[全部动态](https://aihot.virxact.com/all)、[更新日志](https://aihot.virxact.com/changelog) | 个性化发生在收集前和判断中：经确认的 Brief 控制对象、判断标准、排除项、来源需求和交付方式；反馈继续修改后续判断。 | **潜在真实差异**。若只是报告生成时加 prompt，则只是包装。 |
-| **来源控制** | 站方维护数百个 AI 信源和公开池；用户能在既有池内搜索/分类，不能从接入页为自己的任务添加任意来源或定义站方采集范围。公开池还明确排除未审、低相关、已合并重复条目及部分公众号池。[Agent 接入](https://aihot.virxact.com/agent)、[Skill 能力边界](https://aihot.virxact.com/aihot-skill/README.md)、[更新日志](https://aihot.virxact.com/changelog) | Source Network 对用户可见且可管理；不只显示来源名称，还应让用户知道某任务当前能覆盖什么、缺什么、哪里异常。[Radar `CONTEXT.md`](https://github.com/2093686099/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md) | **真实差异的必要条件**。来源复选框或“数量更多”本身不是楔子。 |
+| **来源控制** | 站方维护数百个 AI 信源和公开池；用户能在既有池内搜索/分类，不能从接入页为自己的任务添加任意来源或定义站方采集范围。公开池还明确排除未审、低相关、已合并重复条目及部分公众号池。[Agent 接入](https://aihot.virxact.com/agent)、[Skill 能力边界](https://aihot.virxact.com/aihot-skill/README.md)、[更新日志](https://aihot.virxact.com/changelog) | Source Network 对用户可见且可管理；不只显示来源名称，还应让用户知道某任务当前能覆盖什么、缺什么、哪里异常。[Radar `CONTEXT.md`](https://github.com/s0ftnote/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md) | **真实差异的必要条件**。来源复选框或“数量更多”本身不是楔子。 |
 | **长期记忆** | AIHOT 有内容历史、日报归档、事件时间线，并支持 `selected/snapshot + changes` 维护当前全部精选的私有副本；这说明“能长期同步内容”不是 Radar 独有。[API 参考](https://aihot.virxact.com/aihot-skill/references/api.md)、[同步合同](https://aihot.virxact.com/aihot-skill/references/sync.md) | 保存的是用户任务状态：Brief 及版本、Signal 与原始证据、采用/忽略及原因、前后报告判断、反馈和来源健康；下一轮必须消费这些状态。 | **最可能形成产品资产的真实差异**。只存文章和报告归档不算。 |
 | **报告** | 公共日/周/月报已成熟；日报 API 保留 lead、sections、flashes，正式周/月报当前只有网页。[日报](https://aihot.virxact.com/daily)、[API 参考](https://aihot.virxact.com/aihot-skill/references/api.md) | 每个 Report 针对一份 Brief，解释共同证据对该场景的意义，并与上期判断连接；应暴露证据不足和来源缺口。 | **有条件的真实差异**。换标题、排序、语气或飞书模板只是包装。 |
 | **产品资产** | AIHOT 的现有资产是 AI 信源网络、筛选标准、一手优先、事件归并、公共内容库、编辑报告、模型榜、品牌与稳定分发协议。[首页](https://aihot.virxact.com/)、[热点榜](https://aihot.virxact.com/hot)、[Agent 接入](https://aihot.virxact.com/agent)、[更新日志](https://aihot.virxact.com/changelog) | Radar 的候选资产是“Brief → Signal → 判断 → Report → 反馈”的私有历史，以及每个任务的来源能力状态和跨期需求证据。 | **尚未拥有，只是待验证资产假设**。不能在产品验证前宣称壁垒。 |
@@ -89,7 +89,7 @@ AIHOT Skill 安装生成的随机 Actor ID 也明确“不是账号、API Key �
 
 ### “更多来源就是差异”——不成立
 
-AIHOT 当前聚焦 AI 行业，Radar 的 Demand Radar 必然需要 AIHOT 未声明覆盖的需求证据来源。但连接器数量只是覆盖能力，既容易复制，也受平台许可和稳定性制约。Source Network 的产品价值应是**对具体任务可解释的覆盖、缺口、异常和替代路径**，不是“全网”口号。[Radar `CONTEXT.md`](https://github.com/2093686099/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
+AIHOT 当前聚焦 AI 行业，Radar 的 Demand Radar 必然需要 AIHOT 未声明覆盖的需求证据来源。但连接器数量只是覆盖能力，既容易复制，也受平台许可和稳定性制约。Source Network 的产品价值应是**对具体任务可解释的覆盖、缺口、异常和替代路径**，不是“全网”口号。[Radar `CONTEXT.md`](https://github.com/s0ftnote/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
 
 ## 4. 真正可能积累的产品资产
 
@@ -175,7 +175,7 @@ AIHOT 可作为技术使能、AI 产品变化和行业背景的高质量上游�
 
 ### Radar
 
-- [Radar `CONTEXT.md`（固定提交）](https://github.com/2093686099/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
+- [Radar `CONTEXT.md`（固定提交）](https://github.com/s0ftnote/radar/blob/522ad9f8e6048561c3613fe8d69fb8a538aa1ce6/CONTEXT.md)
 
 ### AIHOT 产品与内容
 

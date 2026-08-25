@@ -1,6 +1,6 @@
 # 现成采集工具能为 Radar 渠道适配器提供什么
 
-> 决策票：[查清现成采集工具能为 Radar 渠道适配器提供什么](https://github.com/2093686099/radar/issues/39)（地图 [#37](https://github.com/2093686099/radar/issues/37)）
+> 决策票：[查清现成采集工具能为 Radar 渠道适配器提供什么](https://github.com/s0ftnote/radar/issues/39)（地图 [#37](https://github.com/s0ftnote/radar/issues/37)）
 >
 > 研究快照：2026-08-25。只引用各项目的 README、文档、源码，以及 AIHOT 官网及其 Skill/API/OpenAPI/使用规则页；仓库链接尽量固定到当日默认分支的提交。RSSHub 路由健康和 Agent-Reach 各后端的本机验收已由 [来源能力边界](source-capability-boundary.md) 覆盖，本文不重复，只补“作为渠道适配器时的调用形态、输入输出、增量、限额和许可”这些缺口。
 
