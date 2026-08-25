@@ -11,8 +11,8 @@ const editorial = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Radar · 本地情报工作台",
-  description: "在自己控制的设备上持续收集、判断与沉淀情报。",
+  title: "Radar · 本地信号聚合站",
+  description: "在自己控制的设备上按 Radar Brief 持续采集来源内容，交给自己的 Agent 判断。",
   other: { "impeccable-form": "investigation-desk-e2d76f24" },
 };
 
