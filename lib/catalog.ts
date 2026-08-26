@@ -15,6 +15,8 @@ export type CatalogEndpoint = {
   name: string;
   url: string;
   licenseBasis: unknown;
+  /** 下架用一句理由，不要删行——端点 id 永不复用（ADR 0014）。 */
+  retired?: string;
 };
 
 export type FactoryCatalog = {
@@ -40,6 +42,9 @@ export function readFactoryCatalog(path: string): FactoryCatalog {
 /**
  * 把目录里的渠道与端点装进这个实例。认 id 不认 url——id 永不复用，端点搬家
  * 只是改 url 字段（ADR 0014）。
+ *
+ * 退役写进的是「目录退役」那一格，不碰用户自己的停用决定，两个开关互不覆盖。
+ * 端点搬家、新增自动开这些整套升级对账在 #74。
  */
 export function installFactoryCatalog(catalog: FactoryCatalog): void {
   const db = database();
@@ -66,15 +71,21 @@ export function installFactoryCatalog(catalog: FactoryCatalog): void {
     for (const endpoint of catalog.endpoints) {
       db.prepare(
         `INSERT INTO endpoints
-          (id, channel_id, name, url, provenance, license_basis, created_at)
-         VALUES (?, ?, ?, ?, 'factory', ?, ?)
-         ON CONFLICT(id) DO NOTHING`,
+          (id, channel_id, name, url, provenance, license_basis, retired_at, retired_reason,
+           created_at)
+         VALUES (?, ?, ?, ?, 'factory', ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           retired_at = excluded.retired_at,
+           retired_reason = excluded.retired_reason
+         WHERE endpoints.provenance = 'factory'`,
       ).run(
         endpoint.id,
         endpoint.channelId,
         endpoint.name,
         endpoint.url,
         JSON.stringify(endpoint.licenseBasis),
+        endpoint.retired ? now : null,
+        endpoint.retired ?? null,
         now,
       );
     }

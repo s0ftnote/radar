@@ -1,5 +1,6 @@
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
+import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import {
   acceptPushedEntries,
@@ -59,12 +60,25 @@ import { radarVersion } from "./version.js";
 export function createRadarApp(): Hono {
   const app = new Hono();
 
+  /**
+   * 服务听在固定端口上，用户浏览器里任何一个页面都够得着它。表单 POST 不触发
+   * 预检，跨站直接就能把来源停掉——所以整个 app 都过一遍同源校验。CLI 走
+   * `application/json`，浏览器跨站发不出这个 content-type，不受影响。
+   */
+  app.use(csrf());
+
   app.get("/health", (context) =>
     context.json({ ok: true, version: radarVersion(), dataDirectory: radarDataDirectory() }),
   );
 
   app.get("/", (context) =>
-    context.html(renderHomePage({ version: radarVersion(), dataDirectory: radarDataDirectory() })),
+    context.html(
+      renderHomePage({
+        version: radarVersion(),
+        dataDirectory: radarDataDirectory(),
+        endpoints: listEndpoints(),
+      }),
+    ),
   );
 
   // 字体与样式住在包里，不在 cwd 里——`radar` 装成全局命令后能在任意目录起。
@@ -99,9 +113,15 @@ export function createRadarApp(): Hono {
   // 实例级停用与 Brief 级排除是两个开关，互不覆盖。
   app.post("/endpoints/:endpointId/enabled", async (context) => {
     const body = await jsonBody(context.req.raw);
-    return context.json(
-      domainCall(() => setUserDisabled(context.req.param("endpointId"), body.enabled === false)),
-    );
+    return context.json(setEnabled(context.req.param("endpointId"), body.enabled));
+  });
+
+  // 来源页上唯一那个动作，同一个操作换个说法进来。表单提交完把用户送回那一页
+  // ——页面是给人看的，不该让浏览器停在一段 JSON 上。
+  app.post("/sources/:endpointId/enabled", async (context) => {
+    const form = await context.req.formData();
+    setEnabled(context.req.param("endpointId"), form.get("enabled") === "true");
+    return context.redirect("/", 303);
   });
 
   // 需要登录态的平台由用户自己的 Agent 采完推来（ADR 0011）。
@@ -368,6 +388,11 @@ async function jsonBody(request: Request): Promise<Record<string, unknown>> {
  */
 function destinationOf(raw: string): string {
   return requiredText(raw, "交付去处");
+}
+
+/** 开关只有开和关两种写法，两个入口写的是同一份 Radar 状态。 */
+function setEnabled(endpointId: string, enabled: unknown) {
+  return domainCall(() => setUserDisabled(endpointId, enabled !== true));
 }
 
 function requiredText(value: unknown, label: string): string {
