@@ -45,7 +45,7 @@ async function pageCatalog(directory: string, feed: FeedFixture): Promise<string
           name: "搬走了的源",
           url: `${feed.url}/gone`,
           licenseBasis: license,
-          retired: "站点关了，官方 feed 不再更新。",
+          retired: `站点关了，官方 feed 不再更新。${injected}`,
         },
         { id: "pushed", channelId: "agent-push", name: "要登录才看得到", url: "https://example.test/pushed", licenseBasis: license },
         { id: "walled-off", channelId: "walled", name: "够不着的源", url: "https://example.test/walled", licenseBasis: license },
@@ -105,7 +105,9 @@ test.describe("来源页", () => {
     expect(text).toContain(">正常<");
     expect(text).toContain(">最近失败<");
     // 最近失败要带错误原因与连续失败次数。
-    expect(text).toMatch(/连续失败 \d+ 次/);
+    // 「错误原因」是这一条的一半，兜底那句「没有留下错误原因」不算数。
+    expect(text).toMatch(/连续失败 \d+ 次：(?!没有留下)/);
+    expect(text).toContain("HTTP 404");
     expect(text).toContain(">等推送<");
     // 「等推送」不是故障，用「最后收到推送」代替「已配置」标志。
     expect(text).toContain("还没有收到过推送。");
@@ -120,10 +122,30 @@ test.describe("来源页", () => {
     expect(text).toContain("已退役：站点关了，官方 feed 不再更新。");
   });
 
+  test("收到推送之后，「已配置」那一格换成最后收到推送的时间", async () => {
+    const pushed = await radar(
+      environment,
+      ["push", "--endpoint", "pushed"],
+      JSON.stringify([{
+        externalId: "pushed-1",
+        title: "登录之后才看得到的一条",
+        originUrl: "https://example.test/pushed/1",
+        body: "Agent 采下来推过来的正文。",
+      }]),
+    );
+    expect(pushed.code).toBe(0);
+
+    const text = await page();
+    expect(text).not.toContain("还没有收到过推送。");
+    expect(text).toMatch(/最后收到推送：\d{4}-\d{2}-\d{2}/);
+    // 收到推送不改变它的状态：那个渠道本来就等推送，不是故障也不是「正常」。
+    expect(text).toContain(">等推送<");
+  });
+
   test("来自外部来源的文本一律转义", async () => {
     const text = await page();
-    // 端点名原样出现在页面上，但作为文本，不是标签。
-    expect(text).toContain("&lt;script&gt;");
+    // 端点名与退役理由都由第三方写，原样出现在页面上，但作为文本，不是标签。
+    expect(text.match(/&lt;script&gt;/g)?.length).toBeGreaterThanOrEqual(2);
     expect(text).not.toContain(injected);
   });
 
@@ -144,8 +166,10 @@ test.describe("来源页", () => {
     expect(await page()).not.toContain("太吵");
 
     // 停用是页面上真的动作，按下去 Radar 真的不再采它。
+    // 浏览器提交同源表单时会带上 Origin，这里照做。
     const stopped = await fetch(`${origin}/sources/ok/enabled`, {
       method: "POST",
+      headers: { origin },
       body: new URLSearchParams({ enabled: "false" }),
       redirect: "manual",
     });
@@ -155,9 +179,20 @@ test.describe("来源页", () => {
     expect(disabled.userDisabledAt).not.toBeNull();
     expect(await page()).toContain(">已停用<");
 
+    // 跨站的表单 POST 停不掉来源——服务听在固定端口上，浏览器里任何一个页面
+    // 都够得着它。
+    const crossSite = await fetch(`${origin}/sources/ok/enabled`, {
+      method: "POST",
+      headers: { origin: "https://evil.example" },
+      body: new URLSearchParams({ enabled: "false" }),
+      redirect: "manual",
+    });
+    expect(crossSite.status).toBe(403);
+
     // 恢复也在同一处，页面上写的就是当前状态。
     await fetch(`${origin}/sources/ok/enabled`, {
       method: "POST",
+      headers: { origin },
       body: new URLSearchParams({ enabled: "true" }),
       redirect: "manual",
     });

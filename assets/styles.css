@@ -116,13 +116,14 @@ code {
   white-space: nowrap;
 }
 
+.source-channel,
 .source-note { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 .source-note.is-error { color: var(--error); }
 
 .status {
-  padding: 2px 9px;
+  padding: 5px 10px;
   color: var(--green-ink);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   white-space: nowrap;
   background: var(--green-soft);
@@ -134,7 +135,10 @@ code {
 .status.is-off { color: var(--muted); background: var(--surface-soft); }
 
 .source-action button {
-  padding: 5px 12px;
+  min-height: 42px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 650;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -142,10 +146,5 @@ code {
   cursor: pointer;
 }
 
-.source-action button:hover { border-color: var(--ink); }
+.source-action button:hover { border-color: var(--line-strong); color: var(--green); }
 
-.channel {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-}

@@ -23,7 +23,9 @@ export async function callRadar(
   try {
     response = await fetch(`http://127.0.0.1:${runtime.port}${path}`, {
       method: init.method ?? "GET",
-      headers: init.body === undefined ? {} : { "content-type": "application/json" },
+      // 一律标成 JSON。浏览器跨站发不出这个 content-type，服务端的同源校验
+      // 因此只拦得住表单，拦不到 CLI——没带 content-type 的请求会被当成表单。
+      headers: { "content-type": "application/json" },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: AbortSignal.timeout(30_000),
     });

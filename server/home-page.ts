@@ -1,5 +1,8 @@
-import { html, raw } from "hono/html";
+import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
+
+/** `hono/html` 模板的返回类型。数组插值时它逐个转义，不需要自己拼字符串。 */
+type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 import { isEnabled, type Endpoint } from "../lib/endpoints.js";
 
 /**
@@ -15,7 +18,7 @@ export function renderHomePage(input: {
   version: string;
   dataDirectory: string;
   endpoints: Endpoint[];
-}): HtmlEscapedString | Promise<HtmlEscapedString> {
+}): Html {
   return html`<!doctype html>
 <html lang="zh-CN">
   <head>
@@ -31,7 +34,7 @@ export function renderHomePage(input: {
       <p class="meta">本地数据目录：<code>${input.dataDirectory}</code></p>
       <p class="meta">改动请跟你的 Agent 说，或者 <code>radar --help</code>。这一页只管看。</p>
       <ul class="sources">
-        ${raw(sortForDisplay(input.endpoints).map(renderRow).join(""))}
+        ${sortForDisplay(input.endpoints).map(renderRow)}
       </ul>
     </main>
   </body>
@@ -40,9 +43,8 @@ export function renderHomePage(input: {
 }
 
 /**
- * 单一列表，**不分区块**：按采集渠道的配置状态排序（装好即用 / 配置后解锁 /
- * 够不着），同一档里按渠道、再按端点名排。分区块会把「够不着」读成另一类
- * 东西，可它跟别的端点一样是这台 Radar 的覆盖范围的一部分。
+ * 单一列表，不分区块：按采集渠道的配置状态排序（装好即用 / 配置后解锁 /
+ * 够不着），同一档里按渠道、再按端点名排（ADR 0013）。
  */
 const configStateOrder = { ready: 0, unlocked_by_config: 1, unreachable: 2 } as const;
 
@@ -55,22 +57,22 @@ function sortForDisplay(endpoints: Endpoint[]): Endpoint[] {
   );
 }
 
-function renderRow(endpoint: Endpoint): string {
+function renderRow(endpoint: Endpoint): Html {
   const unreachable = endpoint.channelConfigState === "unreachable";
-  return String(html`<li class="source${unreachable ? " is-unreachable" : ""}">
+  return html`<li class="source${unreachable ? " is-unreachable" : ""}">
         <div class="source-main">
           <span class="source-name">${endpoint.name}</span>
           <span class="source-url">${endpoint.url}</span>
-          <p class="channel">${endpoint.channelName}</p>
+          <p class="source-channel">${endpoint.channelName}</p>
           ${renderNote(endpoint)}
         </div>
         ${renderStatus(endpoint)}
         ${renderAction(endpoint)}
-      </li>`);
+      </li>`;
 }
 
 /** 状态徽章。停用与退役是写下的决定，盖过观察到的来源状态——它压根没在采。 */
-function renderStatus(endpoint: Endpoint): HtmlEscapedString | Promise<HtmlEscapedString> {
+function renderStatus(endpoint: Endpoint): Html {
   if (endpoint.retiredAt) return html`<span class="status is-off">已退役</span>`;
   if (endpoint.userDisabledAt) return html`<span class="status is-off">已停用</span>`;
   if (endpoint.status === "awaiting_push") return html`<span class="status is-waiting">等推送</span>`;
@@ -83,10 +85,12 @@ function renderStatus(endpoint: Endpoint): HtmlEscapedString | Promise<HtmlEscap
  * 少了一块覆盖的记录。`配置后解锁` 用「最后收到推送」代替「已配置」标志：
  * 配没配不是 Radar 知道的事，收没收到推送才是。
  */
-function renderNote(endpoint: Endpoint): HtmlEscapedString | Promise<HtmlEscapedString> | "" {
+function renderNote(endpoint: Endpoint): Html | "" {
   if (endpoint.retiredAt) {
     return html`<p class="source-note">已退役：${endpoint.retiredReason ?? "没有写理由。"}</p>`;
   }
+  // 停用之后它压根没在采，上一次失败的原因就不该再摆在那儿当现状。
+  if (endpoint.userDisabledAt) return html`<p class="source-note">Radar 不再采它。</p>`;
   if (endpoint.channelConfigState === "unreachable") {
     return html`<p class="source-note">这个渠道 Radar 够不着。</p>`;
   }
@@ -107,7 +111,7 @@ function renderNote(endpoint: Endpoint): HtmlEscapedString | Promise<HtmlEscaped
  * 只有实例级停用一个动作。`配置后解锁` 行**没有动作按钮**——那个渠道的内容
  * 本来就由用户的 Agent 推来，停用它没有意义；退役也不是页面上能改的。
  */
-function renderAction(endpoint: Endpoint): HtmlEscapedString | Promise<HtmlEscapedString> | "" {
+function renderAction(endpoint: Endpoint): Html | "" {
   if (endpoint.retiredAt || endpoint.channelConfigState !== "ready") return "";
   const enabled = isEnabled(endpoint);
   return html`<form class="source-action" method="post" action="/sources/${endpoint.id}/enabled">
