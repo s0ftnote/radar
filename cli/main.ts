@@ -36,6 +36,10 @@ Brief
   radar sources exclude|include <endpointId> --brief <id> [--reason <理由>]
                                   Brief 级：只是这个 Brief 不看它，其他 Brief 照采
   radar sources exclusions --brief <id>
+  radar push --endpoint <id>      Agent 把采来的内容推给这个端点，JSON 从 stdin 读：
+                                  [{ externalId, title, originUrl, body, publishedAt? }, …]
+                                  端点须在「配置后解锁」渠道下，Radar 不自采它
+                                  必须带正文——只推地址不算完整的推送
   radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
                                   不给 --endpoint 就全催一遍，退避照样生效
 
@@ -88,6 +92,8 @@ async function main(argv: string[]): Promise<void> {
         return await sources(rest);
       case "subject":
         return await subject(rest);
+      case "push":
+        return await push(rest);
       case "collect":
         return await collect(rest);
       case "pending":
@@ -239,6 +245,22 @@ async function subject(argv: string[]): Promise<void> {
   }
 }
 
+/**
+ * 需要登录态的平台 Radar 够不着：Agent 用自己的采集工具采完推给 Radar。
+ * Radar 里不出现任何登录态凭据——推来的只有内容。
+ */
+async function push(argv: string[]): Promise<void> {
+  const endpointId = requiredOption(argv, "--endpoint");
+  const entries = await readJsonStdin();
+  if (!Array.isArray(entries)) fail("`radar push` 的 stdin 是一个 JSON 数组。");
+  emit(
+    await callRadar(`/endpoints/${endpointId}/push`, {
+      method: "POST",
+      body: { entries },
+    }),
+  );
+}
+
 async function collect(argv: string[]): Promise<void> {
   const endpointId = option(argv, "--endpoint");
   if (endpointId) {
@@ -271,7 +293,7 @@ async function feedback(argv: string[]): Promise<void> {
 
 async function readJsonStdin(): Promise<unknown> {
   const raw = (await readStdin()).trim();
-  if (!raw) fail("判断契约从 stdin 读，现在是空的。用 `radar --help` 看契约。");
+  if (!raw) fail("契约 JSON 从 stdin 读，现在是空的。用 `radar --help` 看契约。");
   try {
     return JSON.parse(raw) as unknown;
   } catch (error) {
