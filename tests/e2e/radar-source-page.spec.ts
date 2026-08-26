@@ -95,9 +95,10 @@ test.describe("来源页", () => {
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((left, right) => left - right));
 
-    // 一张清单，不是三个区块——列表只有一个。
+    // 一张清单，不是三个区块——列表只有一个，中间也没有小标题把它切开。
     expect(text.match(/<ul class="sources">/g)).toHaveLength(1);
-    expect(text.match(/<h2/g)).toBeNull();
+    const list = /<ul class="sources">([\s\S]*?)<\/ul>/.exec(text)![1]!;
+    expect(list).not.toContain("<h2");
   });
 
   test("三种来源状态各自说清楚，够不着的灰着摆在那里", async () => {

@@ -41,6 +41,14 @@ Brief
                                   [{ externalId, title, originUrl, body, publishedAt? }, …]
                                   端点须在「配置后解锁」渠道下，Radar 不自采它
                                   必须带正文——只推地址不算完整的推送
+  radar discover <网址>            粘一个网址，尽力把它变成可订阅的端点。依次
+                                  试 RSSHub 规则、页面自带的 feed、认得该域名的
+                                  适配器；都不中就明说够不着，不去抓 HTML。
+                                  可能给出多条候选，挑一条 sources add 进来
+  radar rsshub set <地址>          你自己那台 RSSHub 的地址。不填就跳过 RSSHub
+                                  那一步匹配，Radar 不替你找一台公共实例。
+                                  规则每天从你那台刷新，只在粘网址那一刻用一次
+  radar rsshub show | clear
   radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
                                   不给 --endpoint 就全催一遍，退避照样生效
 
@@ -146,6 +154,13 @@ async function main(argv: string[]): Promise<void> {
         return await feedback(rest);
       case "skills":
         return skills(rest);
+      case "discover":
+        return emit(await callRadar("/discover", {
+          method: "POST",
+          body: { url: positional(rest, "网址") },
+        }));
+      case "rsshub":
+        return await rsshub(rest);
       default:
         fail(`不认识的命令 \`${command}\`。用 \`radar --help\` 看命令面。`);
     }
@@ -357,6 +372,25 @@ async function pending(argv: string[]): Promise<void> {
 /** 去处是用户自己起的标签，可能带斜杠或空格，进 URL 路径前必须编码。 */
 function destinationSegment(argv: string[]): string {
   return encodeURIComponent(requiredOption(argv, "--to"));
+}
+
+/**
+ * 唯一那处实例级设置：你的 RSSHub 地址。不填就跳过 RSSHub 那一步匹配——
+ * Radar 不替你找一台公共实例。
+ */
+async function rsshub(argv: string[]): Promise<void> {
+  const [subcommand, ...rest] = argv;
+  if (subcommand === "show") return emit(await callRadar("/settings/rsshub"));
+  if (subcommand === "set") {
+    return emit(await callRadar("/settings/rsshub", {
+      method: "PUT",
+      body: { baseUrl: positional(rest, "RSSHub 地址") },
+    }));
+  }
+  if (subcommand === "clear") {
+    return emit(await callRadar("/settings/rsshub", { method: "PUT", body: { baseUrl: "" } }));
+  }
+  fail("`radar rsshub` 的子命令是 set / show / clear。");
 }
 
 /**
