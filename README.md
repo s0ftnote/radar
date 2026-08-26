@@ -24,7 +24,7 @@ radar up
 ## 把三份 Skill 装进你的 Agent
 
 ```sh
-radar skills install          # 默认装到 ~/.claude/skills，幂等覆盖
+radar skills install          # 默认装到 ~/.agents/skills，幂等覆盖
 npx skills add s0ftnote/radar # 或者不经 Radar
 ```
 

@@ -115,7 +115,7 @@ Brief
 Skill
   radar skills install [--dir <目录>]
                                   把随本版 Radar 来的三份 Skill 装进你的 Agent，
-                                  默认 ~/.claude/skills，幂等覆盖。也可以
+                                  默认 ~/.agents/skills，幂等覆盖。也可以
                                   npx skills add s0ftnote/radar
 
 其他
