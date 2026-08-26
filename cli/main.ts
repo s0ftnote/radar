@@ -62,6 +62,23 @@ Brief
   radar judge                     写回判断，契约 JSON 从 stdin 读
   radar judgments --brief <id>    列出已写回的判断
 
+交付
+  radar deliver take --brief <id> --to <去处> [--since <ISO>] [--until <ISO>]
+                     [--related-to <judgmentId>] [--subject <名字>] [--limit <n>]
+                                  取还没送到这个去处的判断。去处是你自己起的
+                                  标签，Radar 不预设也不校验。只给相关的判断，
+                                  淘汰掉的不是输出材料
+                                  --related-to 顺着关联链取材，链上已经送过的
+                                  也一并给出——「这件事上次是怎么写的」问的就是它
+                                  --subject 按关注对象的名字或别名机械匹配
+  radar deliver mark --brief <id> --to <去处> --judgment <id> [--ref <外部引用>]
+                                  显式标记已送到。读到不算送到；同一判断送去
+                                  多个去处各记各的。--ref 是你自己的引用
+                                  （Obsidian 路径、note id），Radar 只保证它还在
+  radar deliver unmark --brief <id> --to <去处> --judgment <id>
+                                  账实不符时把账改回来，那条又回到增量里
+  radar deliver history --brief <id> [--to <去处>]
+
 反馈
   radar feedback --brief <id> [--judgment <id>] --disposition <标签>
                                   写回用户明说的反馈，正文从 stdin 读
@@ -74,7 +91,7 @@ Brief
 
 取数据的命令输出 JSON，直接管给 jq。judge 的契约是：
   { queueEntryId, relevant, whatItIs, evidence, uncertainty, whyForYou,
-    judgedBy, signalContentIds?, idempotencyKey? }
+    judgedBy, signalContentIds?, relatedJudgmentIds?, idempotencyKey? }
 判不相关时前三块留空，whyForYou 写淘汰理由——照样必填。
 `;
 
@@ -116,6 +133,8 @@ async function main(argv: string[]): Promise<void> {
         return emit(await callRadar("/judgments", { method: "POST", body: await readJsonStdin() }));
       case "judgments":
         return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/judgments`));
+      case "deliver":
+        return await deliver(rest);
       case "feedback":
         return await feedback(rest);
       default:
@@ -319,6 +338,65 @@ async function pending(argv: string[]): Promise<void> {
   const limit = numberOption(argv, "--limit", 1, 1_000);
   const query = limit === undefined ? "" : `?limit=${limit}`;
   emit(await callRadar(`/briefs/${briefId}/work-package${query}`));
+}
+
+/**
+ * 取数角色：问 Radar 要「这个去处还没送过的判断」，送完显式标记。
+ * 读到不算送到——跨系统没法原子提交，所以是至少一次交付，账实不符时
+ * `radar deliver unmark` 自己把账改回来。
+ */
+/** 去处是用户自己起的标签，可能带斜杠或空格，进 URL 路径前必须编码。 */
+function destinationSegment(argv: string[]): string {
+  return encodeURIComponent(requiredOption(argv, "--to"));
+}
+
+async function deliver(argv: string[]): Promise<void> {
+  const [subcommand, ...rest] = argv;
+  const briefId = requiredOption(rest, "--brief");
+  const base = `/briefs/${briefId}/deliveries`;
+
+  if (subcommand === "history") {
+    const destination = option(rest, "--to");
+    const query = destination ? `?destination=${encodeURIComponent(destination)}` : "";
+    return emit(await callRadar(`${base}${query}`));
+  }
+
+  if (subcommand === "take") {
+    const query = new URLSearchParams();
+    for (const [flag, key] of [
+      ["--since", "since"],
+      ["--until", "until"],
+      ["--related-to", "relatedTo"],
+      ["--subject", "subject"],
+      ["--limit", "limit"],
+    ] as const) {
+      const value = option(rest, flag);
+      if (value) query.set(key, value);
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : "";
+    return emit(await callRadar(`${base}/${destinationSegment(rest)}/pending${suffix}`));
+  }
+
+  if (subcommand === "unmark") {
+    const judgmentId = requiredOption(rest, "--judgment");
+    await callRadar(`${base}/${destinationSegment(rest)}/${judgmentId}`, { method: "DELETE" });
+    return;
+  }
+
+  if (subcommand !== "mark") {
+    fail("`radar deliver` 的子命令是 take / mark / unmark / history。");
+  }
+
+  emit(
+    await callRadar(base, {
+      method: "POST",
+      body: {
+        judgmentId: requiredOption(rest, "--judgment"),
+        destination: requiredOption(rest, "--to"),
+        externalReference: option(rest, "--ref"),
+      },
+    }),
+  );
 }
 
 async function feedback(argv: string[]): Promise<void> {

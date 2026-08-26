@@ -39,9 +39,17 @@ export type RecordJudgmentInput = {
   whyForYou: string;
   judgedBy: string;
   signalContentIds?: string[];
+  /** Agent 自报的关联：这条判断跟哪几条讲的是同一件事。Radar 只记不判断。 */
+  relatedJudgmentIds?: string[];
   /** 防同一调用者的网络重试；重复判断由队列代次挡下，不靠这个。 */
   idempotencyKey?: string;
 };
+
+export class UnknownJudgmentError extends RadarDomainError {
+  constructor(judgmentId: string) {
+    super(`找不到判断 ${judgmentId}。`, 404);
+  }
+}
 
 export class QueueEntryConsumedError extends RadarDomainError {
   constructor() {
@@ -124,6 +132,20 @@ export function recordJudgment(input: RecordJudgmentInput): Judgment {
         "INSERT INTO judgment_signals (judgment_id, source_content_id) VALUES (?, ?)",
       ).run(judgmentId, signalId);
     }
+    // Agent 自报的关联，双向都记一条——取材时顺着链走，方向无所谓。
+    for (const relatedId of new Set(input.relatedJudgmentIds ?? [])) {
+      if (relatedId === judgmentId) continue;
+      // 只能挂同一条 Brief 里的判断——判断归属单个 Brief，关联也不能跨过去
+      // （ADR 0007）。跨 Brief 的 id 就当不存在。
+      const related = getJudgment(relatedId);
+      if (!related || related.briefId !== entry.briefId) {
+        throw new UnknownJudgmentError(relatedId);
+      }
+      db.prepare(
+        `INSERT INTO judgment_relations (judgment_id, related_judgment_id) VALUES (?, ?)
+         ON CONFLICT DO NOTHING`,
+      ).run(judgmentId, relatedId);
+    }
     if (input.idempotencyKey) {
       db.prepare(
         "INSERT INTO idempotent_judgments (key, judgment_id, created_at) VALUES (?, ?, ?)",
@@ -147,6 +169,20 @@ export function listJudgments(briefId: string): Judgment[] {
       .prepare("SELECT * FROM judgments WHERE brief_id = ? ORDER BY created_at DESC, id DESC")
       .all(briefId) as JudgmentRow[],
   );
+}
+
+/** 按 id 取一组判断，保持传进来的顺序——取材那边已经排好序了。 */
+export function listJudgmentsByIds(ids: string[]): Judgment[] {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => "?").join(", ");
+  const byId = new Map(
+    hydrate(
+      database()
+        .prepare(`SELECT * FROM judgments WHERE id IN (${placeholders})`)
+        .all(...ids) as JudgmentRow[],
+    ).map((judgment) => [judgment.id, judgment]),
+  );
+  return ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
 }
 
 /** 工作包里的「最近判断的紧凑清单」：只有标题与相关与否，用来认出已经判过的同一件事。 */

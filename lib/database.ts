@@ -232,6 +232,20 @@ function initializeSchema(db: DatabaseSync): void {
       PRIMARY KEY (judgment_id, related_judgment_id)
     ) STRICT;
 
+    -- 交付记录：只说明什么已经交付到哪个去处过，**不保存输出本身**。
+    -- 去处是 Agent 自报的标签（周报、obsidian），Radar 不预设可选值也不校验。
+    -- 外部引用（Obsidian 路径、note id）同样不校验不解释，只保证它还在——
+    -- 同一件事三周后再冒出来，Agent 靠它找回上次那条笔记去改，而不是另起一条。
+    CREATE TABLE IF NOT EXISTS deliveries (
+      judgment_id TEXT NOT NULL REFERENCES judgments(id),
+      destination TEXT NOT NULL CHECK (destination <> ''),
+      -- 外部引用是 Agent 自报的，Radar 不解释也不校验，只保证它还在。
+      -- 空串不是引用，那只会让「还在不在」答不上来。
+      external_reference TEXT CHECK (external_reference IS NULL OR external_reference <> ''),
+      delivered_at TEXT NOT NULL,
+      PRIMARY KEY (judgment_id, destination)
+    ) STRICT;
+
     -- 幂等键防的是同一调用者的网络重试，不是重复判断——那由队列代次挡下。
     CREATE TABLE IF NOT EXISTS idempotent_judgments (
       key TEXT PRIMARY KEY,
