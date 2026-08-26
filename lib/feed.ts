@@ -9,6 +9,11 @@ export type FeedEntry = {
   body: string;
   publishedAt: string | null;
   rawPayload: string;
+  /**
+   * 平台自带的热度。只有平台自己给了才有——RSS 没有这个东西，推送渠道可能有。
+   * Radar 不理解它，只把它当一个数（ADR 0010）。
+   */
+  hotness?: number;
 };
 
 export type ParsedFeed = { name: string; entries: FeedEntry[] };

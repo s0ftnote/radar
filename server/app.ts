@@ -27,6 +27,12 @@ import { RadarDomainError } from "../lib/domain-error.js";
 import { listJudgments, recordJudgment } from "../lib/judgments.js";
 import { enqueueCurrentPage } from "../lib/queue.js";
 import {
+  currentStrategy,
+  listStrategyRevisions,
+  putStrategy,
+  strategyStats,
+} from "../lib/strategy.js";
+import {
   listWatchedSubjects,
   putWatchedSubject,
   removeWatchedSubject,
@@ -200,6 +206,34 @@ export function createRadarApp(): Hono {
     );
     return context.json(listBriefExclusions(context.req.param("briefId")));
   });
+
+  // 策略是独立对象、独立版本化，不塞进 Brief。
+  app.get("/briefs/:briefId/strategy", (context) =>
+    context.json(currentStrategy(context.req.param("briefId"))),
+  );
+
+  app.put("/briefs/:briefId/strategy", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() =>
+        putStrategy({
+          briefId: context.req.param("briefId"),
+          formula: body.formula,
+          rationale: requiredText(body.rationale, "策略修订的依据"),
+          authoredBy: requiredText(body.authoredBy, "策略的作者"),
+        }),
+      ),
+      201,
+    );
+  });
+
+  app.get("/briefs/:briefId/strategy/revisions", (context) =>
+    context.json(listStrategyRevisions(context.req.param("briefId"))),
+  );
+
+  app.get("/briefs/:briefId/strategy/stats", (context) =>
+    context.json(strategyStats(context.req.param("briefId"))),
+  );
 
   app.get("/briefs/:briefId/judgments", (context) =>
     context.json(listJudgments(context.req.param("briefId"))),
