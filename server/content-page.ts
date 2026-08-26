@@ -146,9 +146,7 @@ function renderItem(item: ContentItem, view: ContentView): Html {
   return html`<li class="content is-${item.state.replace("_", "-")}">
           <div class="content-head">
             <span class="status is-${item.state.replace("_", "-")}">${stateLabels[item.state]}</span>
-            <a class="content-title" href="${item.originUrl}" rel="noreferrer noopener" target="_blank"
-              >${item.title}</a
-            >
+            ${renderTitle(item)}
           </div>
           <p class="meta">${item.endpointName} · ${item.at}</p>
           ${renderJudgment(item)}
@@ -195,6 +193,30 @@ function renderFeedback(item: ContentItem, view: ContentView): Html | "" {
             <button type="submit" name="disposition" value="useful">有用</button>
             <button type="submit" name="disposition" value="not_useful">没用</button>
           </form>`;
+}
+
+/**
+ * 原文链接的地址来自第三方 feed 与 Agent 推送。转义挡得住把标签写进属性值，
+ * 挡不住 `javascript:` ——那照样是一个点一下就执行的 XSS。只有 http 与 https
+ * 变成链接，其余原样显示成不可点的标题：内容还在，只是没地方可去。
+ */
+function renderTitle(item: ContentItem): Html {
+  let protocol = "";
+  try {
+    protocol = new URL(item.originUrl).protocol;
+  } catch {
+    protocol = "";
+  }
+  if (protocol !== "http:" && protocol !== "https:") {
+    return html`<span class="content-title">${item.title}</span>`;
+  }
+  return html`<a
+              class="content-title"
+              href="${item.originUrl}"
+              rel="noreferrer noopener"
+              target="_blank"
+              >${item.title}</a
+            >`;
 }
 
 /** 当前视图换掉其中几项之后的网址。筛选是链接，每一种视图都留得住。 */
