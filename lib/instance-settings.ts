@@ -2,9 +2,8 @@ import { database } from "./database.js";
 
 /** 实例级设置：一个 key 一行，跟着数据目录走，不跟着 Brief 走。 */
 export function instanceSetting(key: string): string | null {
-  const row = database()
-    .prepare("SELECT value FROM instance_settings WHERE key = ?")
-    .get(key) as { value: string } | undefined;
+  const row = database().prepare("SELECT value FROM instance_settings WHERE key = ?").get(key) as
+    { value: string } | undefined;
   return row?.value ?? null;
 }
 

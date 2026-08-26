@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { currentBriefRevision } from "./briefs.js";
 import { database, inTransaction } from "./database.js";
+import { groupBy } from "./group-by.js";
 import { RadarDomainError } from "./domain-error.js";
 import { getOpenQueueEntry } from "./queue.js";
 
@@ -128,9 +129,10 @@ export function recordJudgment(input: RecordJudgmentInput): Judgment {
     );
 
     for (const signalId of signalIds) {
-      db.prepare(
-        "INSERT INTO judgment_signals (judgment_id, source_content_id) VALUES (?, ?)",
-      ).run(judgmentId, signalId);
+      db.prepare("INSERT INTO judgment_signals (judgment_id, source_content_id) VALUES (?, ?)").run(
+        judgmentId,
+        signalId,
+      );
     }
     // Agent 自报的关联，双向都记一条——取材时顺着链走，方向无所谓。
     for (const relatedId of new Set(input.relatedJudgmentIds ?? [])) {
@@ -158,8 +160,7 @@ export function recordJudgment(input: RecordJudgmentInput): Judgment {
 
 export function getJudgment(id: string): Judgment | null {
   const row = database().prepare("SELECT * FROM judgments WHERE id = ?").get(id) as
-    | JudgmentRow
-    | undefined;
+    JudgmentRow | undefined;
   return row ? hydrate([row])[0]! : null;
 }
 
@@ -191,14 +192,16 @@ export function listRecentJudgmentSummaries(
   limit: number,
 ): Array<{ id: string; title: string; relevant: boolean; createdAt: string }> {
   return (
-    database().prepare(
-      `SELECT judgment.id, content.title, judgment.relevant, judgment.created_at
+    database()
+      .prepare(
+        `SELECT judgment.id, content.title, judgment.relevant, judgment.created_at
        FROM judgments AS judgment
        JOIN source_contents AS content ON content.id = judgment.source_content_id
        WHERE judgment.brief_id = ?
        ORDER BY judgment.created_at DESC, judgment.id DESC
        LIMIT ?`,
-    ).all(briefId, limit) as Array<{
+      )
+      .all(briefId, limit) as Array<{
       id: string;
       title: string;
       relevant: number;
@@ -227,15 +230,17 @@ function hydrate(rows: JudgmentRow[]): Judgment[] {
   const placeholders = rows.map(() => "?").join(", ");
   const ids = rows.map((row) => row.id);
 
-  const signals = db.prepare(
-    `SELECT signal.judgment_id, signal.source_content_id, content.endpoint_id,
+  const signals = db
+    .prepare(
+      `SELECT signal.judgment_id, signal.source_content_id, content.endpoint_id,
       endpoint.name AS endpoint_name, content.title, content.origin_url
      FROM judgment_signals AS signal
      JOIN source_contents AS content ON content.id = signal.source_content_id
      JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
      WHERE signal.judgment_id IN (${placeholders})
      ORDER BY content.acquired_at, content.id`,
-  ).all(...ids) as Array<{
+    )
+    .all(...ids) as Array<{
     judgment_id: string;
     source_content_id: string;
     endpoint_id: string;
@@ -244,10 +249,12 @@ function hydrate(rows: JudgmentRow[]): Judgment[] {
     origin_url: string;
   }>;
 
-  const relations = db.prepare(
-    `SELECT judgment_id, related_judgment_id FROM judgment_relations
+  const relations = db
+    .prepare(
+      `SELECT judgment_id, related_judgment_id FROM judgment_relations
      WHERE judgment_id IN (${placeholders}) ORDER BY related_judgment_id`,
-  ).all(...ids) as Array<{ judgment_id: string; related_judgment_id: string }>;
+    )
+    .all(...ids) as Array<{ judgment_id: string; related_judgment_id: string }>;
 
   const signalsByJudgment = groupBy(signals, (signal) => signal.judgment_id);
   const relationsByJudgment = groupBy(relations, (relation) => relation.judgment_id);
@@ -276,14 +283,4 @@ function hydrate(rows: JudgmentRow[]): Judgment[] {
       (relation) => relation.related_judgment_id,
     ),
   }));
-}
-
-function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
-  const grouped = new Map<string, T[]>();
-  for (const row of rows) {
-    const bucket = grouped.get(key(row)) ?? [];
-    bucket.push(row);
-    grouped.set(key(row), bucket);
-  }
-  return grouped;
 }

@@ -44,7 +44,10 @@ function privateOriginAllowed(url: URL): boolean {
 
 export async function discoverCandidates(pastedUrl: string): Promise<Candidate[]> {
   const url = parsed(pastedUrl);
-  if (!privateOriginAllowed(url)) await refuseIfPrivate(url);
+  // 私网地址在读页面之前就挡掉。等到 `pageFeeds` 里再挡不行——那里的失败会
+  // 被当成「这一步没找着」吞掉，然后接着往下走，用户看到的是「够不着」而不是
+  // 「这个地址我不会去请求」。
+  if (!privateOriginAllowed(url)) await assertAllowedAddress(url.toString());
 
   await refreshRulesIfStale();
   const candidates: Candidate[] = matchRsshubRoutes(url.toString()).map((candidate) => ({
@@ -59,15 +62,6 @@ export async function discoverCandidates(pastedUrl: string): Promise<Candidate[]
   const deduplicated = new Map(candidates.map((candidate) => [candidate.feedUrl, candidate]));
   if (deduplicated.size === 0) throw new NothingToSubscribeError(url.toString());
   return [...deduplicated.values()];
-}
-
-/**
- * 私网地址在读页面之前就挡掉。等到 `pageFeeds` 里再挡不行——那里的失败会被
- * 当成「这一步没找着」吞掉，然后接着往下走，用户看到的是「够不着」而不是
- * 「这个地址我不会去请求」。
- */
-async function refuseIfPrivate(url: URL): Promise<void> {
-  await assertAllowedAddress(url.toString());
 }
 
 function parsed(pastedUrl: string): URL {

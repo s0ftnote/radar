@@ -1,5 +1,6 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { safeFetch } from "./safe-fetch.js";
+import { asRecord } from "./as-record.js";
 
 export type FeedEntry = {
   /** 内容身份用 feed 自带的 guid / id，不用标题正文的整体哈希。 */
@@ -32,7 +33,9 @@ export async function fetchFeed(url: string): Promise<ParsedFeed> {
 
   const validation = XMLValidator.validate(xml);
   if (validation !== true) {
-    throw new Error(`无法解析 RSS/Atom：Feed XML 无效：${validation.err.msg}（第 ${validation.err.line} 行）。`);
+    throw new Error(
+      `无法解析 RSS/Atom：Feed XML 无效：${validation.err.msg}（第 ${validation.err.line} 行）。`,
+    );
   }
 
   try {
@@ -89,37 +92,46 @@ function normalizeFeed(document: Record<string, unknown>, feedUrl: string): Pars
 /**
  * 内容身份优先认 feed 自带的 guid / id，其次认条目链接。两个都没有时只能退到
  * 位置——用标题或正文做身份会让一次编辑变成一条新内容，重复入队。
+ *
+ * RSS 与 Atom 的差别只在这几个字段各自叫什么名字，别的一模一样，所以两边只
+ * 交出「这条 feed 里这几样怎么取」，落成 FeedEntry 的那段共用。
  */
-function normalizeRssEntry(value: unknown, index: number, feedUrl: string): FeedEntry {
+type EntryFields = { id: string; url: string; body: string; publishedAt: string };
+
+function normalizeEntry(
+  value: unknown,
+  index: number,
+  feedUrl: string,
+  read: (entry: Record<string, unknown>) => EntryFields,
+): FeedEntry {
   const entry = asRecord(value) ?? {};
-  const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
-  const entryUrl = text(entry.link);
-  const publishedAt = text(entry.pubDate);
-  const originUrl = entryUrl || feedUrl;
+  const fields = read(entry);
   return {
-    externalId: text(entry.guid) || entryUrl || `${feedUrl}#${index}`,
-    title,
-    originUrl,
-    body: text(entry.encoded) || text(entry.description) || "",
-    publishedAt: dateOrNull(publishedAt),
+    externalId: fields.id || fields.url || `${feedUrl}#${index}`,
+    title: text(entry.title) || `未命名来源内容 ${index + 1}`,
+    originUrl: fields.url || feedUrl,
+    body: fields.body,
+    publishedAt: dateOrNull(fields.publishedAt),
     rawPayload: JSON.stringify(entry),
   };
 }
 
+function normalizeRssEntry(value: unknown, index: number, feedUrl: string): FeedEntry {
+  return normalizeEntry(value, index, feedUrl, (entry) => ({
+    id: text(entry.guid),
+    url: text(entry.link),
+    body: text(entry.encoded) || text(entry.description) || "",
+    publishedAt: text(entry.pubDate),
+  }));
+}
+
 function normalizeAtomEntry(value: unknown, index: number, feedUrl: string): FeedEntry {
-  const entry = asRecord(value) ?? {};
-  const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
-  const entryUrl = atomLink(entry.link);
-  const publishedAt = text(entry.published) || text(entry.updated);
-  const originUrl = entryUrl || feedUrl;
-  return {
-    externalId: text(entry.id) || entryUrl || `${feedUrl}#${index}`,
-    title,
-    originUrl,
+  return normalizeEntry(value, index, feedUrl, (entry) => ({
+    id: text(entry.id),
+    url: atomLink(entry.link),
     body: text(entry.content) || text(entry.summary) || "",
-    publishedAt: dateOrNull(publishedAt),
-    rawPayload: JSON.stringify(entry),
-  };
+    publishedAt: text(entry.published) || text(entry.updated),
+  }));
 }
 
 function atomLink(value: unknown): string {
@@ -147,12 +159,6 @@ function array(value: unknown): unknown[] {
 
 function first(value: unknown): unknown {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 function dateOrNull(value: string): string | null {

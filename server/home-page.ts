@@ -107,9 +107,11 @@ function renderNote(endpoint: Endpoint): Html | "" {
     return html`<p class="source-note">这个渠道 Radar 够不着。</p>`;
   }
   if (endpoint.status === "awaiting_push") {
+    // 顺带把「怎么配」说清楚：这一档没有按钮可点，用户在页面上唯一需要
+    // 知道的就是这件事该由自己的 Agent 去做，以及推给哪条端点。
     return html`<p class="source-note">${
       endpoint.lastPushAt ? `最后收到推送：${endpoint.lastPushAt}` : "还没有收到过推送。"
-    }</p>`;
+    } 这一档由你的 Agent 采完推给 Radar：radar push --endpoint ${endpoint.id}</p>`;
   }
   if (endpoint.status === "recently_failed") {
     return html`<p class="source-note is-error">连续失败 ${endpoint.consecutiveFailures} 次：${

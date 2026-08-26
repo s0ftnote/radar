@@ -25,8 +25,9 @@ export function enqueueCurrentPage(briefId: string): number {
   let queued = 0;
 
   for (const endpoint of listEndpointsToEnqueue()) {
-    const fresh = db.prepare(
-      `SELECT content.id FROM source_contents AS content
+    const fresh = db
+      .prepare(
+        `SELECT content.id FROM source_contents AS content
        WHERE content.endpoint_id = ?
          AND content.last_seen_at >= COALESCE((
            SELECT run.started_at FROM acquisition_runs AS run
@@ -37,7 +38,8 @@ export function enqueueCurrentPage(briefId: string): number {
            SELECT 1 FROM queue_entries AS queued
            WHERE queued.brief_id = ? AND queued.source_content_id = content.id
          )`,
-    ).all(endpoint.id, briefId) as Array<{ id: string }>;
+      )
+      .all(endpoint.id, briefId) as Array<{ id: string }>;
 
     for (const content of fresh) {
       db.prepare(
@@ -62,7 +64,7 @@ export function queueDepth(briefId: string): number {
       `SELECT COUNT(*) AS depth FROM queue_entries AS entry
        JOIN source_contents AS content ON content.id = entry.source_content_id
        WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-         AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})`,
+         AND content.endpoint_id NOT IN (${excludedFromBriefSql("entry.brief_id")})`,
     )
     .get(briefId) as { depth: number };
   return row.depth;
@@ -80,7 +82,11 @@ export function listPendingContents(briefId: string, limit: number): PendingCont
   const strategy = currentStrategy(briefId);
   // 整条队列都参与算分，不先按新鲜度砍一刀——那样一条老内容再高的分也永远
   // 浮不上来，那就是丢弃，不是排序（ADR 0010）。
-  const scored = scoreCandidates(briefId, listCandidates(briefId), strategy?.formula ?? defaultFormula);
+  const scored = scoreCandidates(
+    briefId,
+    listCandidates(briefId),
+    strategy?.formula ?? defaultFormula,
+  );
 
   // 第一步：整池按分数排定。同分时按内容 id，保证确定性。
   scored.sort(
@@ -144,7 +150,7 @@ function listCandidates(briefId: string): CandidateRow[] {
          JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
          LEFT JOIN source_content_hotness AS hot ON hot.source_content_id = content.id
          WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-           AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})`,
+           AND content.endpoint_id NOT IN (${excludedFromBriefSql("entry.brief_id")})`,
     )
     .all(briefId) as CandidateRow[];
 }
@@ -177,7 +183,6 @@ export function getOpenQueueEntry(
     .get(queueEntryId) as { id: string; brief_id: string; source_content_id: string } | undefined;
   return row ? { id: row.id, briefId: row.brief_id, sourceContentId: row.source_content_id } : null;
 }
-
 
 /**
  * 保留窗口。超过窗口仍没判断的内容**移出待判断队列，但不删除**（ADR 0010：

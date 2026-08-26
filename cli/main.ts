@@ -6,7 +6,7 @@ import type { BriefExport } from "../lib/export.js";
 import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
 import { callRadar, readStdin } from "./client.js";
 import { defaultSkillsTarget, installSkills } from "./skills.js";
-import { radarVersion } from "../server/version.js";
+import { radarVersion } from "../lib/version.js";
 
 const usage = `radar — 本地信号聚合站
 
@@ -187,10 +187,12 @@ async function main(argv: string[]): Promise<void> {
       case "skills":
         return skills(rest);
       case "discover":
-        return emit(await callRadar("/discover", {
-          method: "POST",
-          body: { url: positional(rest, "网址") },
-        }));
+        return emit(
+          await callRadar("/discover", {
+            method: "POST",
+            body: { url: positional(rest, "网址") },
+          }),
+        );
       case "rsshub":
         return await rsshub(rest);
       default:
@@ -353,9 +355,7 @@ async function push(argv: string[]): Promise<void> {
 async function collect(argv: string[]): Promise<void> {
   const endpointId = option(argv, "--endpoint");
   if (endpointId) {
-    return emit(
-      await callRadar(`/endpoints/${endpointId}/collect?force=true`, { method: "POST" }),
-    );
+    return emit(await callRadar(`/endpoints/${endpointId}/collect?force=true`, { method: "POST" }));
   }
   emit(await callRadar("/collect", { method: "POST" }));
 }
@@ -366,7 +366,12 @@ async function collect(argv: string[]): Promise<void> {
  */
 async function strategy(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
-  if (subcommand !== "set" && subcommand !== "show" && subcommand !== "revisions" && subcommand !== "stats") {
+  if (
+    subcommand !== "set" &&
+    subcommand !== "show" &&
+    subcommand !== "revisions" &&
+    subcommand !== "stats"
+  ) {
     fail("`radar strategy` 的子命令是 set / show / revisions / stats。");
   }
   const briefId = requiredOption(rest, "--brief");
@@ -421,10 +426,12 @@ async function rsshub(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
   if (subcommand === "show") return emit(await callRadar("/settings/rsshub"));
   if (subcommand === "set") {
-    return emit(await callRadar("/settings/rsshub", {
-      method: "PUT",
-      body: { baseUrl: positional(rest, "RSSHub 地址") },
-    }));
+    return emit(
+      await callRadar("/settings/rsshub", {
+        method: "PUT",
+        body: { baseUrl: positional(rest, "RSSHub 地址") },
+      }),
+    );
   }
   if (subcommand === "clear") {
     return emit(await callRadar("/settings/rsshub", { method: "PUT", body: { baseUrl: "" } }));
@@ -519,7 +526,9 @@ async function exportBrief(argv: string[]): Promise<void> {
   const briefIds = requested
     ? [requested]
     : ((await callRadar("/briefs")) as Array<{ id: string }>).map((brief) => brief.id);
-  const root = resolve(option(argv, "--dir") ?? `radar-export-${briefIds.length === 1 ? briefIds[0] : "all"}`);
+  const root = resolve(
+    option(argv, "--dir") ?? `radar-export-${briefIds.length === 1 ? briefIds[0] : "all"}`,
+  );
 
   const written = [];
   for (const briefId of briefIds) {
@@ -571,7 +580,9 @@ function positional(argv: string[], label: string): string {
 
 /** 同一个选项给几次就收几个值：`--alias 甲 --alias 乙`。 */
 function listOption(argv: string[], flag: string): string[] {
-  return argv.flatMap((token, index) => (token === flag && argv[index + 1] ? [argv[index + 1]!] : []));
+  return argv.flatMap((token, index) =>
+    token === flag && argv[index + 1] ? [argv[index + 1]!] : [],
+  );
 }
 
 function numberOption(

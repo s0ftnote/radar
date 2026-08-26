@@ -1,8 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { radarDataDirectory } from "./data-directory.js";
+import { RadarDomainError } from "./domain-error.js";
 import { instanceSetting, setInstanceSetting } from "./instance-settings.js";
-import { packageRoot } from "../server/package-root.js";
+import { packageRoot } from "./package-root.js";
 import { safeFetch } from "./safe-fetch.js";
 
 /**
@@ -33,7 +34,7 @@ export function setRsshubBaseUrl(url: string | null): void {
   // 换了地址，手上那份规则就是从别处来的了：清掉刷新时间，下一次粘网址
   // 立刻从新地址刷一次，不用等满一天。
   setInstanceSetting(refreshedAtKey, null);
-  setInstanceSetting(baseUrlKey, url === null ? null : new URL(url).origin);
+  setInstanceSetting(baseUrlKey, url === null ? null : origin(url));
 }
 
 /**
@@ -175,4 +176,13 @@ function shippedRulesPath(): string {
 
 function refreshedRulesPath(): string {
   return resolve(radarDataDirectory(), "rsshub-rules.json");
+}
+
+/** 只要 origin：规则拼地址只用得上它，路径与查询串留着只会拼出坏地址。 */
+function origin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    throw new RadarDomainError(`${url} 不是一个网址。`, 400);
+  }
 }

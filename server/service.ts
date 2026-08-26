@@ -4,9 +4,13 @@ import { closeDatabase, database } from "../lib/database.js";
 import { radarDataDirectory } from "../lib/data-directory.js";
 import { factoryCatalogPath, reconcileFactoryCatalog, readFactoryCatalog } from "../lib/catalog.js";
 import { createRadarApp } from "./app.js";
-import { packageRoot } from "./package-root.js";
+import { packageRoot } from "../lib/package-root.js";
 import { startScheduler, type Scheduler } from "./scheduler.js";
-import { claimDataDirectory, defaultPort, type DataDirectoryClaim } from "../lib/service-runtime.js";
+import {
+  claimDataDirectory,
+  defaultPort,
+  type DataDirectoryClaim,
+} from "../lib/service-runtime.js";
 
 export type RadarService = { port: number; stop(): Promise<void> };
 

@@ -52,7 +52,8 @@ export function scoreCandidates(
 
   return candidates.map((row) => {
     const contributions: Record<string, number> = {
-      [signals.freshness]: formula.freshnessWeight * decay(row, formula.freshnessHalfLifeHours, now),
+      [signals.freshness]:
+        formula.freshnessWeight * decay(row, formula.freshnessHalfLifeHours, now),
       [signals.endpointWeight]: formula.endpointWeights[row.endpoint_id] ?? 0,
       // 不归一化：不同平台的热度本来就不是一个量纲，怎么换算是 Agent 写在
       // 公式里的判断，不该由 Radar 替它做主。

@@ -1,11 +1,23 @@
 {
-  "catalogVersion": 1,
+  "catalogVersion": 2,
   "channels": [
     {
       "id": "rss",
       "name": "RSS / Atom",
       "configState": "ready",
       "collectionIntervalSeconds": 900
+    },
+    {
+      "id": "github",
+      "name": "GitHub（仓库自带 Atom）",
+      "configState": "ready",
+      "collectionIntervalSeconds": 1800
+    },
+    {
+      "id": "agent-push",
+      "name": "配置后解锁（你的 Agent 推送）",
+      "configState": "unlocked_by_config",
+      "collectionIntervalSeconds": 3600
     }
   ],
   "endpoints": [
@@ -40,6 +52,83 @@
         "basis": "publisher-provided-feed",
         "reference": "https://github.blog/changelog/",
         "note": "GitHub 官方博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "product-hunt-frontpage",
+      "channelId": "rss",
+      "name": "Product Hunt 首页",
+      "url": "https://www.producthunt.com/feed",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.producthunt.com/",
+        "note": "Product Hunt 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "stack-overflow-blog",
+      "channelId": "rss",
+      "name": "Stack Overflow Blog",
+      "url": "https://stackoverflow.blog/feed/",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://stackoverflow.blog/",
+        "note": "Stack Overflow 官方博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "the-changelog",
+      "channelId": "rss",
+      "name": "The Changelog",
+      "url": "https://changelog.com/feed",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://changelog.com/",
+        "note": "Changelog 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "github-releases-node",
+      "channelId": "github",
+      "name": "nodejs/node 的 Releases",
+      "url": "https://github.com/nodejs/node/releases.atom",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/nodejs/node",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-anthropic-claude-code",
+      "channelId": "github",
+      "name": "anthropics/claude-code 的 Releases",
+      "url": "https://github.com/anthropics/claude-code/releases.atom",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/anthropics/claude-code",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "reddit-programming",
+      "channelId": "agent-push",
+      "name": "Reddit r/programming",
+      "url": "https://www.reddit.com/r/programming/",
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-sideproject",
+      "channelId": "agent-push",
+      "name": "Reddit r/SideProject",
+      "url": "https://www.reddit.com/r/SideProject/",
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
       }
     }
   ]

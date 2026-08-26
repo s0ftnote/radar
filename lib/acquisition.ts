@@ -20,7 +20,7 @@ export type AcquisitionResult = {
   seenContentCount: number;
   queuedCount: number;
   error?: string;
-  skippedBecause?: "already_collecting" | "backing_off" | "not_collectable";
+  skippedBecause?: "already_collecting" | "backing_off" | "not_collectable" | "out_of_time";
 };
 
 /** 连续失败退避的上限。永不因失败自动下架端点（ADR 0010），只是越退越慢。 */
@@ -44,10 +44,12 @@ export async function collectEndpoint(
   const startedAt = new Date().toISOString();
 
   // 单端点防重入：抢下 collecting_since 才算真的开工。
-  const claimed = db.prepare(
-    `UPDATE endpoints SET collecting_since = ?
+  const claimed = db
+    .prepare(
+      `UPDATE endpoints SET collecting_since = ?
      WHERE id = ? AND (collecting_since IS NULL OR collecting_since < ?)`,
-  ).run(startedAt, endpointId, staleBefore(startedAt));
+    )
+    .run(startedAt, endpointId, staleBefore(startedAt));
   if (claimed.changes === 0) return skipped(endpointId, "already_collecting");
 
   db.prepare(
@@ -95,10 +97,7 @@ export async function collectEndpoint(
   }
 }
 
-function whyNotNow(
-  endpoint: Endpoint,
-  force: boolean,
-): AcquisitionResult["skippedBecause"] | null {
+function whyNotNow(endpoint: Endpoint, force: boolean): AcquisitionResult["skippedBecause"] | null {
   if (!isCollectable(endpoint)) return "not_collectable";
   if (!force && isBackingOff(endpoint)) return "backing_off";
   // 「已经在采」不在这里判——下面那条原子 UPDATE 抢不到 collecting_since 才算数。
@@ -134,11 +133,7 @@ function recordFailure(endpoint: Endpoint, runId: string, message: string): void
  * 身份用 feed 自带的 guid / external_id。同一条被编辑不是新内容——正文快照
  * 停在第一次采到的那一刻（ADR 0015），只把 last_seen_at 推到现在。
  */
-function persistEntry(
-  endpointId: string,
-  entry: FeedEntry,
-  seenAt: string,
-): "created" | "seen" {
+function persistEntry(endpointId: string, entry: FeedEntry, seenAt: string): "created" | "seen" {
   const db = database();
   const existing = db
     .prepare("SELECT id FROM source_contents WHERE endpoint_id = ? AND external_id = ?")
@@ -189,10 +184,22 @@ function staleBefore(now: string): string {
 }
 
 /** 把所有端点催一遍。逐个来——退避与防重入照旧由 collectEndpoint 把关。 */
+/**
+ * 催一次全实例采集。同步返回，带 60 秒总超时（#45）——催的人在等着看结果，
+ * 端点多起来一趟能走很久。到点之后不再开新的端点，剩下的如实标成「没轮到」：
+ * 它们照样由调度器按渠道节奏采，超时不是失败，不进退避。
+ */
+const collectAllTimeoutMilliseconds = 60_000;
+
 export async function collectAllEndpoints(): Promise<AcquisitionResult[]> {
+  const deadline = Date.now() + collectAllTimeoutMilliseconds;
   const results: AcquisitionResult[] = [];
   for (const endpoint of listEndpoints()) {
-    results.push(await collectEndpoint(endpoint.id));
+    results.push(
+      Date.now() >= deadline
+        ? skipped(endpoint.id, "out_of_time")
+        : await collectEndpoint(endpoint.id),
+    );
   }
   return results;
 }
@@ -227,10 +234,7 @@ export type PushedEntry = {
  * Radar 不写登录态适配器、不保管任何登录态——推来的内容和自采的走同一条路：
  * 同样按 external_id 去重、同样存正文快照、同样入队。
  */
-export function acceptPushedEntries(
-  endpointId: string,
-  entries: PushedEntry[],
-): AcquisitionResult {
+export function acceptPushedEntries(endpointId: string, entries: PushedEntry[]): AcquisitionResult {
   const endpoint = getEndpoint(endpointId);
   if (!endpoint) throw new UnknownEndpointError(endpointId);
   if (!isEnabled(endpoint)) throw new EndpointNotAcceptingPushError(endpointId, "已经停用了");
@@ -246,7 +250,9 @@ export function acceptPushedEntries(
     const count = persistBatch(endpointId, feedEntries, pushedAt);
     // 推送只记一件事：最后一次收到推送是什么时候。它不是一次采集尝试，不进
     // 采集历史；久未推送是这个分工的代价，不是故障，所以也不碰失败计数与退避。
-    database().prepare("UPDATE endpoints SET last_push_at = ? WHERE id = ?").run(pushedAt, endpointId);
+    database()
+      .prepare("UPDATE endpoints SET last_push_at = ? WHERE id = ?")
+      .run(pushedAt, endpointId);
     return count;
   });
 
