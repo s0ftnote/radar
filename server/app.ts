@@ -32,6 +32,7 @@ import {
 } from "../lib/deliveries.js";
 import { discoverCandidates } from "../lib/discovery.js";
 import { RadarDomainError } from "../lib/domain-error.js";
+import { exportBrief } from "../lib/export.js";
 import { rsshubBaseUrl, setRsshubBaseUrl } from "../lib/rsshub.js";
 import { listJudgments, recordJudgment } from "../lib/judgments.js";
 import { enqueueCurrentPage } from "../lib/queue.js";
@@ -231,6 +232,11 @@ export function createRadarApp(): Hono {
       201,
     );
   });
+
+  // 完整导出只读，不改动任何数据（ADR 0008）。
+  app.get("/briefs/:briefId/export", (context) =>
+    context.json(exportBrief(context.req.param("briefId"), radarVersion())),
+  );
 
   app.get("/briefs/:briefId/revisions", (context) =>
     context.json(listBriefRevisions(context.req.param("briefId"))),
