@@ -16,6 +16,7 @@ type PendingContent = {
 };
 type WorkPackage = { pendingContents: PendingContent[] };
 type Judgment = { id: string };
+type Endpoint = { id: string };
 
 test.describe("内容页", () => {
   let harness: Harness;
@@ -156,6 +157,33 @@ test.describe("内容页", () => {
       redirect: "manual",
     });
     expect(crossSite.status).toBe(403);
+  });
+
+  test("原文地址不是 http(s) 就不给链接——标题还在，只是点不动", async () => {
+    // 推送来的内容由用户自己的 Agent 采（ADR 0011），地址是第三方给的。
+    // 转义挡得住把标签写进属性值，挡不住 `javascript:`。
+    const endpoint = await radarJson<Endpoint>(harness.environment, [
+      "sources", "add", "--channel", "agent-push",
+      "--name", "推送来的板块", "--url", "https://example.invalid/pushed",
+    ]);
+    await radarJson(
+      harness.environment,
+      ["push", "--endpoint", endpoint.id],
+      JSON.stringify([
+        {
+          externalId: "hostile-1",
+          title: "地址是个 javascript: 伪协议",
+          originUrl: 'javascript:alert("xss")',
+          body: "正文照常。",
+          publishedAt: "2026-08-25T02:00:00.000Z",
+        },
+      ]),
+    );
+
+    const text = await page(`?brief=${brief.id}&state=pending`);
+    expect(text).toContain("地址是个 javascript: 伪协议");
+    expect(text).toContain('<span class="content-title">');
+    expect(text).not.toContain("href=\"javascript:");
   });
 
   test("服务端渲染，不引入 JSX 运行时", async () => {
