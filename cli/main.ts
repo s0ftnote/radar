@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { radarDataDirectory } from "../lib/data-directory.js";
 import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
 import { callRadar, readStdin } from "./client.js";
@@ -92,6 +94,13 @@ Brief
   radar feedback --brief <id> [--judgment <id>] --disposition <标签>
                                   写回用户明说的反馈，正文从 stdin 读
 
+导出
+  radar export --brief <id> [--dir <目录>]
+                                  完整导出：一份可机读的 export.json 加一份
+                                  直接读的 README.md。单个 Brief 的档案不依赖
+                                  其他 Brief，也不需要 Radar 还活着。凭据是
+                                  本地 secret，不进导出
+
 Skill
   radar skills install [--dir <目录>]
                                   把随本版 Radar 来的三份 Skill 装进你的 Agent，
@@ -152,6 +161,8 @@ async function main(argv: string[]): Promise<void> {
         return await deliver(rest);
       case "feedback":
         return await feedback(rest);
+      case "export":
+        return await exportBrief(rest);
       case "skills":
         return skills(rest);
       case "discover":
@@ -467,6 +478,28 @@ async function feedback(argv: string[]): Promise<void> {
       body: { judgmentId: option(argv, "--judgment") ?? null, disposition, note },
     }),
   );
+}
+
+/**
+ * 完整导出落成两个文件：一份可机读的 JSON，一份不装任何东西就能读的
+ * Markdown。单个 Brief 的档案脱离其他 Brief、脱离运行中的实例照样读得完
+ * （ADR 0007）。凭据是本地 secret，不在里面（ADR 0008）。
+ */
+async function exportBrief(argv: string[]): Promise<void> {
+  const briefId = requiredOption(argv, "--brief");
+  const archive = (await callRadar(`/briefs/${briefId}/export`)) as {
+    archive: { brief: { name: string } };
+    readable: string;
+  };
+  const directory = resolve(option(argv, "--dir") ?? `radar-export-${briefId}`);
+  mkdirSync(directory, { recursive: true });
+  const files = {
+    machineReadable: resolve(directory, "export.json"),
+    readable: resolve(directory, "README.md"),
+  };
+  writeFileSync(files.machineReadable, `${JSON.stringify(archive.archive, null, 2)}\n`);
+  writeFileSync(files.readable, archive.readable);
+  emit({ brief: archive.archive.brief.name, directory, ...files });
 }
 
 async function readJsonStdin(): Promise<unknown> {
