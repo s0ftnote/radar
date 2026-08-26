@@ -1,8 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { radarDataDirectory } from "./data-directory.js";
-import { database } from "./database.js";
-import { packageRoot } from "../server/package-root.js";
+import { RadarDomainError } from "./domain-error.js";
+import { instanceSetting, setInstanceSetting } from "./instance-settings.js";
+import { packageRoot } from "./package-root.js";
 import { safeFetch } from "./safe-fetch.js";
 
 /**
@@ -26,24 +27,14 @@ const refreshIntervalMilliseconds = 24 * 60 * 60 * 1000;
 
 /** 用户自己那台 RSSHub 的地址。这是页面上唯一那处实例级设置（ADR 0013）。 */
 export function rsshubBaseUrl(): string | null {
-  const row = database()
-    .prepare("SELECT value FROM instance_settings WHERE key = ?")
-    .get(baseUrlKey) as { value: string } | undefined;
-  return row?.value ?? null;
+  return instanceSetting(baseUrlKey);
 }
 
 export function setRsshubBaseUrl(url: string | null): void {
-  const db = database();
   // 换了地址，手上那份规则就是从别处来的了：清掉刷新时间，下一次粘网址
   // 立刻从新地址刷一次，不用等满一天。
-  db.prepare("DELETE FROM instance_settings WHERE key = ?").run(refreshedAtKey);
-  if (url === null) {
-    db.prepare("DELETE FROM instance_settings WHERE key = ?").run(baseUrlKey);
-    return;
-  }
-  db.prepare(
-    "INSERT INTO instance_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-  ).run(baseUrlKey, new URL(url).origin);
+  setInstanceSetting(refreshedAtKey, null);
+  setInstanceSetting(baseUrlKey, url === null ? null : origin(url));
 }
 
 /**
@@ -115,17 +106,14 @@ export async function refreshRulesIfStale(now = new Date()): Promise<boolean> {
   const base = rsshubBaseUrl();
   if (!base) return false;
 
-  const db = database();
-  const row = db.prepare("SELECT value FROM instance_settings WHERE key = ?").get(refreshedAtKey) as
-    | { value: string }
-    | undefined;
-  if (row && now.getTime() - Date.parse(row.value) < refreshIntervalMilliseconds) return false;
+  const refreshedAt = instanceSetting(refreshedAtKey);
+  if (refreshedAt && now.getTime() - Date.parse(refreshedAt) < refreshIntervalMilliseconds) {
+    return false;
+  }
 
   // 记的是「试过了」，不是「成功了」。那台实例关着的时候，每粘一次网址都
   // 重试一次就是每次都白等一个超时；一天一次就够了，中间用手上那份。
-  db.prepare(
-    "INSERT INTO instance_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-  ).run(refreshedAtKey, now.toISOString());
+  setInstanceSetting(refreshedAtKey, now.toISOString());
 
   try {
     // 自建的 RSSHub 常常就在 localhost 或者局域网里——那是用户自己填的地址。
@@ -188,4 +176,13 @@ function shippedRulesPath(): string {
 
 function refreshedRulesPath(): string {
   return resolve(radarDataDirectory(), "rsshub-rules.json");
+}
+
+/** 只要 origin：规则拼地址只用得上它，路径与查询串留着只会拼出坏地址。 */
+function origin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    throw new RadarDomainError(`${url} 不是一个网址。`, 400);
+  }
 }

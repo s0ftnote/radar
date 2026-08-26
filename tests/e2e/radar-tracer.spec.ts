@@ -81,12 +81,12 @@ test.describe("tracer bullet", () => {
       expect(first.pendingContents).toHaveLength(3);
       expect(first.queueDepth).toBe(3);
 
-      // 默认排序是纯新鲜度 + 一层确定性端点轮转。纯新鲜度会给出
-      // [alpha, alpha, beta]——轮转把 beta 提到第二位，这才证明轮转真的生效。
+      // 排序是两步：先整池按分数排，再给每个端点一条保底名额（ADR 0010）。
+      // 配额决定谁进这一包，分数决定先看谁——所以 beta 保底的那条排在最后。
       expect(first.pendingContents.map((content) => content.endpointId)).toEqual([
         "fixture-alpha",
-        "fixture-beta",
         "fixture-alpha",
+        "fixture-beta",
       ]);
 
       // --limit 封顶只影响这一包给多少，不改变队列本身有多深。

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { database } from "./database.js";
 import { RadarDomainError } from "./domain-error.js";
+import { asRecord } from "./as-record.js";
 import {
   listEndpointHitStats,
   listSignalHitStats,
@@ -118,9 +119,7 @@ export function currentStrategy(briefId: string): QueueStrategy | null {
 export function listStrategyRevisions(briefId: string): QueueStrategy[] {
   return (
     database()
-      .prepare(
-        "SELECT * FROM queue_strategies WHERE brief_id = ? ORDER BY revision_number DESC",
-      )
+      .prepare("SELECT * FROM queue_strategies WHERE brief_id = ? ORDER BY revision_number DESC")
       .all(briefId) as StrategyRow[]
   ).map(mapStrategy);
 }
@@ -135,7 +134,7 @@ function parseFormula(value: unknown): StrategyFormula {
   if (!(halfLife > 0)) throw new InvalidStrategyError("freshnessHalfLifeHours 要大于 0。");
 
   const endpointWeights: Record<string, number> = {};
-  for (const [endpointId, weight] of Object.entries(asRecord(raw.endpointWeights))) {
+  for (const [endpointId, weight] of Object.entries(asRecord(raw.endpointWeights) ?? {})) {
     if (typeof weight !== "number" || !Number.isFinite(weight)) {
       throw new InvalidStrategyError(`端点 ${endpointId} 的权重要是一个有限的数。`);
     }
@@ -175,12 +174,6 @@ function numberOr(value: unknown, fallback: number): number {
     throw new InvalidStrategyError("策略里的每个权重都要是一个有限的数。");
   }
   return value;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }
 
 function mapStrategy(row: StrategyRow): QueueStrategy {

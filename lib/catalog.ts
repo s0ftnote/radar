@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { database, inTransaction } from "./database.js";
+import { instanceSetting, setInstanceSetting } from "./instance-settings.js";
+
+const catalogVersionKey = "catalog_version";
 
 export type CatalogChannel = {
   id: string;
@@ -53,10 +56,8 @@ export function readFactoryCatalog(path: string): FactoryCatalog {
  */
 export function reconcileFactoryCatalog(catalog: FactoryCatalog): void {
   const db = database();
-  const installed = db
-    .prepare("SELECT value FROM instance_settings WHERE key = 'catalog_version'")
-    .get() as { value: string } | undefined;
-  if (installed && Number(installed.value) === catalog.catalogVersion) return;
+  const installed = instanceSetting(catalogVersionKey);
+  if (installed && Number(installed) === catalog.catalogVersion) return;
 
   const now = new Date().toISOString();
   let deferred = 0;
@@ -111,12 +112,7 @@ export function reconcileFactoryCatalog(catalog: FactoryCatalog): void {
 
     // 有端点这一轮没对上，就不记下版本号：下次起服务再对一次，等那个地址
     // 腾出来它自然就跟上了。记了版本号等于让它永远跟不上。
-    if (deferred === 0) {
-      db.prepare(
-        `INSERT INTO instance_settings (key, value) VALUES ('catalog_version', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      ).run(String(catalog.catalogVersion));
-    }
+    if (deferred === 0) setInstanceSetting(catalogVersionKey, String(catalog.catalogVersion));
   });
 }
 

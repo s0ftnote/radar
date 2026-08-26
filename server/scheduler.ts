@@ -1,5 +1,6 @@
 import { collectEndpoint } from "../lib/acquisition.js";
-import { isBackingOff, isCollectable, listEndpoints, type Endpoint } from "../lib/endpoints.js";
+import { isBackingOff, isCollectable, isDue, listEndpoints } from "../lib/endpoints.js";
+import { sweepRetentionWindow } from "../lib/queue.js";
 
 export type Scheduler = { stop(): void };
 
@@ -18,9 +19,14 @@ export function startScheduler(): Scheduler {
     if (running || stopped) return;
     running = true;
     try {
+      // 保留窗口是纯时间规则，没有采集也照样到点（ADR 0010）：一次 UPDATE，
+      // 跟着同一趟巡视走就够，不另起一个定时器。
+      const swept = sweepRetentionWindow();
+      if (swept > 0) console.error(`[Radar] ${swept} 条过了保留窗口，移出待判断队列。`);
+
       for (const endpoint of listEndpoints()) {
         if (stopped) break;
-        if (!isCollectable(endpoint) || !isDue(endpoint)) continue;
+        if (!isCollectable(endpoint) || isBackingOff(endpoint) || !isDue(endpoint)) continue;
         const result = await collectEndpoint(endpoint.id);
         if (result.status === "failed") {
           console.error(`[Radar] 采集 ${endpoint.id} 失败：${result.error}`);
@@ -44,13 +50,10 @@ export function startScheduler(): Scheduler {
 }
 
 function tickSeconds(): number {
-  const intervals = listEndpoints().map((endpoint) => endpoint.collectionIntervalSeconds);
+  // 只看真的会被采的端点：`配置后解锁` 那一档由 Agent 推来，它渠道上的节奏
+  // 不该把巡视频率往下拽。
+  const intervals = listEndpoints()
+    .filter(isCollectable)
+    .map((endpoint) => endpoint.collectionIntervalSeconds);
   return Math.max(1, Math.min(maximumTickSeconds, ...intervals));
-}
-
-function isDue(endpoint: Endpoint): boolean {
-  const now = Date.now();
-  if (isBackingOff(endpoint)) return false;
-  if (!endpoint.lastSuccessAt) return true;
-  return now - Date.parse(endpoint.lastSuccessAt) >= endpoint.collectionIntervalSeconds * 1_000;
 }

@@ -13,13 +13,27 @@ test.describe("出厂来源目录", () => {
 
   test("解析得开，端点 id 稳定且不重复，渠道都指得到", () => {
     const ids = catalog.endpoints.map((endpoint) => endpoint.id);
-    expect(ids).toEqual(["hacker-news-frontpage", "lobsters-frontpage", "github-changelog"]);
     expect(new Set(ids).size).toBe(ids.length);
+    // 发布过的 id 永不复用、永不改写：目录只增不改名，搬家改 url（ADR 0014）。
+    expect(ids).toEqual(
+      expect.arrayContaining(["hacker-news-frontpage", "lobsters-frontpage", "github-changelog"]),
+    );
 
     const channelIds = new Set(catalog.channels.map((channel) => channel.id));
     for (const endpoint of catalog.endpoints) {
       expect(channelIds).toContain(endpoint.channelId);
     }
+  });
+
+  // 出厂自带尽量多的来源、默认几乎全开：装好即用的骨干要有，`radar push`
+  // 也得开箱就有落点，否则「配置后解锁」那一档在出厂状态下根本走不通。
+  test("三档渠道各自有端点，装好即用与配置后解锁都不空", () => {
+    const channelById = new Map(catalog.channels.map((channel) => [channel.id, channel]));
+    const states = catalog.endpoints.map(
+      (endpoint) => channelById.get(endpoint.channelId)!.configState,
+    );
+    expect(states.filter((state) => state === "ready").length).toBeGreaterThanOrEqual(3);
+    expect(states).toContain("unlocked_by_config");
   });
 
   test("每条出厂端点都写下了机器可读的许可依据", () => {

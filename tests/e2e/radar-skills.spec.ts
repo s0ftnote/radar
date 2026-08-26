@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { startHarness, waitForFirstCollection } from "./support/harness.js";
-import { radar, radarJson, repositoryRoot, stopRadar } from "./support/radar-process.js";
+import { delay, radar, radarJson, repositoryRoot, stopRadar } from "./support/radar-process.js";
 
 /**
  * 三份 Skill 与安装。验收是**两个完整周期**：建 Brief → 采集 → 判断 → 交付记账
@@ -113,7 +113,9 @@ test.describe("三份 Skill 与安装", () => {
 
   test("两周期端到端：反馈在下一周期的工作包里读得到", async () => {
     test.setTimeout(180_000);
-    const harness = await startHarness("skills-e2e", 33196);
+    // 渠道节奏调到 1 秒：`radar collect` 不绕过渠道速率限制（#45），两周期
+    // 之间必须真的到点，才谈得上第二次采集。
+    const harness = await startHarness("skills-e2e", 33196, 1);
     const { environment, feed } = harness;
     try {
       await waitForFirstCollection(environment);
@@ -162,6 +164,7 @@ test.describe("三份 Skill 与安装", () => {
         body: "这周同一个诉求又冒出来了。",
         publishedAt: "Mon, 31 Aug 2026 09:00:00 GMT",
       });
+      await delay(1_100);
       expect((await radar(environment, ["collect"])).code).toBe(0);
 
       const second = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);

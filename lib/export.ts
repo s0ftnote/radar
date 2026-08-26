@@ -12,6 +12,7 @@ import { getBrief, listBriefRevisions, UnknownBriefError, type BriefRevision } f
 import { database } from "./database.js";
 import { listDeliveries, type Delivery } from "./deliveries.js";
 import { listFeedback, type Feedback } from "./feedback.js";
+import { groupBy } from "./group-by.js";
 import { listJudgments, type Judgment } from "./judgments.js";
 
 export type ExportedSourceContent = {
@@ -110,18 +111,6 @@ function sourceContentsForBrief(briefId: string): ExportedSourceContent[] {
  * 可直接阅读的那一份。Markdown 是纯文本，任何编辑器都打得开——不需要 Radar
  * 还活着，也不需要懂 SQLite。
  */
-function groupBy<T>(items: T[], keyOf: (item: T) => string | null): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const item of items) {
-    const key = keyOf(item);
-    if (key === null) continue;
-    const group = groups.get(key);
-    if (group) group.push(item);
-    else groups.set(key, [item]);
-  }
-  return groups;
-}
-
 function renderReadable(archive: BriefArchive): string {
   const contents = new Map(archive.sourceContents.map((content) => [content.id, content]));
   const deliveriesByJudgment = groupBy(archive.deliveries, (delivery) => delivery.judgmentId);

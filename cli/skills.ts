@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { packageRoot } from "../server/package-root.js";
+import { packageRoot } from "../lib/package-root.js";
 
 /**
  * 三份 Skill 随 Radar 仓库来，装的就是随本版 Radar 一起下来的那三份——

@@ -35,7 +35,13 @@ import { RadarDomainError } from "../lib/domain-error.js";
 import { exportBrief } from "../lib/export.js";
 import { rsshubBaseUrl, setRsshubBaseUrl } from "../lib/rsshub.js";
 import { listJudgments, recordJudgment } from "../lib/judgments.js";
-import { enqueueCurrentPage } from "../lib/queue.js";
+import {
+  enqueueCurrentPage,
+  queueStatus,
+  requeueContent,
+  retentionDays,
+  setRetentionDays,
+} from "../lib/queue.js";
 import {
   currentStrategy,
   listStrategyRevisions,
@@ -53,8 +59,8 @@ import {
   maximumWorkPackageLimit,
 } from "../lib/work-package.js";
 import { renderHomePage, type DiscoveryPanel } from "./home-page.js";
-import { packageRoot } from "./package-root.js";
-import { radarVersion } from "./version.js";
+import { packageRoot } from "../lib/package-root.js";
+import { radarVersion } from "../lib/version.js";
 
 /**
  * HTTP 是 Radar 的内部实现，不是契约（ADR 0012）——契约是 `radar` 的命令面。
@@ -81,7 +87,7 @@ export function createRadarApp(): Hono {
     const form = await context.req.formData();
     const pastedUrl = String(form.get("url") ?? "").trim();
     try {
-      return context.html(homePage({ pastedUrl, candidates: await discover(pastedUrl) }));
+      return context.html(homePage({ pastedUrl, candidates: await discoverCandidates(pastedUrl) }));
     } catch (error) {
       // 页面只说一句结果，细节问 Agent（ADR 0013）。
       const message = error instanceof RadarDomainError ? error.message : "没找到可订阅的 feed。";
@@ -91,20 +97,18 @@ export function createRadarApp(): Hono {
 
   app.post("/sources/add", async (context) => {
     const form = await context.req.formData();
-    domainCall(() =>
-      registerUserEndpoint({
-        channelId: "rss",
-        name: String(form.get("name") ?? "").trim() || String(form.get("url") ?? ""),
-        url: String(form.get("url") ?? "").trim(),
-      }),
-    );
+    registerUserEndpoint({
+      channelId: "rss",
+      name: String(form.get("name") ?? "").trim() || String(form.get("url") ?? ""),
+      url: String(form.get("url") ?? "").trim(),
+    });
     return context.redirect("/", 303);
   });
 
   app.post("/settings/rsshub", async (context) => {
     const form = await context.req.formData();
     const raw = String(form.get("baseUrl") ?? "").trim();
-    domainCall(() => setRsshubBaseUrl(raw === "" ? null : raw));
+    setRsshubBaseUrl(raw === "" ? null : raw);
     return context.redirect("/", 303);
   });
 
@@ -126,13 +130,11 @@ export function createRadarApp(): Hono {
   app.post("/endpoints", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(
-      domainCall(() =>
-        registerUserEndpoint({
-          channelId: requiredText(body.channelId, "采集渠道 id"),
-          name: requiredText(body.name, "端点名字"),
-          url: requiredText(body.url, "端点地址"),
-        }),
-      ),
+      registerUserEndpoint({
+        channelId: requiredText(body.channelId, "采集渠道 id"),
+        name: requiredText(body.name, "端点名字"),
+        url: requiredText(body.url, "端点地址"),
+      }),
       201,
     );
   });
@@ -155,22 +157,24 @@ export function createRadarApp(): Hono {
   // 挑中哪条由用户说了算，挑完走普通的登记（ADR 0014）。
   app.post("/discover", async (context) => {
     const body = await jsonBody(context.req.raw);
-    return context.json(await discover(requiredText(body.url, "网址")));
+    return context.json(await discoverCandidates(requiredText(body.url, "网址")));
   });
 
-  // 唯一那处实例级设置：你的 RSSHub 地址（ADR 0013）。
+  // 队列保留窗口，实例级可配、默认 30 天（ADR 0010）。
+  app.get("/settings/retention", (context) => context.json({ days: retentionDays() }));
+
+  app.put("/settings/retention", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json({ days: setRetentionDays(Number(body.days)) });
+  });
+
+  // 你自己那台 RSSHub 的地址。RSSHub 不是采集渠道（ADR 0013）。
   app.get("/settings/rsshub", (context) => context.json({ baseUrl: rsshubBaseUrl() }));
 
   app.put("/settings/rsshub", async (context) => {
     const body = await jsonBody(context.req.raw);
     const raw = typeof body.baseUrl === "string" ? body.baseUrl.trim() : "";
-    domainCall(() => {
-      try {
-        setRsshubBaseUrl(raw === "" ? null : raw);
-      } catch {
-        throw new RadarDomainError(`${raw} 不是一个网址。`, 400);
-      }
-    });
+    setRsshubBaseUrl(raw === "" ? null : raw);
     return context.json({ baseUrl: rsshubBaseUrl() });
   });
 
@@ -179,10 +183,7 @@ export function createRadarApp(): Hono {
   app.post("/endpoints/:endpointId/push", async (context) => {
     const body = await jsonBody(context.req.raw);
     const entries = Array.isArray(body.entries) ? (body.entries as PushedEntry[]) : [];
-    return context.json(
-      domainCall(() => acceptPushedEntries(context.req.param("endpointId"), entries)),
-      201,
-    );
+    return context.json(acceptPushedEntries(context.req.param("endpointId"), entries), 201);
   });
 
   app.post("/collect", async (context) => context.json(await collectAllEndpoints()));
@@ -209,26 +210,20 @@ export function createRadarApp(): Hono {
 
   app.get("/briefs/:briefId", (context) => context.json(getBrief(context.req.param("briefId"))));
 
-  app.get("/briefs/:briefId/work-package", (context) => {
-    const requested = Number(context.req.query("limit") ?? defaultWorkPackageLimit);
-    if (!Number.isInteger(requested) || requested < 1) {
-      throw new HTTPException(400, { message: "`limit` 需要一个正整数。" });
-    }
-    // 工作包有上限：一次给多少由服务端说了算，客户端要不到无限长的一包。
-    const limit = Math.min(requested, maximumWorkPackageLimit);
-    return context.json(assembleWorkPackage(context.req.param("briefId"), limit));
-  });
+  app.get("/briefs/:briefId/work-package", (context) =>
+    context.json(
+      assembleWorkPackage(context.req.param("briefId"), limitOf(context.req.query("limit"))),
+    ),
+  );
 
   app.post("/briefs/:briefId/revisions", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(
-      domainCall(() =>
-        reviseBrief({
-          briefId: context.req.param("briefId"),
-          body: requiredText(body.body, "Brief 正文"),
-          rationale: requiredText(body.rationale, "改动依据"),
-        }),
-      ),
+      reviseBrief({
+        briefId: context.req.param("briefId"),
+        body: requiredText(body.body, "Brief 正文"),
+        rationale: requiredText(body.rationale, "改动依据"),
+      }),
       201,
     );
   });
@@ -237,6 +232,20 @@ export function createRadarApp(): Hono {
   app.get("/briefs/:briefId/export", (context) =>
     context.json(exportBrief(context.req.param("briefId"), radarVersion())),
   );
+
+  // 取数角色要的两个机械事实：队列还有多深、最近一次判断是什么时候（#44）。
+  app.get("/briefs/:briefId/queue", (context) =>
+    context.json(queueStatus(context.req.param("briefId"))),
+  );
+
+  // 显式回捞：判过的、或过了保留窗口被移出去的，开一个新的代次重判。
+  app.post("/briefs/:briefId/queue/requeue", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      requeueContent(context.req.param("briefId"), requiredText(body.sourceContentId, "内容 id")),
+      201,
+    );
+  });
 
   app.get("/briefs/:briefId/revisions", (context) =>
     context.json(listBriefRevisions(context.req.param("briefId"))),
@@ -249,24 +258,20 @@ export function createRadarApp(): Hono {
   app.put("/briefs/:briefId/subjects", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(
-      domainCall(() =>
-        putWatchedSubject({
-          briefId: context.req.param("briefId"),
-          name: requiredText(body.name, "关注对象的名字"),
-          renameTo: typeof body.renameTo === "string" ? body.renameTo : undefined,
-          aliases: textList(body.aliases),
-          endpointIds: textList(body.endpointIds),
-        }),
-      ),
+      putWatchedSubject({
+        briefId: context.req.param("briefId"),
+        name: requiredText(body.name, "关注对象的名字"),
+        renameTo: typeof body.renameTo === "string" ? body.renameTo : undefined,
+        aliases: textList(body.aliases),
+        endpointIds: textList(body.endpointIds),
+      }),
     );
   });
 
   app.delete("/briefs/:briefId/subjects/:name", (context) => {
-    domainCall(() =>
-      removeWatchedSubject(
-        context.req.param("briefId"),
-        decodeURIComponent(context.req.param("name")),
-      ),
+    removeWatchedSubject(
+      context.req.param("briefId"),
+      decodeURIComponent(context.req.param("name")),
     );
     return context.body(null, 204);
   });
@@ -277,13 +282,11 @@ export function createRadarApp(): Hono {
 
   app.post("/briefs/:briefId/exclusions", async (context) => {
     const body = await jsonBody(context.req.raw);
-    domainCall(() =>
-      setBriefExclusion(
-        context.req.param("briefId"),
-        requiredText(body.endpointId, "采集端点 id"),
-        body.excluded !== false,
-        typeof body.reason === "string" ? body.reason : undefined,
-      ),
+    setBriefExclusion(
+      context.req.param("briefId"),
+      requiredText(body.endpointId, "采集端点 id"),
+      body.excluded !== false,
+      typeof body.reason === "string" ? body.reason : undefined,
     );
     return context.json(listBriefExclusions(context.req.param("briefId")));
   });
@@ -296,14 +299,12 @@ export function createRadarApp(): Hono {
   app.put("/briefs/:briefId/strategy", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(
-      domainCall(() =>
-        putStrategy({
-          briefId: context.req.param("briefId"),
-          formula: body.formula,
-          rationale: requiredText(body.rationale, "策略修订的依据"),
-          authoredBy: requiredText(body.authoredBy, "策略的作者"),
-        }),
-      ),
+      putStrategy({
+        briefId: context.req.param("briefId"),
+        formula: body.formula,
+        rationale: requiredText(body.rationale, "策略修订的依据"),
+        authoredBy: requiredText(body.authoredBy, "策略的作者"),
+      }),
       201,
     );
   });
@@ -318,54 +319,42 @@ export function createRadarApp(): Hono {
 
   // 取数角色：取还没送到某个去处的判断，送完显式标记。
   app.get("/briefs/:briefId/deliveries/:destination/pending", (context) => {
-    const requested = Number(context.req.query("limit") ?? defaultWorkPackageLimit);
-    if (!Number.isInteger(requested) || requested < 1) {
-      throw new HTTPException(400, { message: "`limit` 需要一个正整数。" });
-    }
     return context.json(
-      domainCall(() =>
-        takeForDelivery({
-          briefId: context.req.param("briefId"),
-          destination: destinationOf(context.req.param("destination")),
-          since: context.req.query("since"),
-          until: context.req.query("until"),
-          relatedTo: context.req.query("relatedTo"),
-          subject: context.req.query("subject"),
-          limit: Math.min(requested, maximumWorkPackageLimit),
-        }),
-      ),
+      takeForDelivery({
+        briefId: context.req.param("briefId"),
+        destination: destinationOf(context.req.param("destination")),
+        since: context.req.query("since"),
+        until: context.req.query("until"),
+        relatedTo: context.req.query("relatedTo"),
+        subject: context.req.query("subject"),
+        limit: limitOf(context.req.query("limit")),
+      }),
     );
   });
 
   app.get("/briefs/:briefId/deliveries", (context) =>
-    context.json(
-      listDeliveries(context.req.param("briefId"), context.req.query("destination")),
-    ),
+    context.json(listDeliveries(context.req.param("briefId"), context.req.query("destination"))),
   );
 
   app.post("/briefs/:briefId/deliveries", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(
-      domainCall(() =>
-        markDelivered({
-          briefId: context.req.param("briefId"),
-          judgmentId: requiredText(body.judgmentId, "判断 id"),
-          destination: requiredText(body.destination, "交付去处"),
-          externalReference:
-            typeof body.externalReference === "string" ? body.externalReference : undefined,
-        }),
-      ),
+      markDelivered({
+        briefId: context.req.param("briefId"),
+        judgmentId: requiredText(body.judgmentId, "判断 id"),
+        destination: requiredText(body.destination, "交付去处"),
+        externalReference:
+          typeof body.externalReference === "string" ? body.externalReference : undefined,
+      }),
       201,
     );
   });
 
   app.delete("/briefs/:briefId/deliveries/:destination/:judgmentId", (context) => {
-    domainCall(() =>
-      unmarkDelivered(
-        context.req.param("briefId"),
-        context.req.param("judgmentId"),
-        destinationOf(context.req.param("destination")),
-      ),
+    unmarkDelivered(
+      context.req.param("briefId"),
+      context.req.param("judgmentId"),
+      destinationOf(context.req.param("destination")),
     );
     return context.body(null, 204);
   });
@@ -394,21 +383,18 @@ export function createRadarApp(): Hono {
   app.post("/judgments", async (context) => {
     const body = await jsonBody(context.req.raw);
     const relevant = body.relevant === true;
-    const judgment = domainCall(() =>
-      recordJudgment({
-        queueEntryId: requiredText(body.queueEntryId, "队列代次 id"),
-        relevant,
-        whatItIs: relevant ? requiredText(body.whatItIs, "「是什么」") : undefined,
-        evidence: relevant ? requiredText(body.evidence, "「凭什么」") : undefined,
-        uncertainty: relevant ? requiredText(body.uncertainty, "「哪里不确定」") : undefined,
-        whyForYou: requiredText(body.whyForYou, relevant ? "「为什么给你」" : "淘汰理由"),
-        judgedBy: requiredText(body.judgedBy, "判断者"),
-        signalContentIds: textList(body.signalContentIds),
-        relatedJudgmentIds: textList(body.relatedJudgmentIds),
-        idempotencyKey:
-          typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined,
-      }),
-    );
+    const judgment = recordJudgment({
+      queueEntryId: requiredText(body.queueEntryId, "队列代次 id"),
+      relevant,
+      whatItIs: relevant ? requiredText(body.whatItIs, "「是什么」") : undefined,
+      evidence: relevant ? requiredText(body.evidence, "「凭什么」") : undefined,
+      uncertainty: relevant ? requiredText(body.uncertainty, "「哪里不确定」") : undefined,
+      whyForYou: requiredText(body.whyForYou, relevant ? "「为什么给你」" : "淘汰理由"),
+      judgedBy: requiredText(body.judgedBy, "判断者"),
+      signalContentIds: textList(body.signalContentIds),
+      relatedJudgmentIds: textList(body.relatedJudgmentIds),
+      idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined,
+    });
     return context.json(judgment, 201);
   });
 
@@ -455,19 +441,9 @@ function homePage(discovery?: DiscoveryPanel) {
   });
 }
 
-/** 领域错误由 `onError` 统一翻成 HTTP，异步路径也得走同一条路。 */
-async function discover(url: string) {
-  try {
-    return await discoverCandidates(url);
-  } catch (error) {
-    if (error instanceof RadarDomainError || error instanceof HTTPException) throw error;
-    throw new RadarDomainError(error instanceof Error ? error.message : String(error), 400);
-  }
-}
-
 /** 开关只有开和关两种写法，两个入口写的是同一份 Radar 状态。 */
 function setEnabled(endpointId: string, enabled: unknown) {
-  return domainCall(() => setUserDisabled(endpointId, enabled !== true));
+  return setUserDisabled(endpointId, enabled !== true);
 }
 
 function requiredText(value: unknown, label: string): string {
@@ -482,14 +458,11 @@ function textList(value: unknown): string[] | undefined {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-/** 领域层用普通 Error 表达用户可修正的输入问题，到了 HTTP 边界它们是 400。 */
-function domainCall<T>(run: () => T): T {
-  try {
-    return run();
-  } catch (error) {
-    if (error instanceof HTTPException || error instanceof RadarDomainError) throw error;
-    throw new HTTPException(400, {
-      message: error instanceof Error ? error.message : String(error),
-    });
+/** 一次给多少条由服务端说了算：客户端要不到无限长的一包，也不能要半条。 */
+function limitOf(raw: string | undefined): number {
+  const requested = Number(raw ?? defaultWorkPackageLimit);
+  if (!Number.isInteger(requested) || requested < 1) {
+    throw new HTTPException(400, { message: "`limit` 需要一个正整数。" });
   }
+  return Math.min(requested, maximumWorkPackageLimit);
 }

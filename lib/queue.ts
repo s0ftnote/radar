@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { database, inTransaction } from "./database.js";
+import { RadarDomainError } from "./domain-error.js";
+import { instanceSetting, setInstanceSetting } from "./instance-settings.js";
 import { excludedFromBriefSql, listEndpointsToEnqueue } from "./endpoints.js";
 import {
   scoreCandidates,
@@ -23,8 +25,9 @@ export function enqueueCurrentPage(briefId: string): number {
   let queued = 0;
 
   for (const endpoint of listEndpointsToEnqueue()) {
-    const fresh = db.prepare(
-      `SELECT content.id FROM source_contents AS content
+    const fresh = db
+      .prepare(
+        `SELECT content.id FROM source_contents AS content
        WHERE content.endpoint_id = ?
          AND content.last_seen_at >= COALESCE((
            SELECT run.started_at FROM acquisition_runs AS run
@@ -35,7 +38,8 @@ export function enqueueCurrentPage(briefId: string): number {
            SELECT 1 FROM queue_entries AS queued
            WHERE queued.brief_id = ? AND queued.source_content_id = content.id
          )`,
-    ).all(endpoint.id, briefId) as Array<{ id: string }>;
+      )
+      .all(endpoint.id, briefId) as Array<{ id: string }>;
 
     for (const content of fresh) {
       db.prepare(
@@ -60,7 +64,7 @@ export function queueDepth(briefId: string): number {
       `SELECT COUNT(*) AS depth FROM queue_entries AS entry
        JOIN source_contents AS content ON content.id = entry.source_content_id
        WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-         AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})`,
+         AND content.endpoint_id NOT IN (${excludedFromBriefSql("entry.brief_id")})`,
     )
     .get(briefId) as { depth: number };
   return row.depth;
@@ -78,33 +82,58 @@ export function listPendingContents(briefId: string, limit: number): PendingCont
   const strategy = currentStrategy(briefId);
   // 整条队列都参与算分，不先按新鲜度砍一刀——那样一条老内容再高的分也永远
   // 浮不上来，那就是丢弃，不是排序（ADR 0010）。
-  const scored = scoreCandidates(briefId, listCandidates(briefId), strategy?.formula ?? defaultFormula);
+  const scored = scoreCandidates(
+    briefId,
+    listCandidates(briefId),
+    strategy?.formula ?? defaultFormula,
+  );
 
-  // 第一步的结果：先把整池按分数排定。同分时按内容 id，保证确定性。
+  // 第一步：整池按分数排定。同分时按内容 id，保证确定性。
   scored.sort(
     (left, right) =>
       right.score - left.score ||
       left.content.sourceContentId.localeCompare(right.content.sourceContentId),
   );
 
-  // 第二步：确定性端点轮转。每个端点按它在上面那个排名里的次序编号，
-  // 再按「第几轮、分数」排——一个端点就不会连着霸占开头。
-  const rotation = new Map<string, number>();
-  for (const item of scored) {
-    const round = (rotation.get(item.content.endpointId) ?? 0) + 1;
-    rotation.set(item.content.endpointId, round);
-    item.round = round;
-  }
-  scored.sort(
-    (left, right) =>
-      left.round - right.round ||
-      right.score - left.score ||
-      left.content.sourceContentId.localeCompare(right.content.sourceContentId),
-  );
+  // 第二步：端点保底配额。配额约束的是「结果里每个端点至少占几条」，不是
+  // 单条内容的分值（ADR 0010）——所以它只决定**谁进这一包**，进来之后照样
+  // 按分数排。写成「按第几轮排」就把配额做成了均分：冷门端点的最低分内容
+  // 会永远排在热门端点的最高分内容前面，分数退化成同轮内的 tie-breaker。
+  const handedOut = withEndpointQuota(scored, limit);
 
-  const handedOut = scored.slice(0, limit);
   recordSignalHits(strategy?.id ?? defaultStrategyId, handedOut);
   return handedOut.map((item) => item.content);
+}
+
+/**
+ * 每个有候选的端点先保底占一条，剩下的名额纯按分数发。取够之后整包再按分数
+ * 排一次——配额决定谁进来，分数决定先看谁。
+ */
+function withEndpointQuota(scored: ScoredCandidate[], limit: number): ScoredCandidate[] {
+  const taken = new Set<string>();
+  const covered = new Set<string>();
+  const picked: ScoredCandidate[] = [];
+
+  // 保底是一条。scored 已按分数排好，所以每个端点保底的那条就是它自己最高分
+  // 的那条。
+  for (const item of scored) {
+    if (picked.length >= limit) break;
+    if (covered.has(item.content.endpointId)) continue;
+    covered.add(item.content.endpointId);
+    taken.add(item.content.queueEntryId);
+    picked.push(item);
+  }
+  for (const item of scored) {
+    if (picked.length >= limit) break;
+    if (taken.has(item.content.queueEntryId)) continue;
+    picked.push(item);
+  }
+
+  return picked.sort(
+    (left, right) =>
+      right.score - left.score ||
+      left.content.sourceContentId.localeCompare(right.content.sourceContentId),
+  );
 }
 
 function listCandidates(briefId: string): CandidateRow[] {
@@ -119,7 +148,7 @@ function listCandidates(briefId: string): CandidateRow[] {
          JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
          LEFT JOIN source_content_hotness AS hot ON hot.source_content_id = content.id
          WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-           AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})`,
+           AND content.endpoint_id NOT IN (${excludedFromBriefSql("entry.brief_id")})`,
     )
     .all(briefId) as CandidateRow[];
 }
@@ -153,3 +182,83 @@ export function getOpenQueueEntry(
   return row ? { id: row.id, briefId: row.brief_id, sourceContentId: row.source_content_id } : null;
 }
 
+/**
+ * 保留窗口。超过窗口仍没判断的内容**移出待判断队列，但不删除**（ADR 0010：
+ * 只排序不丢弃）——关掉的代次留在库里，`radar requeue` 随时能把它回捞回来。
+ * 不清扫队列只会一直涨：采集是持续的，判断是有限的。
+ */
+const retentionDaysKey = "queue_retention_days";
+export const defaultRetentionDays = 30;
+
+export function retentionDays(): number {
+  const stored = instanceSetting(retentionDaysKey);
+  return stored === null ? defaultRetentionDays : Number(stored);
+}
+
+export function setRetentionDays(days: number): number {
+  if (!Number.isInteger(days) || days < 1) {
+    throw new RadarDomainError("保留窗口要一个 1 天起的整数天数。", 400);
+  }
+  setInstanceSetting(retentionDaysKey, String(days));
+  return days;
+}
+
+/** 关掉过了保留窗口还没判断的代次，返回这一次关掉几条。 */
+export function sweepRetentionWindow(now = new Date()): number {
+  const cutoff = new Date(now.getTime() - retentionDays() * 86_400_000).toISOString();
+  return database()
+    .prepare(
+      `UPDATE queue_entries SET closed_at = ?, closed_because = 'retention_window'
+       WHERE closed_at IS NULL AND queued_at < ?`,
+    )
+    .run(now.toISOString(), cutoff).changes as number;
+}
+
+export class NotQueuedBeforeError extends RadarDomainError {
+  constructor(sourceContentId: string) {
+    super(`这个 Brief 没有 ${sourceContentId} 的队列代次，回捞不了。`, 404);
+  }
+}
+
+export class AlreadyPendingError extends RadarDomainError {
+  constructor() {
+    super("这条内容已经在待判断队列里了，不用回捞。", 409);
+  }
+}
+
+/**
+ * 显式回捞：给一条已经关掉的内容开一个**新的代次**。判过的重判、过了保留
+ * 窗口被移出去的捞回来，走的都是这一条路——采集不会替用户做这个决定。
+ */
+export function requeueContent(
+  briefId: string,
+  sourceContentId: string,
+): { queueEntryId: string; queuedAt: string } {
+  const db = database();
+  const entries = db
+    .prepare("SELECT closed_at FROM queue_entries WHERE brief_id = ? AND source_content_id = ?")
+    .all(briefId, sourceContentId) as Array<{ closed_at: string | null }>;
+  if (entries.length === 0) throw new NotQueuedBeforeError(sourceContentId);
+  if (entries.some((entry) => entry.closed_at === null)) throw new AlreadyPendingError();
+
+  const queueEntryId = randomUUID();
+  const queuedAt = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO queue_entries (id, brief_id, source_content_id, queued_at) VALUES (?, ?, ?, ?)",
+  ).run(queueEntryId, briefId, sourceContentId, queuedAt);
+  return { queueEntryId, queuedAt };
+}
+
+/**
+ * 取数角色要的两个机械事实：队列还有多深、最近一次判断是什么时候（#44）。
+ * 都是 Radar 数得出来的数，不含任何判断。
+ */
+export function queueStatus(briefId: string): {
+  queueDepth: number;
+  lastJudgedAt: string | null;
+} {
+  const judged = database()
+    .prepare("SELECT MAX(created_at) AS last FROM judgments WHERE brief_id = ?")
+    .get(briefId) as { last: string | null };
+  return { queueDepth: queueDepth(briefId), lastJudgedAt: judged.last };
+}

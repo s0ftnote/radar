@@ -6,7 +6,7 @@ import type { BriefExport } from "../lib/export.js";
 import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
 import { callRadar, readStdin } from "./client.js";
 import { defaultSkillsTarget, installSkills } from "./skills.js";
-import { radarVersion } from "../server/version.js";
+import { radarVersion } from "../lib/version.js";
 
 const usage = `radar — 本地信号聚合站
 
@@ -53,7 +53,8 @@ Brief
                                   规则每天从你那台刷新，只在粘网址那一刻用一次
   radar rsshub show | clear
   radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
-                                  不给 --endpoint 就全催一遍，退避照样生效
+                                  不给 --endpoint 就全催一遍，退避与渠道节奏
+                                  照样生效，整趟 60 秒封顶
 
 排队策略（独立对象，不塞进 Brief）
   radar strategy set --brief <id> --rationale <依据> --by <作者>
@@ -73,6 +74,14 @@ Brief
                                   + 全部反馈 + 最近判断的紧凑清单
   radar judge                     写回判断，契约 JSON 从 stdin 读
   radar judgments --brief <id>    列出已写回的判断
+  radar queue --brief <id>        队列还有多深、最近一次判断是什么时候。
+                                  两个机械事实，不含判断
+  radar requeue --brief <id> --content <sourceContentId>
+                                  显式回捞：给这条内容开一个新的队列代次。
+                                  判过的重判、过了保留窗口被移出去的捞回来，
+                                  走的都是这一条
+  radar retention [--days <n>]    队列保留窗口，默认 30 天。超过窗口仍没判断的
+                                  内容移出待判断队列，但不删除，随时能回捞
 
 交付
   radar deliver take --brief <id> --to <去处> [--since <ISO>] [--until <ISO>]
@@ -155,6 +164,17 @@ async function main(argv: string[]): Promise<void> {
         return await strategy(rest);
       case "pending":
         return await pending(rest);
+      case "queue":
+        return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/queue`));
+      case "requeue":
+        return emit(
+          await callRadar(`/briefs/${requiredOption(rest, "--brief")}/queue/requeue`, {
+            method: "POST",
+            body: { sourceContentId: requiredOption(rest, "--content") },
+          }),
+        );
+      case "retention":
+        return await retention(rest);
       case "judge":
         return emit(await callRadar("/judgments", { method: "POST", body: await readJsonStdin() }));
       case "judgments":
@@ -168,10 +188,12 @@ async function main(argv: string[]): Promise<void> {
       case "skills":
         return skills(rest);
       case "discover":
-        return emit(await callRadar("/discover", {
-          method: "POST",
-          body: { url: positional(rest, "网址") },
-        }));
+        return emit(
+          await callRadar("/discover", {
+            method: "POST",
+            body: { url: positional(rest, "网址") },
+          }),
+        );
       case "rsshub":
         return await rsshub(rest);
       default:
@@ -334,9 +356,7 @@ async function push(argv: string[]): Promise<void> {
 async function collect(argv: string[]): Promise<void> {
   const endpointId = option(argv, "--endpoint");
   if (endpointId) {
-    return emit(
-      await callRadar(`/endpoints/${endpointId}/collect?force=true`, { method: "POST" }),
-    );
+    return emit(await callRadar(`/endpoints/${endpointId}/collect?force=true`, { method: "POST" }));
   }
   emit(await callRadar("/collect", { method: "POST" }));
 }
@@ -347,7 +367,12 @@ async function collect(argv: string[]): Promise<void> {
  */
 async function strategy(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
-  if (subcommand !== "set" && subcommand !== "show" && subcommand !== "revisions" && subcommand !== "stats") {
+  if (
+    subcommand !== "set" &&
+    subcommand !== "show" &&
+    subcommand !== "revisions" &&
+    subcommand !== "stats"
+  ) {
     fail("`radar strategy` 的子命令是 set / show / revisions / stats。");
   }
   const briefId = requiredOption(rest, "--brief");
@@ -368,6 +393,13 @@ async function strategy(argv: string[]): Promise<void> {
       },
     }),
   );
+}
+
+/** 不给 --days 就是问一句现在是多少天。 */
+async function retention(argv: string[]): Promise<void> {
+  const days = numberOption(argv, "--days", 1, 3_650);
+  if (days === undefined) return emit(await callRadar("/settings/retention"));
+  emit(await callRadar("/settings/retention", { method: "PUT", body: { days } }));
 }
 
 async function pending(argv: string[]): Promise<void> {
@@ -395,10 +427,12 @@ async function rsshub(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
   if (subcommand === "show") return emit(await callRadar("/settings/rsshub"));
   if (subcommand === "set") {
-    return emit(await callRadar("/settings/rsshub", {
-      method: "PUT",
-      body: { baseUrl: positional(rest, "RSSHub 地址") },
-    }));
+    return emit(
+      await callRadar("/settings/rsshub", {
+        method: "PUT",
+        body: { baseUrl: positional(rest, "RSSHub 地址") },
+      }),
+    );
   }
   if (subcommand === "clear") {
     return emit(await callRadar("/settings/rsshub", { method: "PUT", body: { baseUrl: "" } }));
@@ -493,7 +527,9 @@ async function exportBrief(argv: string[]): Promise<void> {
   const briefIds = requested
     ? [requested]
     : ((await callRadar("/briefs")) as Array<{ id: string }>).map((brief) => brief.id);
-  const root = resolve(option(argv, "--dir") ?? `radar-export-${briefIds.length === 1 ? briefIds[0] : "all"}`);
+  const root = resolve(
+    option(argv, "--dir") ?? `radar-export-${briefIds.length === 1 ? briefIds[0] : "all"}`,
+  );
 
   const written = [];
   for (const briefId of briefIds) {
@@ -545,7 +581,9 @@ function positional(argv: string[], label: string): string {
 
 /** 同一个选项给几次就收几个值：`--alias 甲 --alias 乙`。 */
 function listOption(argv: string[], flag: string): string[] {
-  return argv.flatMap((token, index) => (token === flag && argv[index + 1] ? [argv[index + 1]!] : []));
+  return argv.flatMap((token, index) =>
+    token === flag && argv[index + 1] ? [argv[index + 1]!] : [],
+  );
 }
 
 function numberOption(
