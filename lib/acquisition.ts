@@ -5,6 +5,7 @@ import {
   isBackingOff,
   isCollectable,
   listEndpoints,
+  UnknownEndpointError,
   type Endpoint,
 } from "./endpoints.js";
 import { fetchFeed, type FeedEntry } from "./feed.js";
@@ -31,7 +32,7 @@ export async function collectEndpoint(
   options: { force?: boolean } = {},
 ): Promise<AcquisitionResult> {
   const endpoint = getEndpoint(endpointId);
-  if (!endpoint) throw new Error(`找不到采集端点 ${endpointId}。`);
+  if (!endpoint) throw new UnknownEndpointError(endpointId);
 
   const skip = whyNotNow(endpoint, options.force === true);
   if (skip) return skipped(endpointId, skip);

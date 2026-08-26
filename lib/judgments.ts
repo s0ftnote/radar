@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { currentBriefRevision } from "./briefs.js";
 import { database, inTransaction } from "./database.js";
+import { RadarDomainError } from "./domain-error.js";
 import { getOpenQueueEntry } from "./queue.js";
 
 export type JudgmentSignal = {
@@ -42,10 +43,9 @@ export type RecordJudgmentInput = {
   idempotencyKey?: string;
 };
 
-export class QueueEntryConsumedError extends Error {
+export class QueueEntryConsumedError extends RadarDomainError {
   constructor() {
-    super("这个队列代次已经判过了。要重判须显式回捞，那会开一个新的代次。");
-    this.name = "QueueEntryConsumedError";
+    super("这个队列代次已经判过了。要重判须显式回捞，那会开一个新的代次。", 409);
   }
 }
 

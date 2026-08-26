@@ -1,17 +1,6 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { startFeedFixture, type FeedFixture } from "./support/feed-fixture.js";
-import {
-  delay,
-  radar,
-  radarJson,
-  startRadar,
-  stopRadar,
-  type RadarEnvironment,
-  type RunningRadar,
-} from "./support/radar-process.js";
+import { startHarness, waitForFirstCollection } from "./support/harness.js";
+import { delay, radar, radarJson } from "./support/radar-process.js";
 
 /**
  * 第一颗 tracer bullet：出厂端点自采 → 判断 → 反馈回到下一个工作包。
@@ -60,83 +49,6 @@ type Judgment = {
 
 const briefBody =
   "关注开发者反复表达、正在变化、可能还没被满足的需求与痛点。招聘、活动通知不算。";
-
-async function fixtureCatalog(
-  directory: string,
-  feed: FeedFixture,
-  collectionIntervalSeconds = 900,
-): Promise<string> {
-  const path = join(directory, "catalog.json");
-  await writeFile(
-    path,
-    JSON.stringify({
-      catalogVersion: 1,
-      channels: [
-        { id: "rss", name: "RSS / Atom", configState: "ready", collectionIntervalSeconds },
-      ],
-      endpoints: [
-        {
-          id: "fixture-alpha",
-          channelId: "rss",
-          name: "Fixture Alpha",
-          url: `${feed.url}/alpha`,
-          licenseBasis: { basis: "publisher-provided-feed", reference: `${feed.url}/terms` },
-        },
-        {
-          id: "fixture-beta",
-          channelId: "rss",
-          name: "Fixture Beta",
-          url: `${feed.url}/beta`,
-          licenseBasis: { basis: "publisher-provided-feed", reference: `${feed.url}/terms` },
-        },
-      ],
-    }),
-  );
-  return path;
-}
-
-type Harness = {
-  environment: RadarEnvironment;
-  feed: FeedFixture;
-  radarProcess: RunningRadar;
-  dispose(): Promise<void>;
-};
-
-async function startHarness(
-  label: string,
-  port: number,
-  collectionIntervalSeconds?: number,
-): Promise<Harness> {
-  const dataDirectory = await mkdtemp(join(tmpdir(), `radar-${label}-`));
-  const feed = await startFeedFixture();
-  const catalogPath = await fixtureCatalog(dataDirectory, feed, collectionIntervalSeconds);
-  const environment = { dataDirectory, catalogPath };
-  const radarProcess = await startRadar(dataDirectory, { port, catalogPath });
-  return {
-    environment,
-    feed,
-    radarProcess,
-    dispose: async () => {
-      await stopRadar(radarProcess);
-      await feed.close();
-      await rm(dataDirectory, { recursive: true, force: true });
-    },
-  };
-}
-
-/** 等首采落地：服务起来立刻首采，端点见过内容就算到位。 */
-async function waitForFirstCollection(environment: RadarEnvironment): Promise<Endpoint[]> {
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    const endpoints = await radarJson<Endpoint[]>(environment, ["sources"]);
-    if (endpoints.every((endpoint) => endpoint.status !== "recently_failed")) {
-      const runs = endpoints.filter((endpoint) => endpoint.id.startsWith("fixture-"));
-      if (runs.length === 2) return endpoints;
-    }
-    await delay(100);
-  }
-  throw new Error("等首采超时。");
-}
 
 test.describe("tracer bullet", () => {
   test.describe.configure({ mode: "serial" });

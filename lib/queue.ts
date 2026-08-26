@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { database } from "./database.js";
-import { listEndpointsVisibleToBrief } from "./endpoints.js";
+import { excludedFromBriefSql, listEndpointsToEnqueue } from "./endpoints.js";
 
 export type PendingContent = {
   /** 不可变的队列代次 id。`radar judge` 消费它，代次唯一约束挡下重复写回。 */
@@ -41,7 +41,7 @@ export function enqueueCurrentPage(briefId: string): number {
   const queuedAt = new Date().toISOString();
   let queued = 0;
 
-  for (const endpoint of listEndpointsVisibleToBrief(briefId)) {
+  for (const endpoint of listEndpointsToEnqueue()) {
     const fresh = db.prepare(
       `SELECT content.id FROM source_contents AS content
        WHERE content.endpoint_id = ?
@@ -75,12 +75,20 @@ export function enqueueForAllBriefs(): number {
 
 export function queueDepth(briefId: string): number {
   const row = database()
-    .prepare("SELECT COUNT(*) AS depth FROM queue_entries WHERE brief_id = ? AND closed_at IS NULL")
+    .prepare(
+      `SELECT COUNT(*) AS depth FROM queue_entries AS entry
+       JOIN source_contents AS content ON content.id = entry.source_content_id
+       WHERE entry.brief_id = ? AND entry.closed_at IS NULL
+         AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})`,
+    )
     .get(briefId) as { depth: number };
   return row.depth;
 }
 
 /**
+ * 被这个 Brief 排除掉的端点不出现在待判断里——排除是「这个 Brief 不看它」。
+ * 代次本身不删（ADR 0010：只排序不丢弃），重新纳入时它们照样回来。
+ *
  * 默认排序：纯新鲜度，再加一层确定性的端点轮转（修正后的 ADR 0010）。
  * 轮转由 Radar 固定实现、对所有 Brief 一致，不进排队策略——配额是跨端点的
  * 合并约束，不是单条内容的分值。
@@ -103,6 +111,7 @@ export function listPendingContents(briefId: string, limit: number): PendingCont
        JOIN source_contents AS content ON content.id = entry.source_content_id
        JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
        WHERE entry.brief_id = ? AND entry.closed_at IS NULL
+         AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})
      )
      -- 两步：先按纯新鲜度排，再套一层确定性端点轮转。轮次之内仍然是新鲜度说了算，
      -- 轮转只保证一个端点不会连着霸占开头（ADR 0010）。

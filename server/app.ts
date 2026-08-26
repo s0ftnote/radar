@@ -2,12 +2,30 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { collectAllEndpoints, collectEndpoint } from "../lib/acquisition.js";
-import { createBrief, getBrief, listBriefs } from "../lib/briefs.js";
+import {
+  createBrief,
+  getBrief,
+  listBriefRevisions,
+  listBriefs,
+  reviseBrief,
+} from "../lib/briefs.js";
 import { radarDataDirectory } from "../lib/data-directory.js";
-import { listEndpoints } from "../lib/endpoints.js";
+import {
+  listBriefExclusions,
+  listEndpoints,
+  registerUserEndpoint,
+  setBriefExclusion,
+  setUserDisabled,
+} from "../lib/endpoints.js";
 import { listFeedback, recordFeedback } from "../lib/feedback.js";
-import { listJudgments, QueueEntryConsumedError, recordJudgment } from "../lib/judgments.js";
+import { RadarDomainError } from "../lib/domain-error.js";
+import { listJudgments, recordJudgment } from "../lib/judgments.js";
 import { enqueueCurrentPage } from "../lib/queue.js";
+import {
+  listWatchedSubjects,
+  putWatchedSubject,
+  removeWatchedSubject,
+} from "../lib/watched-subjects.js";
 import {
   assembleWorkPackage,
   defaultWorkPackageLimit,
@@ -47,6 +65,28 @@ export function createRadarApp(): Hono {
     ),
   );
 
+  app.post("/endpoints", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() =>
+        registerUserEndpoint({
+          channelId: requiredText(body.channelId, "采集渠道 id"),
+          name: requiredText(body.name, "端点名字"),
+          url: requiredText(body.url, "端点地址"),
+        }),
+      ),
+      201,
+    );
+  });
+
+  // 实例级停用与 Brief 级排除是两个开关，互不覆盖。
+  app.post("/endpoints/:endpointId/enabled", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() => setUserDisabled(context.req.param("endpointId"), body.enabled === false)),
+    );
+  });
+
   app.post("/collect", async (context) => context.json(await collectAllEndpoints()));
 
   app.get("/briefs", (context) => context.json(listBriefs()));
@@ -79,6 +119,70 @@ export function createRadarApp(): Hono {
     // 工作包有上限：一次给多少由服务端说了算，客户端要不到无限长的一包。
     const limit = Math.min(requested, maximumWorkPackageLimit);
     return context.json(assembleWorkPackage(context.req.param("briefId"), limit));
+  });
+
+  app.post("/briefs/:briefId/revisions", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() =>
+        reviseBrief({
+          briefId: context.req.param("briefId"),
+          body: requiredText(body.body, "Brief 正文"),
+          rationale: requiredText(body.rationale, "改动依据"),
+        }),
+      ),
+      201,
+    );
+  });
+
+  app.get("/briefs/:briefId/revisions", (context) =>
+    context.json(listBriefRevisions(context.req.param("briefId"))),
+  );
+
+  app.get("/briefs/:briefId/subjects", (context) =>
+    context.json(listWatchedSubjects(context.req.param("briefId"))),
+  );
+
+  app.put("/briefs/:briefId/subjects", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() =>
+        putWatchedSubject({
+          briefId: context.req.param("briefId"),
+          name: requiredText(body.name, "关注对象的名字"),
+          renameTo: typeof body.renameTo === "string" ? body.renameTo : undefined,
+          aliases: textList(body.aliases),
+          endpointIds: textList(body.endpointIds),
+        }),
+      ),
+    );
+  });
+
+  app.delete("/briefs/:briefId/subjects/:name", (context) => {
+    domainCall(() =>
+      removeWatchedSubject(
+        context.req.param("briefId"),
+        decodeURIComponent(context.req.param("name")),
+      ),
+    );
+    return context.body(null, 204);
+  });
+
+  app.get("/briefs/:briefId/exclusions", (context) =>
+    context.json(listBriefExclusions(context.req.param("briefId"))),
+  );
+
+  app.post("/briefs/:briefId/exclusions", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    domainCall(() =>
+      setBriefExclusion(
+        context.req.param("briefId"),
+        requiredText(body.endpointId, "采集端点 id"),
+        body.excluded !== false,
+        typeof body.reason === "string" ? body.reason : undefined,
+      ),
+    );
+    return context.json(listBriefExclusions(context.req.param("briefId")));
   });
 
   app.get("/briefs/:briefId/judgments", (context) =>
@@ -124,8 +228,8 @@ export function createRadarApp(): Hono {
 
   app.onError((error, context) => {
     if (error instanceof HTTPException) return context.json({ error: error.message }, error.status);
-    if (error instanceof QueueEntryConsumedError) {
-      return context.json({ error: error.message }, 409);
+    if (error instanceof RadarDomainError) {
+      return context.json({ error: error.message }, error.httpStatus);
     }
     console.error("[Radar]", error);
     return context.json({ error: "Radar 服务内部错误。" }, 500);
@@ -164,7 +268,7 @@ function domainCall<T>(run: () => T): T {
   try {
     return run();
   } catch (error) {
-    if (error instanceof HTTPException || error instanceof QueueEntryConsumedError) throw error;
+    if (error instanceof HTTPException || error instanceof RadarDomainError) throw error;
     throw new HTTPException(400, {
       message: error instanceof Error ? error.message : String(error),
     });
