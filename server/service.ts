@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import type { Server } from "node:http";
 import { closeDatabase, database } from "../lib/database.js";
 import { radarDataDirectory } from "../lib/data-directory.js";
-import { factoryCatalogPath, installFactoryCatalog, readFactoryCatalog } from "../lib/catalog.js";
+import { factoryCatalogPath, reconcileFactoryCatalog, readFactoryCatalog } from "../lib/catalog.js";
 import { createRadarApp } from "./app.js";
 import { packageRoot } from "./package-root.js";
 import { startScheduler, type Scheduler } from "./scheduler.js";
@@ -22,8 +22,8 @@ export async function startRadarService(options: { port?: number } = {}): Promis
   let scheduler: Scheduler;
   try {
     database();
-    // 出厂来源目录随版本走，不在线拉取（ADR 0014）。
-    installFactoryCatalog(readFactoryCatalog(factoryCatalogPath(packageRoot())));
+    // 出厂来源目录随版本走，不在线拉取；版本号一变就静默对账（ADR 0014）。
+    reconcileFactoryCatalog(readFactoryCatalog(factoryCatalogPath(packageRoot())));
     server = await listen(requestedPort);
     scheduler = startScheduler();
   } catch (error) {
