@@ -2,6 +2,7 @@
 import { radarDataDirectory } from "../lib/data-directory.js";
 import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
 import { callRadar, readStdin } from "./client.js";
+import { defaultSkillsTarget, installSkills } from "./skills.js";
 import { radarVersion } from "../server/version.js";
 
 const usage = `radar — 本地信号聚合站
@@ -83,6 +84,12 @@ Brief
   radar feedback --brief <id> [--judgment <id>] --disposition <标签>
                                   写回用户明说的反馈，正文从 stdin 读
 
+Skill
+  radar skills install [--dir <目录>]
+                                  把随本版 Radar 来的三份 Skill 装进你的 Agent，
+                                  默认 ~/.claude/skills，幂等覆盖。也可以
+                                  npx skills add s0ftnote/radar
+
 其他
   radar --help / --version
 
@@ -137,6 +144,8 @@ async function main(argv: string[]): Promise<void> {
         return await deliver(rest);
       case "feedback":
         return await feedback(rest);
+      case "skills":
+        return skills(rest);
       default:
         fail(`不认识的命令 \`${command}\`。用 \`radar --help\` 看命令面。`);
     }
@@ -348,6 +357,20 @@ async function pending(argv: string[]): Promise<void> {
 /** 去处是用户自己起的标签，可能带斜杠或空格，进 URL 路径前必须编码。 */
 function destinationSegment(argv: string[]): string {
   return encodeURIComponent(requiredOption(argv, "--to"));
+}
+
+/**
+ * 把随本版 Radar 来的三份 Skill 装进用户的 Agent。装完用户就只跟 Agent 说话，
+ * 不用再直接跟 `radar` 打交道（ADR 0012）。
+ */
+function skills(argv: string[]): void {
+  const [subcommand, ...rest] = argv;
+  if (subcommand !== "install") fail("`radar skills` 的子命令是 install。");
+
+  const target = option(rest, "--dir") ?? defaultSkillsTarget();
+  const installed = installSkills(target);
+  process.stdout.write(`装好 ${installed.length} 份 Skill 到 ${target}：\n`);
+  for (const name of installed) process.stdout.write(`  ${name}\n`);
 }
 
 async function deliver(argv: string[]): Promise<void> {

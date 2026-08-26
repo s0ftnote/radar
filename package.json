@@ -14,7 +14,8 @@
     "dist",
     "assets",
     "data",
-    "README.md"
+    "README.md",
+    "skills"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
