@@ -23,6 +23,12 @@ import {
   setUserDisabled,
 } from "../lib/endpoints.js";
 import { listFeedback, recordFeedback } from "../lib/feedback.js";
+import {
+  listDeliveries,
+  markDelivered,
+  takeForDelivery,
+  unmarkDelivered,
+} from "../lib/deliveries.js";
 import { RadarDomainError } from "../lib/domain-error.js";
 import { listJudgments, recordJudgment } from "../lib/judgments.js";
 import { enqueueCurrentPage } from "../lib/queue.js";
@@ -235,6 +241,55 @@ export function createRadarApp(): Hono {
     context.json(strategyStats(context.req.param("briefId"))),
   );
 
+  // 取数角色：取还没送到某个去处的判断，送完显式标记。
+  app.get("/briefs/:briefId/deliveries/:destination/pending", (context) => {
+    const requested = Number(context.req.query("limit") ?? defaultWorkPackageLimit);
+    if (!Number.isInteger(requested) || requested < 1) {
+      throw new HTTPException(400, { message: "`limit` 需要一个正整数。" });
+    }
+    return context.json(
+      takeForDelivery({
+        briefId: context.req.param("briefId"),
+        destination: decodeURIComponent(context.req.param("destination")),
+        since: context.req.query("since"),
+        until: context.req.query("until"),
+        relatedTo: context.req.query("relatedTo"),
+        limit: Math.min(requested, maximumWorkPackageLimit),
+      }),
+    );
+  });
+
+  app.get("/briefs/:briefId/deliveries", (context) =>
+    context.json(
+      listDeliveries(context.req.param("briefId"), context.req.query("destination")),
+    ),
+  );
+
+  app.post("/briefs/:briefId/deliveries", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() =>
+        markDelivered({
+          judgmentId: requiredText(body.judgmentId, "判断 id"),
+          destination: requiredText(body.destination, "交付去处"),
+          externalReference:
+            typeof body.externalReference === "string" ? body.externalReference : undefined,
+        }),
+      ),
+      201,
+    );
+  });
+
+  app.delete("/briefs/:briefId/deliveries/:destination/:judgmentId", (context) => {
+    domainCall(() =>
+      unmarkDelivered(
+        context.req.param("judgmentId"),
+        decodeURIComponent(context.req.param("destination")),
+      ),
+    );
+    return context.body(null, 204);
+  });
+
   app.get("/briefs/:briefId/judgments", (context) =>
     context.json(listJudgments(context.req.param("briefId"))),
   );
@@ -269,6 +324,7 @@ export function createRadarApp(): Hono {
         whyForYou: requiredText(body.whyForYou, relevant ? "「为什么给你」" : "淘汰理由"),
         judgedBy: requiredText(body.judgedBy, "判断者"),
         signalContentIds: textList(body.signalContentIds),
+        relatedJudgmentIds: textList(body.relatedJudgmentIds),
         idempotencyKey:
           typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined,
       }),
