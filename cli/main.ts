@@ -45,11 +45,16 @@ Brief
                                   端点须在「配置后解锁」渠道下，Radar 不自采它
                                   必须带正文——只推地址不算完整的推送
   radar discover <网址>            粘一个网址，尽力把它变成可订阅的端点。依次
-                                  试 RSSHub 规则、页面自带的 feed、认得该域名的
-                                  适配器；都不中就明说够不着，不去抓 HTML。
-                                  可能给出多条候选，挑一条 sources add 进来
-  radar rsshub set <地址>          你自己那台 RSSHub 的地址。不填就跳过 RSSHub
-                                  那一步匹配，Radar 不替你找一台公共实例。
+                                  试 RSSHub 规则、页面自带的 feed、约定路径
+                                  （/feed、/rss.xml 那几个）、认得该域名的适配器
+                                  （GitHub、YouTube、V2EX、Substack、Medium、
+                                  Reddit）；都不中就明说够不着，不去抓 HTML。
+                                  可能给出多条候选，挑一条 sources add 进来。
+                                  标着 needs=rsshub 的那种，得先有一台 RSSHub
+  radar rsshub set <地址>          你自己那台 RSSHub 的地址。没填也照样列出匹配
+                                  到的路由，只是订阅不了——Radar 不替你找一台
+                                  公共实例。自己起一台：
+                                  docker run -d --name rsshub -p 1200:1200 diygod/rsshub
                                   规则每天从你那台刷新，只在粘网址那一刻用一次
   radar rsshub show | clear
   radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
@@ -188,7 +193,7 @@ async function main(argv: string[]): Promise<void> {
       case "skills":
         return skills(rest);
       case "discover":
-        return emit(
+        return discovered(
           await callRadar("/discover", {
             method: "POST",
             body: { url: positional(rest, "网址") },
@@ -423,6 +428,24 @@ function destinationSegment(argv: string[]): string {
  * 唯一那处实例级设置：你的 RSSHub 地址。不填就跳过 RSSHub 那一步匹配——
  * Radar 不替你找一台公共实例。
  */
+/**
+ * 候选照常是 stdout 上那段 JSON（Agent 读的就是它）。规则匹上了但用户还没有
+ * 一台 RSSHub 的，另在 stderr 上说一句——不然那条候选的 `feedUrl` 是一段路由，
+ * 用户会以为 Radar 给了个坏地址。
+ */
+function discovered(payload: unknown): void {
+  emit(payload);
+  const needingRsshub = Array.isArray(payload)
+    ? payload.filter((candidate) => (candidate as { needs?: string }).needs === "rsshub")
+    : [];
+  if (needingRsshub.length === 0) return;
+  process.stderr.write(
+    `其中 ${needingRsshub.length} 条需要一台 RSSHub 实例：给的是路由不是地址，` +
+      "`radar rsshub set <地址>` 填上你自己那台再来一次。" +
+      "自己起一台：docker run -d --name rsshub -p 1200:1200 diygod/rsshub\n",
+  );
+}
+
 async function rsshub(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
   if (subcommand === "show") return emit(await callRadar("/settings/rsshub"));

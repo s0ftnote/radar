@@ -162,17 +162,32 @@ function renderAddSource(discovery: DiscoveryPanel | undefined): Html {
       </section>`;
 }
 
+const viaLabels: Record<Candidate["via"], string> = {
+  "rsshub": "RSSHub 路由",
+  "page-feed": "站点自己声明的",
+  "well-known-path": "约定路径上探到的",
+  "channel-adapter": "渠道适配器",
+};
+
+/**
+ * 候选带上「怎么来的」，用户挑的时候看得见依据。差一台 RSSHub 实例的那种
+ * 照样列出来，但加不进来——先把地址填在下面那处设置里。
+ */
 function renderCandidate(candidate: Candidate): Html {
   return html`<li class="candidate">
             <div class="source-main">
               <span class="source-name">${candidate.name}</span>
               <span class="source-url">${candidate.feedUrl}</span>
+              <span class="source-note">${viaLabels[candidate.via]}</span>
             </div>
-            <form class="source-action" method="post" action="/sources/add">
+            ${candidate.needs === "rsshub"
+              ? html`<span class="source-note">需要一台 RSSHub 实例</span>`
+              : html`<form class="source-action" method="post" action="/sources/add">
               <input type="hidden" name="name" value="${candidate.name}" />
               <input type="hidden" name="url" value="${candidate.feedUrl}" />
+              <input type="hidden" name="channelId" value="${candidate.channelId}" />
               <button type="submit">加进来</button>
-            </form>
+            </form>`}
           </li>`;
 }
 
@@ -181,7 +196,9 @@ function renderRsshubSetting(baseUrl: string | null): Html {
   return html`<section class="panel">
         <h2 class="panel-title">你的 RSSHub 地址</h2>
         <p class="source-note">
-          不填就跳过 RSSHub 那一步匹配。规则只在粘网址那一刻用一次，加进来的端点跟它没有关系。
+          没填也照样列出匹配到的路由，只是订阅不了——Radar 不替你找一台公共实例。自己起一台：
+          <code>docker run -d --name rsshub -p 1200:1200 diygod/rsshub</code>。规则只在粘网址那一刻
+          用一次，加进来的端点跟它没有关系。
         </p>
         <form class="paste" method="post" action="/settings/rsshub">
           <input type="url" name="baseUrl" placeholder="https://rsshub.example" value="${baseUrl ?? ""}" />
