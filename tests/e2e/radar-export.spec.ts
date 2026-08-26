@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
 import { radar, radarJson, stopRadar } from "./support/radar-process.js";
 
 /**
@@ -32,17 +32,9 @@ test.describe("完整导出", () => {
     const outputDirectory = await mkdtemp(join(tmpdir(), "radar-export-out-"));
     try {
       await waitForFirstCollection(harness.environment);
-      const brief = await radarJson<{ id: string }>(
-        harness.environment,
-        ["brief", "create", "--name", "Demand Radar"],
-        "关注开发者反复抱怨、还没被满足的痛点。",
-      );
+      const brief = await createBriefWithAllSources<{ id: string }>(harness.environment, "Demand Radar", "关注开发者反复抱怨、还没被满足的痛点。");
       // 另一条 Brief 也在同一个实例里判着东西——它不该出现在这份档案里。
-      const other = await radarJson<{ id: string }>(
-        harness.environment,
-        ["brief", "create", "--name", "别的关注线"],
-        "另一条完全无关的关注线。",
-      );
+      const other = await createBriefWithAllSources<{ id: string }>(harness.environment, "别的关注线", "另一条完全无关的关注线。");
 
       const work = await radarJson<WorkPackage>(harness.environment, ["pending", "--brief", brief.id]);
       const pain = work.pendingContents.find((content) => content.title.includes("证据留不住"))!;
@@ -152,12 +144,8 @@ test.describe("完整导出", () => {
     const harness = await startHarness("export-all", 33211);
     const outputDirectory = await mkdtemp(join(tmpdir(), "radar-export-all-"));
     try {
-      const first = await radarJson<{ id: string }>(
-        harness.environment, ["brief", "create", "--name", "第一条线"], "第一条线的正文。",
-      );
-      const second = await radarJson<{ id: string }>(
-        harness.environment, ["brief", "create", "--name", "第二条线"], "第二条线的正文。",
-      );
+      const first = await createBriefWithAllSources<{ id: string }>(harness.environment, "第一条线", "第一条线的正文。");
+      const second = await createBriefWithAllSources<{ id: string }>(harness.environment, "第二条线", "第二条线的正文。");
 
       const written = await radarJson<Array<{ brief: string; machineReadable: string }>>(
         harness.environment, ["export", "--dir", outputDirectory],

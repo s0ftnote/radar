@@ -20,6 +20,8 @@ export type Endpoint = {
   name: string;
   url: string;
   provenance: "factory" | "user";
+  /** 出厂目录给的主题标签。建 Brief 时按它挑源，Radar 不解释它，只显示。 */
+  topics: string[];
   licenseBasis: unknown;
   userDisabledAt: string | null;
   retiredAt: string | null;
@@ -32,6 +34,8 @@ export type Endpoint = {
   retryAfter: string | null;
   lastPushAt: string | null;
   collectingSince: string | null;
+  /** 哪几条 Brief 把它纳入了。实例级采集与这个无关（ADR 0018）。 */
+  includedInBriefs: Array<{ briefId: string; briefName: string }>;
 };
 
 type EndpointRow = {
@@ -43,6 +47,7 @@ type EndpointRow = {
   name: string;
   url: string;
   provenance: "factory" | "user";
+  topics: string;
   license_basis: string | null;
   user_disabled_at: string | null;
   retired_at: string | null;
@@ -64,16 +69,36 @@ const endpointSelection = `
 `;
 
 export function listEndpoints(): Endpoint[] {
-  return (database().prepare(`${endpointSelection} ORDER BY endpoint.id`).all() as EndpointRow[]).map(
-    mapEndpoint,
-  );
+  const included = inclusionsByEndpoint();
+  return (
+    database().prepare(`${endpointSelection} ORDER BY endpoint.id`).all() as EndpointRow[]
+  ).map((row) => mapEndpoint(row, included.get(row.id) ?? []));
 }
 
 export function getEndpoint(id: string): Endpoint | null {
   const row = database().prepare(`${endpointSelection} WHERE endpoint.id = ?`).get(id) as
     | EndpointRow
     | undefined;
-  return row ? mapEndpoint(row) : null;
+  return row ? mapEndpoint(row, inclusionsByEndpoint().get(row.id) ?? []) : null;
+}
+
+/** 一次取回全部纳入关系，不按端点发查询。 */
+function inclusionsByEndpoint(): Map<string, Array<{ briefId: string; briefName: string }>> {
+  const rows = database()
+    .prepare(
+      `SELECT inclusion.endpoint_id, inclusion.brief_id, brief.name AS brief_name
+         FROM brief_endpoint_inclusions AS inclusion
+         JOIN briefs AS brief ON brief.id = inclusion.brief_id
+        ORDER BY brief.created_at`,
+    )
+    .all() as Array<{ endpoint_id: string; brief_id: string; brief_name: string }>;
+  const byEndpoint = new Map<string, Array<{ briefId: string; briefName: string }>>();
+  for (const row of rows) {
+    const list = byEndpoint.get(row.endpoint_id) ?? [];
+    list.push({ briefId: row.brief_id, briefName: row.brief_name });
+    byEndpoint.set(row.endpoint_id, list);
+  }
+  return byEndpoint;
 }
 
 /**
@@ -109,16 +134,16 @@ export function isBackingOff(endpoint: Endpoint, now = new Date()): boolean {
 }
 
 /**
- * 「被这个 Brief 排除掉」的唯一定义，给 SQL 用。`brief_id` 由调用处提供，
+ * 「被这个 Brief 纳入」的唯一定义，给 SQL 用。`brief_id` 由调用处提供，
  * 让 queue.ts 里的查询和这里说的是同一件事。
  */
-export const excludedFromBriefSql = (briefIdExpression: string): string =>
-  `SELECT endpoint_id FROM brief_endpoint_exclusions WHERE brief_id = ${briefIdExpression}`;
+export const includedInBriefSql = (briefIdExpression: string): string =>
+  `SELECT endpoint_id FROM brief_endpoint_inclusions WHERE brief_id = ${briefIdExpression}`;
 
 /**
- * 这个 Brief 要入队的端点：实例级开着就入。**排除不在这里生效**——排除是读侧
- * 的事。入队时就把它挡掉会让排除期间的内容从来没入过队，取消排除也回不来，
- * 那就是丢弃了（ADR 0010：只排序不丢弃）。
+ * 这个 Brief 要入队的端点：实例级开着就入。**纳入不在这里生效**——纳入是读侧
+ * 的事。入队时就把它挡掉会让没纳入那段时间的内容从来没入过队，之后纳入它也
+ * 回不来，那就是丢弃了（ADR 0010：只排序不丢弃）。
  */
 export function listEndpointsToEnqueue(): Endpoint[] {
   return listEndpoints().filter(isEnabled);
@@ -162,46 +187,70 @@ export function setUserDisabled(endpointId: string, disabled: boolean): Endpoint
   return getEndpoint(endpointId)!;
 }
 
-/** Brief 级排除：这个 Brief 不看它，其他 Brief 照采。 */
-export function setBriefExclusion(
+/**
+ * Brief 级纳入：这条 Brief 只看它纳入的端点，实例级采集照旧（ADR 0018）。
+ * 移出只是这条 Brief 不再看它——代次不删，重新纳入时原样回来。
+ */
+export function setBriefInclusion(
   briefId: string,
   endpointId: string,
-  excluded: boolean,
+  included: boolean,
   reason?: string,
 ): void {
   const db = database();
-  if (!excluded) {
+  if (!included) {
     db.prepare(
-      "DELETE FROM brief_endpoint_exclusions WHERE brief_id = ? AND endpoint_id = ?",
+      "DELETE FROM brief_endpoint_inclusions WHERE brief_id = ? AND endpoint_id = ?",
     ).run(briefId, endpointId);
     return;
   }
   if (!getEndpoint(endpointId)) throw new UnknownEndpointError(endpointId);
   db.prepare(
-    `INSERT INTO brief_endpoint_exclusions (brief_id, endpoint_id, excluded_at, reason)
+    `INSERT INTO brief_endpoint_inclusions (brief_id, endpoint_id, included_at, reason)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(brief_id, endpoint_id) DO UPDATE SET reason = excluded.reason`,
   ).run(briefId, endpointId, new Date().toISOString(), reason ?? null);
 }
 
-export function listBriefExclusions(
+/** 这条 Brief 纳入了哪些端点。带上名字与 topics，省得再查一遍来源。 */
+export function listBriefInclusions(
   briefId: string,
-): Array<{ endpointId: string; excludedAt: string; reason: string | null }> {
+): Array<{
+  endpointId: string;
+  name: string;
+  topics: string[];
+  includedAt: string;
+  reason: string | null;
+}> {
   const rows = database()
     .prepare(
-      `SELECT endpoint_id, excluded_at, reason FROM brief_endpoint_exclusions
-       WHERE brief_id = ? ORDER BY endpoint_id`,
+      `SELECT inclusion.endpoint_id, endpoint.name, endpoint.topics, inclusion.included_at,
+              inclusion.reason
+         FROM brief_endpoint_inclusions AS inclusion
+         JOIN endpoints AS endpoint ON endpoint.id = inclusion.endpoint_id
+        WHERE inclusion.brief_id = ? ORDER BY inclusion.endpoint_id`,
     )
-    .all(briefId) as Array<{ endpoint_id: string; excluded_at: string; reason: string | null }>;
+    .all(briefId) as Array<{
+    endpoint_id: string;
+    name: string;
+    topics: string;
+    included_at: string;
+    reason: string | null;
+  }>;
   return rows.map((row) => ({
     endpointId: row.endpoint_id,
-    excludedAt: row.excluded_at,
+    name: row.name,
+    topics: JSON.parse(row.topics) as string[],
+    includedAt: row.included_at,
     reason: row.reason,
   }));
 }
 
 
-function mapEndpoint(row: EndpointRow): Endpoint {
+function mapEndpoint(
+  row: EndpointRow,
+  includedInBriefs: Array<{ briefId: string; briefName: string }>,
+): Endpoint {
   return {
     id: row.id,
     channelId: row.channel_id,
@@ -211,6 +260,7 @@ function mapEndpoint(row: EndpointRow): Endpoint {
     name: row.name,
     url: row.url,
     provenance: row.provenance,
+    topics: JSON.parse(row.topics) as string[],
     licenseBasis: row.license_basis ? (JSON.parse(row.license_basis) as unknown) : null,
     userDisabledAt: row.user_disabled_at,
     retiredAt: row.retired_at,
@@ -223,6 +273,7 @@ function mapEndpoint(row: EndpointRow): Endpoint {
     retryAfter: row.retry_after,
     lastPushAt: row.last_push_at,
     collectingSince: row.collecting_since,
+    includedInBriefs,
   };
 }
 

@@ -118,6 +118,16 @@ code {
 
 .source-channel,
 .source-note { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+.source-topics { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+
+.topic {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+}
 .source-note.is-error { color: var(--error); }
 
 .status {

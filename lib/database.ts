@@ -62,6 +62,8 @@ function initializeSchema(db: DatabaseSync): void {
       provenance TEXT NOT NULL CHECK (provenance IN ('factory', 'user')),
       -- 机器可读的许可依据。出厂端点必填：目录准入第一条就是「许可允许机器读取」。
       license_basis TEXT,
+      -- 出厂目录给的主题标签，JSON 数组。建 Brief 时按它挑源，Radar 不解释它。
+      topics TEXT NOT NULL DEFAULT '[]',
       -- 停用有两个互不覆盖的来源：人写下的决定（用户停用）与目录写下的决定（退役）。
       -- 共用一个字段会让升级对账把用户手动停掉的源重新打开。
       user_disabled_at TEXT,
@@ -98,7 +100,6 @@ function initializeSchema(db: DatabaseSync): void {
       UNIQUE (brief_id, revision_number)
     ) STRICT;
 
-    -- Brief 级排除：这个 Brief 不看它，其他 Brief 照采。
     -- 关注对象：Brief 内部的一行书签。名字 + 用于机械匹配的别名 + 关联采集端点。
     -- Radar 不核对身份、不区分人与组织——「什么算这个对象的实质出场」写在 Brief 正文里。
     -- 只有用户明确的自然语言修正才能增删，Radar 与 Agent 都不能自动加入。
@@ -123,10 +124,12 @@ function initializeSchema(db: DatabaseSync): void {
       PRIMARY KEY (subject_id, endpoint_id)
     ) STRICT;
 
-    CREATE TABLE IF NOT EXISTS brief_endpoint_exclusions (
+    -- Brief 级纳入：一条 Brief 只看它纳入的端点（ADR 0018）。实例级采集不看这张表，
+    -- 所有启用端点照常采——纳入决定的是这条 Brief 的待判断队列里有什么。
+    CREATE TABLE IF NOT EXISTS brief_endpoint_inclusions (
       brief_id TEXT NOT NULL REFERENCES briefs(id),
       endpoint_id TEXT NOT NULL REFERENCES endpoints(id),
-      excluded_at TEXT NOT NULL,
+      included_at TEXT NOT NULL,
       reason TEXT,
       PRIMARY KEY (brief_id, endpoint_id)
     ) STRICT;

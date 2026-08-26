@@ -83,6 +83,9 @@ radar rsshub set http://localhost:1200
 采得多是常态，判得完不是。Radar 按你下发的打分公式排序，从不因为排在后面就丢掉；超过保留
 窗口（默认 30 天）还没判断的移出待判断队列，但一行都不删，`radar requeue` 随时捞回来重判。
 
+**一条 Brief 只看它纳入的端点**——采集是实例级的，队列是 Brief 级的：建 Brief 时按需求挑一批
+端点纳入，没纳入的照采，只是不进这条 Brief 的队列。
+
 ## 操作面是 CLI
 
 Radar 交给 Agent 的唯一操作面是 `radar` 命令，不是 MCP，也不是 HTTP。CLI 是本地服务的瘦

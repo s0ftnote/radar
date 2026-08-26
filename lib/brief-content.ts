@@ -1,5 +1,5 @@
 import { database } from "./database.js";
-import { excludedFromBriefSql } from "./endpoints.js";
+import { includedInBriefSql } from "./endpoints.js";
 import { groupBy } from "./group-by.js";
 
 /**
@@ -95,8 +95,8 @@ const judgedSelection = `
 `;
 
 /**
- * 还没判的：队列里开着的代次，减掉这个 Brief 排除掉的端点——排除是读侧的事，
- * 页面是读侧，所以这里生效（ADR 0010）。判过的内容代次已经关了，不会重复出现。
+ * 还没判的：队列里开着的代次，只留这个 Brief 纳入的端点——纳入是读侧的事，
+ * 页面是读侧，所以这里生效（ADR 0018）。判过的内容代次已经关了，不会重复出现。
  */
 const pendingSelection = `
   SELECT content.id AS source_content_id, content.title, content.origin_url,
@@ -106,7 +106,7 @@ const pendingSelection = `
     JOIN source_contents AS content ON content.id = entry.source_content_id
     JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
    WHERE entry.brief_id = :briefId AND entry.closed_at IS NULL
-     AND content.endpoint_id NOT IN (${excludedFromBriefSql(":briefId")})
+     AND content.endpoint_id IN (${includedInBriefSql(":briefId")})
 `;
 
 export function listBriefContent(filters: ContentFilters, limit = 200): ContentItem[] {

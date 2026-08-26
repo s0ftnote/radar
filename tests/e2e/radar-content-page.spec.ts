@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection, type Harness } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection, type Harness } from "./support/harness.js";
 import { radarJson } from "./support/radar-process.js";
 
 /**
@@ -31,11 +31,7 @@ test.describe("内容页", () => {
     origin = `http://127.0.0.1:${harness.radarProcess.port}`;
     await waitForFirstCollection(harness.environment);
 
-    brief = await radarJson<Brief>(
-      harness.environment,
-      ["brief", "create", "--name", "开发者的痛点"],
-      "关注开发者反复抱怨、又没被满足的痛点。",
-    );
+    brief = await createBriefWithAllSources<Brief>(harness.environment, "开发者的痛点", "关注开发者反复抱怨、又没被满足的痛点。");
     // 两条判断故意取自不同端点，来源筛选那条用例才有东西可筛。
     const work = await radarJson<WorkPackage>(harness.environment, ["pending", "--brief", brief.id]);
     kept = work.pendingContents.find((each) => each.endpointId === "fixture-alpha")!;
@@ -163,10 +159,13 @@ test.describe("内容页", () => {
   test("原文地址不是 http(s) 就不给链接——标题还在，只是点不动", async () => {
     // 推送来的内容由用户自己的 Agent 采（ADR 0011），地址是第三方给的。
     // 转义挡得住把标签写进属性值，挡不住 `javascript:`。
+    // 登记的同时纳入这条 Brief——不纳入的话，推来的内容不进它的队列（ADR 0018）。
     const endpoint = await radarJson<Endpoint>(harness.environment, [
       "sources", "add", "--channel", "agent-push",
       "--name", "推送来的板块", "--url", "https://example.invalid/pushed",
+      "--brief", brief.id,
     ]);
+    expect(endpoint.includedInBriefs.map((each) => each.briefId)).toEqual([brief.id]);
     await radarJson(
       harness.environment,
       ["push", "--endpoint", endpoint.id],

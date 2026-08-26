@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
 import { delay, radar, radarJson, repositoryRoot, stopRadar } from "./support/radar-process.js";
 
 /**
@@ -122,9 +122,7 @@ test.describe("三份 Skill 与安装", () => {
 
       // —— 第一周期 ——
       // 管家：建 Brief，建完立刻催一次采集。
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       expect((await radar(environment, ["collect"])).code).toBe(0);
 
       // 判断：取工作包，逐条判断。
@@ -193,9 +191,7 @@ test.describe("三份 Skill 与安装", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const workPackage = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const [first, second] = workPackage.pendingContents;
 

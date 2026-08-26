@@ -18,7 +18,7 @@ Brief
   radar brief create --name <名字>
                                   建 Brief，正文从 stdin 读
   radar brief list                列出所有 Brief
-  radar brief show <briefId>      看一个 Brief 的当前修订
+  radar brief show <briefId>      看一个 Brief 的当前修订，以及它纳入了哪些端点
   radar brief revise <briefId> --rationale <依据>
                                   改正文，形成新修订，正文从 stdin 读
   radar brief revisions <briefId> 列出全部修订，历史版本一并保留
@@ -32,22 +32,28 @@ Brief
   radar subject remove --brief <id> --name <名字>
 
 采集
-  radar sources                   列出采集端点与来源状态
-  radar sources add --channel <id> --name <名字> --url <地址>
-                                  登记自己的端点，标成 user 来源
+  radar sources                   列出采集端点、它们的 topics、来源状态，以及各自
+                                  已被哪些 Brief 纳入
+  radar sources add --channel <id> --name <名字> --url <地址> [--brief <id>]
+                                  登记自己的端点，标成 user 来源；带 --brief 就在
+                                  登记的同时纳入那条 Brief
   radar sources disable|enable <endpointId>
                                   实例级：Radar 真的不再采它 / 恢复采集
-  radar sources exclude|include <endpointId> --brief <id> [--reason <理由>]
-                                  Brief 级：只是这个 Brief 不看它，其他 Brief 照采
-  radar sources exclusions --brief <id>
+  radar sources include|remove <endpointId> --brief <id> [--reason <理由>]
+                                  Brief 级：一条 Brief 只看它纳入的端点。移出只是
+                                  这条 Brief 不再看它，实例级照采，别的 Brief 不受
+                                  影响，重新纳入时早先的内容原样回来
   radar push --endpoint <id>      Agent 把采来的内容推给这个端点，JSON 从 stdin 读：
                                   [{ externalId, title, originUrl, body, publishedAt? }, …]
                                   端点须在「配置后解锁」渠道下，Radar 不自采它
                                   必须带正文——只推地址不算完整的推送
-  radar discover <网址>            粘一个网址，尽力把它变成可订阅的端点。依次
+  radar discover <网址> [--brief <id>]
+                                  粘一个网址，尽力把它变成可订阅的端点。依次
                                   试 RSSHub 规则、页面自带的 feed、认得该域名的
                                   适配器；都不中就明说够不着，不去抓 HTML。
-                                  可能给出多条候选，挑一条 sources add 进来
+                                  可能给出多条候选，挑一条 sources add 进来；
+                                  只有一条候选又带了 --brief 时没什么可挑的，
+                                  直接登记并纳入那条 Brief
   radar rsshub set <地址>          你自己那台 RSSHub 的地址。不填就跳过 RSSHub
                                   那一步匹配，Radar 不替你找一台公共实例。
                                   规则每天从你那台刷新，只在粘网址那一刻用一次
@@ -188,12 +194,7 @@ async function main(argv: string[]): Promise<void> {
       case "skills":
         return skills(rest);
       case "discover":
-        return emit(
-          await callRadar("/discover", {
-            method: "POST",
-            body: { url: positional(rest, "网址") },
-          }),
-        );
+        return await discover(rest);
       case "rsshub":
         return await rsshub(rest);
       default:
@@ -275,11 +276,12 @@ async function sources(argv: string[]): Promise<void> {
           channelId: requiredOption(rest, "--channel"),
           name: requiredOption(rest, "--name"),
           url: requiredOption(rest, "--url"),
+          briefId: option(rest, "--brief"),
         },
       }),
     );
   }
-  // 实例级：Radar 真的不再采它。跟 Brief 级排除是两个开关。
+  // 实例级：Radar 真的不再采它。跟 Brief 级纳入是两个开关。
   if (subcommand === "disable" || subcommand === "enable") {
     return emit(
       await callRadar(`/endpoints/${positional(rest, "endpointId")}/enabled`, {
@@ -288,25 +290,44 @@ async function sources(argv: string[]): Promise<void> {
       }),
     );
   }
-  // Brief 级：只是这个 Brief 不看它，其他 Brief 照采。
-  if (subcommand === "exclude" || subcommand === "include") {
+  // Brief 级：这条 Brief 只看它纳入的端点，实例级采集不受影响。
+  if (subcommand === "include" || subcommand === "remove") {
     const briefId = requiredOption(rest, "--brief");
     const reason = option(rest, "--reason");
     return emit(
-      await callRadar(`/briefs/${briefId}/exclusions`, {
+      await callRadar(`/briefs/${briefId}/inclusions`, {
         method: "POST",
         body: {
           endpointId: positional(rest, "endpointId"),
-          excluded: subcommand === "exclude",
+          included: subcommand === "include",
           reason,
         },
       }),
     );
   }
-  if (subcommand === "exclusions") {
-    return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/exclusions`));
-  }
-  fail("`radar sources` 的子命令是 add / disable / enable / exclude / include / exclusions。");
+  fail("`radar sources` 的子命令是 add / disable / enable / include / remove。");
+}
+
+/**
+ * 粘一个网址进来。多条候选由用户挑——同一个主页往往对应视频、动态、专栏几条
+ * 路由；只有一条又点名了 Brief 就没什么可挑的，登记与纳入一步到位。
+ */
+async function discover(argv: string[]): Promise<void> {
+  const url = positional(argv, "网址");
+  const briefId = option(argv, "--brief");
+  const candidates = (await callRadar("/discover", { method: "POST", body: { url } })) as Array<{
+    name: string;
+    feedUrl: string;
+  }>;
+  if (!briefId || candidates.length !== 1) return emit(candidates);
+
+  const only = candidates[0]!;
+  emit(
+    await callRadar("/endpoints", {
+      method: "POST",
+      body: { channelId: "rss", name: only.name, url: only.feedUrl, briefId },
+    }),
+  );
 }
 
 async function subject(argv: string[]): Promise<void> {

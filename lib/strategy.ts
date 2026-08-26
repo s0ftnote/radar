@@ -149,10 +149,10 @@ function parseFormula(value: unknown): StrategyFormula {
     if (typeof weight !== "number" || !Number.isFinite(weight)) {
       throw new InvalidStrategyError(`关键词「${term}」的权重要是一个有限的数。`);
     }
-    // 关键词只能加减分，不能用于排除——排除是管家角色的两级开关干的事。
+    // 关键词只能加减分，不能用于排除——队列里有哪些来源由纳入决定（ADR 0018）。
     if (typeof keyword.exclude !== "undefined") {
       throw new InvalidStrategyError(
-        "关键词只能加减分，不能用于排除。要不看某个来源，用 `radar sources exclude`。",
+        "关键词只能加减分，不能用于排除。这条 Brief 只看它纳入的端点，不想看的来源本来就不该纳入。",
       );
     }
     return { term, weight };

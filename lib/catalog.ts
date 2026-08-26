@@ -17,6 +17,8 @@ export type CatalogEndpoint = {
   channelId: string;
   name: string;
   url: string;
+  /** 主题标签。建 Brief 时按需求挑源用得上，Radar 不解释它，只存与显示。 */
+  topics?: string[];
   licenseBasis: unknown;
   /** 下架用一句理由，不要删行——端点 id 永不复用（ADR 0014）。 */
   retired?: string;
@@ -83,13 +85,14 @@ export function reconcileFactoryCatalog(catalog: FactoryCatalog): void {
       }
       db.prepare(
         `INSERT INTO endpoints
-          (id, channel_id, name, url, provenance, license_basis, retired_at, retired_reason,
-           created_at)
-         VALUES (?, ?, ?, ?, 'factory', ?, ?, ?, ?)
+          (id, channel_id, name, url, provenance, topics, license_basis, retired_at,
+           retired_reason, created_at)
+         VALUES (?, ?, ?, ?, 'factory', ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            channel_id = excluded.channel_id,
            name = excluded.name,
            url = excluded.url,
+           topics = excluded.topics,
            license_basis = excluded.license_basis,
            -- 退役时间记的是第一次读到这条退役的时候，后面再对账不往前推。
            retired_at = CASE
@@ -103,6 +106,7 @@ export function reconcileFactoryCatalog(catalog: FactoryCatalog): void {
         endpoint.channelId,
         endpoint.name,
         endpoint.url,
+        JSON.stringify(endpoint.topics ?? []),
         JSON.stringify(endpoint.licenseBasis),
         endpoint.retired ? now : null,
         endpoint.retired ?? null,

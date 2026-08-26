@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { database, inTransaction } from "./database.js";
 import { RadarDomainError } from "./domain-error.js";
 import { instanceSetting, setInstanceSetting } from "./instance-settings.js";
-import { excludedFromBriefSql, listEndpointsToEnqueue } from "./endpoints.js";
+import { includedInBriefSql, listEndpointsToEnqueue } from "./endpoints.js";
 import {
   scoreCandidates,
   type CandidateRow,
@@ -64,15 +64,16 @@ export function queueDepth(briefId: string): number {
       `SELECT COUNT(*) AS depth FROM queue_entries AS entry
        JOIN source_contents AS content ON content.id = entry.source_content_id
        WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-         AND content.endpoint_id NOT IN (${excludedFromBriefSql("entry.brief_id")})`,
+         AND content.endpoint_id IN (${includedInBriefSql("entry.brief_id")})`,
     )
     .get(briefId) as { depth: number };
   return row.depth;
 }
 
 /**
- * 被这个 Brief 排除掉的端点不出现在待判断里——排除是「这个 Brief 不看它」。
- * 代次本身不删（ADR 0010：只排序不丢弃），重新纳入时它们照样回来。
+ * 只有这个 Brief 纳入的端点出现在待判断里——一条 Brief 只看它纳入的端点
+ * （ADR 0018）。代次本身照入照留（ADR 0010：只排序不丢弃），端点纳进来时
+ * 它们照样回来。
  *
  * 排序是**两步**：先按策略给每条算分，**再做一层确定性的端点轮转**。轮转由
  * Radar 固定实现、对所有 Brief 一致，不进策略——配额是跨端点的合并约束，
@@ -148,7 +149,7 @@ function listCandidates(briefId: string): CandidateRow[] {
          JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
          LEFT JOIN source_content_hotness AS hot ON hot.source_content_id = content.id
          WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-           AND content.endpoint_id NOT IN (${excludedFromBriefSql("entry.brief_id")})`,
+           AND content.endpoint_id IN (${includedInBriefSql("entry.brief_id")})`,
     )
     .all(briefId) as CandidateRow[];
 }

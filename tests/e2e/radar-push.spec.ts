@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -46,9 +46,7 @@ test.describe("配置后解锁渠道", () => {
       expect(endpoint.status).toBe("awaiting_push");
       expect(endpoint.lastPushAt).toBeNull();
 
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       const first = await radarJson<{ newContentCount: number; seenContentCount: number }>(
         environment, ["push", "--endpoint", endpoint.id], JSON.stringify(pushed),
