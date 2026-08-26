@@ -2,7 +2,10 @@ import { serve } from "@hono/node-server";
 import type { Server } from "node:http";
 import { closeDatabase, database } from "../lib/database.js";
 import { radarDataDirectory } from "../lib/data-directory.js";
+import { factoryCatalogPath, installFactoryCatalog, readFactoryCatalog } from "../lib/catalog.js";
 import { createRadarApp } from "./app.js";
+import { packageRoot } from "./package-root.js";
+import { startScheduler, type Scheduler } from "./scheduler.js";
 import { claimDataDirectory, defaultPort, type DataDirectoryClaim } from "../lib/service-runtime.js";
 
 export type RadarService = { port: number; stop(): Promise<void> };
@@ -16,9 +19,13 @@ export async function startRadarService(options: { port?: number } = {}): Promis
   const claim: DataDirectoryClaim = await claimDataDirectory(radarDataDirectory());
 
   let server: Server;
+  let scheduler: Scheduler;
   try {
     database();
+    // 出厂来源目录随版本走，不在线拉取（ADR 0014）。
+    installFactoryCatalog(readFactoryCatalog(factoryCatalogPath(packageRoot())));
     server = await listen(requestedPort);
+    scheduler = startScheduler();
   } catch (error) {
     closeDatabase();
     claim.release();
@@ -32,7 +39,7 @@ export async function startRadarService(options: { port?: number } = {}): Promis
   let stopped: Promise<void> | undefined;
   return {
     port,
-    stop: () => (stopped ??= shutdown(server, claim)),
+    stop: () => (stopped ??= shutdown(server, scheduler, claim)),
   };
 }
 
@@ -47,7 +54,12 @@ function listen(port: number): Promise<Server> {
   });
 }
 
-async function shutdown(server: Server, claim: DataDirectoryClaim): Promise<void> {
+async function shutdown(
+  server: Server,
+  scheduler: Scheduler,
+  claim: DataDirectoryClaim,
+): Promise<void> {
+  scheduler.stop();
   const closed = new Promise<void>((resolveClose) => server.close(() => resolveClose()));
   // 不等 keep-alive 连接自己断——Ctrl-C 之后端口要立刻还回去。
   server.closeIdleConnections();

@@ -43,3 +43,12 @@ export async function callRadar(
   }
   return payload;
 }
+
+/** judge 与 feedback 的正文是多行文本，走 stdin 而不是命令行参数（ADR 0012）。 */
+export async function readStdin(): Promise<string> {
+  if (process.stdin.isTTY) return "";
+  let raw = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) raw += chunk;
+  return raw;
+}

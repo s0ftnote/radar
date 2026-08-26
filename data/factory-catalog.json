@@ -1,0 +1,46 @@
+{
+  "catalogVersion": 1,
+  "channels": [
+    {
+      "id": "rss",
+      "name": "RSS / Atom",
+      "configState": "ready",
+      "collectionIntervalSeconds": 900
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "hacker-news-frontpage",
+      "channelId": "rss",
+      "name": "Hacker News 首页",
+      "url": "https://news.ycombinator.com/rss",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://news.ycombinator.com/newsguidelines.html",
+        "note": "Y Combinator 自己发布的官方 feed，供订阅阅读。"
+      }
+    },
+    {
+      "id": "lobsters-frontpage",
+      "channelId": "rss",
+      "name": "Lobsters 首页",
+      "url": "https://lobste.rs/rss",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://lobste.rs/about",
+        "note": "Lobsters 自己发布的官方 feed；站点内容按 CC BY-SA 3.0 授权。"
+      }
+    },
+    {
+      "id": "github-changelog",
+      "channelId": "rss",
+      "name": "GitHub Changelog",
+      "url": "https://github.blog/changelog/feed/",
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.blog/changelog/",
+        "note": "GitHub 官方博客自己发布的 feed。"
+      }
+    }
+  ]
+}

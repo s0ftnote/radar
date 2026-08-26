@@ -1,19 +1,47 @@
 #!/usr/bin/env node
 import { radarDataDirectory } from "../lib/data-directory.js";
 import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
+import { callRadar, readStdin } from "./client.js";
 import { radarVersion } from "../server/version.js";
-import { callRadar } from "./client.js";
 
 const usage = `radar — 本地信号聚合站
 
-用法
-  radar up [--port <端口>]   在本机起 Radar 服务，Ctrl-C 停止
-  radar status               看本机 Radar 服务的状态
-  radar --help               显示这份说明
-  radar --version            显示版本号
+服务
+  radar up [--port <端口>]        在本机起 Radar 服务，Ctrl-C 停止
+  radar status                    看本机 Radar 服务的状态
+
+Brief
+  radar brief create --name <名字>
+                                  建 Brief，正文从 stdin 读
+  radar brief list                列出所有 Brief
+  radar brief show <briefId>      看一个 Brief 的当前修订
+
+采集
+  radar sources                   列出采集端点与来源状态
+  radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
+                                  不给 --endpoint 就全催一遍，退避照样生效
+
+判断
+  radar pending --brief <id> [--limit <n>]
+                                  取一个工作包：待判断内容 + Brief 正文
+                                  + 全部反馈 + 最近判断的紧凑清单
+  radar judge                     写回判断，契约 JSON 从 stdin 读
+  radar judgments --brief <id>    列出已写回的判断
+
+反馈
+  radar feedback --brief <id> [--judgment <id>] --disposition <标签>
+                                  写回用户明说的反馈，正文从 stdin 读
+
+其他
+  radar --help / --version
 
 环境变量
-  RADAR_DATA_DIR             本地数据目录，默认 ~/.radar
+  RADAR_DATA_DIR                  本地数据目录，默认 ~/.radar
+
+取数据的命令输出 JSON，直接管给 jq。judge 的契约是：
+  { queueEntryId, relevant, whatItIs, evidence, uncertainty, whyForYou,
+    judgedBy, signalContentIds?, idempotencyKey? }
+判不相关时前三块留空，whyForYou 写淘汰理由——照样必填。
 `;
 
 await main(process.argv.slice(2));
@@ -31,17 +59,35 @@ async function main(argv: string[]): Promise<void> {
   }
 
   try {
-    if (command === "up") return await up(rest);
-    if (command === "status") return await status();
+    switch (command) {
+      case "up":
+        return await up(rest);
+      case "status":
+        return await status();
+      case "brief":
+        return await brief(rest);
+      case "sources":
+        return emit(await callRadar("/endpoints"));
+      case "collect":
+        return await collect(rest);
+      case "pending":
+        return await pending(rest);
+      case "judge":
+        return emit(await callRadar("/judgments", { method: "POST", body: await readJsonStdin() }));
+      case "judgments":
+        return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/judgments`));
+      case "feedback":
+        return await feedback(rest);
+      default:
+        fail(`不认识的命令 \`${command}\`。用 \`radar --help\` 看命令面。`);
+    }
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));
   }
-
-  fail(`不认识的命令 \`${command}\`。用 \`radar --help\` 看命令面。`);
 }
 
 async function up(argv: string[]): Promise<void> {
-  const port = readPort(argv);
+  const port = numberOption(argv, "--port", 0, 65_535) ?? defaultPort;
   // 只有 `radar up` 需要服务端模块——它一加载就打开 SQLite，别的命令不该碰。
   const { startRadarService } = await import("../server/service.js");
   let service;
@@ -69,12 +115,91 @@ async function status(): Promise<void> {
   process.stdout.write(`Radar ${health.version} 正在运行，数据目录 ${health.dataDirectory}\n`);
 }
 
-function readPort(argv: string[]): number {
-  const index = argv.indexOf("--port");
-  if (index === -1) return defaultPort;
-  const port = Number(argv[index + 1]);
-  if (!Number.isInteger(port) || port < 0 || port > 65_535) fail("`--port` 需要一个 0–65535 的端口号。");
-  return port;
+async function brief(argv: string[]): Promise<void> {
+  const [subcommand, ...rest] = argv;
+  if (subcommand === "create") {
+    const name = requiredOption(rest, "--name");
+    const body = (await readStdin()).trim();
+    if (!body) fail("Brief 正文从 stdin 读，现在是空的。");
+    return emit(await callRadar("/briefs", { method: "POST", body: { name, body } }));
+  }
+  if (subcommand === "list") return emit(await callRadar("/briefs"));
+  if (subcommand === "show") {
+    const briefId = rest[0];
+    if (!briefId) fail("`radar brief show` 需要一个 briefId。");
+    return emit(await callRadar(`/briefs/${briefId}`));
+  }
+  fail("`radar brief` 的子命令是 create / list / show。");
+}
+
+async function collect(argv: string[]): Promise<void> {
+  const endpointId = option(argv, "--endpoint");
+  if (endpointId) {
+    return emit(
+      await callRadar(`/endpoints/${endpointId}/collect?force=true`, { method: "POST" }),
+    );
+  }
+  emit(await callRadar("/collect", { method: "POST" }));
+}
+
+async function pending(argv: string[]): Promise<void> {
+  const briefId = requiredOption(argv, "--brief");
+  const limit = numberOption(argv, "--limit", 1, 1_000);
+  const query = limit === undefined ? "" : `?limit=${limit}`;
+  emit(await callRadar(`/briefs/${briefId}/work-package${query}`));
+}
+
+async function feedback(argv: string[]): Promise<void> {
+  const briefId = requiredOption(argv, "--brief");
+  const disposition = requiredOption(argv, "--disposition");
+  const note = (await readStdin()).trim();
+  if (!note) fail("反馈正文从 stdin 读，现在是空的。");
+  emit(
+    await callRadar(`/briefs/${briefId}/feedback`, {
+      method: "POST",
+      body: { judgmentId: option(argv, "--judgment") ?? null, disposition, note },
+    }),
+  );
+}
+
+async function readJsonStdin(): Promise<unknown> {
+  const raw = (await readStdin()).trim();
+  if (!raw) fail("判断契约从 stdin 读，现在是空的。用 `radar --help` 看契约。");
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    return fail(`stdin 不是合法 JSON：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function emit(payload: unknown): void {
+  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function option(argv: string[], flag: string): string | undefined {
+  const index = argv.indexOf(flag);
+  return index === -1 ? undefined : argv[index + 1];
+}
+
+function requiredOption(argv: string[], flag: string): string {
+  const value = option(argv, flag);
+  if (!value) fail(`缺少 \`${flag}\`。`);
+  return value;
+}
+
+function numberOption(
+  argv: string[],
+  flag: string,
+  minimum: number,
+  maximum: number,
+): number | undefined {
+  const raw = option(argv, flag);
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    fail(`\`${flag}\` 需要一个 ${minimum}–${maximum} 的整数。`);
+  }
+  return value;
 }
 
 function fail(message: string): never {

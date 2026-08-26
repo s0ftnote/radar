@@ -1,12 +1,11 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
 export type FeedEntry = {
+  /** 内容身份用 feed 自带的 guid / id，不用标题正文的整体哈希。 */
   externalId: string;
   title: string;
   originUrl: string;
-  publicLocatorUrl: string | null;
-  publicLocatorStatus: "available" | "withheld_unverified";
-  publicSiteUrl: string | null;
+  /** 采集那一刻的正文快照（ADR 0015）。只快照文本，图片视频留地址。 */
   body: string;
   publishedAt: string | null;
   rawPayload: string;
@@ -91,6 +90,10 @@ function normalizeFeed(document: Record<string, unknown>, feedUrl: string): Pars
   throw new FeedFormatError("无法解析 RSS/Atom：文档中没有 RSS channel 或 Atom feed。");
 }
 
+/**
+ * 内容身份优先认 feed 自带的 guid / id，其次认条目链接。两个都没有时只能退到
+ * 位置——用标题或正文做身份会让一次编辑变成一条新内容，重复入队。
+ */
 function normalizeRssEntry(value: unknown, index: number, feedUrl: string): FeedEntry {
   const entry = asRecord(value) ?? {};
   const title = text(entry.title) || `未命名来源内容 ${index + 1}`;
@@ -98,10 +101,9 @@ function normalizeRssEntry(value: unknown, index: number, feedUrl: string): Feed
   const publishedAt = text(entry.pubDate);
   const originUrl = entryUrl || feedUrl;
   return {
-    externalId: text(entry.guid) || entryUrl || `${title}:${publishedAt}`,
+    externalId: text(entry.guid) || entryUrl || `${feedUrl}#${index}`,
     title,
     originUrl,
-    ...unverifiedPublicLocator(originUrl),
     body: text(entry.encoded) || text(entry.description) || "",
     publishedAt: dateOrNull(publishedAt),
     rawPayload: JSON.stringify(entry),
@@ -115,31 +117,12 @@ function normalizeAtomEntry(value: unknown, index: number, feedUrl: string): Fee
   const publishedAt = text(entry.published) || text(entry.updated);
   const originUrl = entryUrl || feedUrl;
   return {
-    externalId: text(entry.id) || entryUrl || `${title}:${publishedAt}`,
+    externalId: text(entry.id) || entryUrl || `${feedUrl}#${index}`,
     title,
     originUrl,
-    ...unverifiedPublicLocator(originUrl),
     body: text(entry.content) || text(entry.summary) || "",
     publishedAt: dateOrNull(publishedAt),
     rawPayload: JSON.stringify(entry),
-  };
-}
-
-function unverifiedPublicLocator(originUrl: string): Pick<
-  FeedEntry,
-  "publicLocatorUrl" | "publicLocatorStatus" | "publicSiteUrl"
-> {
-  let publicSiteUrl: string | null = null;
-  try {
-    const url = new URL(originUrl);
-    if (url.protocol === "http:" || url.protocol === "https:") publicSiteUrl = `${url.origin}/`;
-  } catch {
-    // The raw locator remains evidence in local custody, but is never exported as public.
-  }
-  return {
-    publicLocatorUrl: null,
-    publicLocatorStatus: "withheld_unverified",
-    publicSiteUrl,
   };
 }
 
