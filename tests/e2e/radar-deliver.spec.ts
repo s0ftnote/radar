@@ -196,13 +196,33 @@ test.describe("取数角色", () => {
       }
       expect(judgments[1]!.relatedJudgmentIds).toEqual([judgments[0]!.id]);
 
-      // 顺着链走到底：从头一条出发，另外两条都在，方向无所谓。
+      // 上次那条已经送过并落进了笔记——正是三周后要找回来改的那条。
+      await radar(environment, [
+        "deliver", "mark", "--brief", brief.id, "--to", "周报",
+        "--judgment", judgments[1]!.id, "--ref", "周报/2026-W12.md#L40",
+      ]);
+
+      // 顺着链走到底：出发那条自己也在链上，另外两条都在，方向无所谓；已经
+      // 送过的那条也在——链上取材就是为了找回它，把它排掉就永远找不着了。
       const chain = await radarJson<Judgment[]>(environment, [
         "deliver", "take", "--brief", brief.id, "--to", "周报", "--related-to", judgments[0]!.id,
       ]);
       expect(chain.map((judgment) => judgment.id).sort()).toEqual(
-        [judgments[1]!.id, judgments[2]!.id].sort(),
+        judgments.map((judgment) => judgment.id).sort(),
       );
+      // 外部引用从交付记录里拿，顺着 judgment id 对上号。
+      const history = await radarJson<Array<{ judgmentId: string; externalReference: string }>>(
+        environment, ["deliver", "history", "--brief", brief.id, "--to", "周报"],
+      );
+      expect(history.find((entry) => entry.judgmentId === judgments[1]!.id)?.externalReference)
+        .toBe("周报/2026-W12.md#L40");
+
+      // 增量里就不该再有它了——增量仍然只给没送过的。
+      expect(
+        (await radarJson<Judgment[]>(environment, [
+          "deliver", "take", "--brief", brief.id, "--to", "周报",
+        ])).map((judgment) => judgment.id),
+      ).not.toContain(judgments[1]!.id);
 
       // 时间窗：把窗口开在所有判断之前，一条都不该有。
       expect(
@@ -216,7 +236,77 @@ test.describe("取数角色", () => {
           "deliver", "take", "--brief", brief.id, "--to", "周报",
           "--since", "2020-01-01T00:00:00.000Z",
         ])).length,
-      ).toBe(3);
+      ).toBe(2);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  test("只给这条 Brief 里相关的判断：淘汰的不是材料，别的 Brief 的账记不进来", async () => {
+    test.setTimeout(120_000);
+    const harness = await startHarness("deliver-scope", 33195);
+    const { environment } = harness;
+    try {
+      await waitForFirstCollection(environment);
+      const brief = await radarJson<Brief>(
+        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
+      );
+      const other = await radarJson<Brief>(
+        environment, ["brief", "create", "--name", "另一条线"], briefBody,
+      );
+      await radar(environment, [
+        "subject", "put", "--brief", brief.id, "--name", "Postgres", "--alias", "PG",
+      ]);
+
+      const workPackage = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
+      const [first, second, third] = workPackage.pendingContents;
+      const judge = (content: typeof first, extra: Record<string, unknown>) =>
+        radarJson<Judgment>(environment, ["judge"], JSON.stringify({
+          queueEntryId: content!.queueEntryId,
+          judgedBy: "claude-code",
+          signalContentIds: [content!.sourceContentId],
+          ...extra,
+        }));
+
+      const relevant = await judge(first, {
+        relevant: true,
+        whatItIs: "PG 的连接池又被抱怨了",
+        evidence: "原帖里写着。",
+        uncertainty: "不确定是不是普遍现象。",
+        whyForYou: "正是这条 Brief 关注的痛点。",
+      });
+      const offTopic = await judge(second, {
+        relevant: true,
+        whatItIs: "一篇跟关注对象无关的帖子",
+        evidence: "原帖里写着。",
+        uncertainty: "说不好。",
+        whyForYou: "还是这条线关心的。",
+      });
+      const dropped = await judge(third, { relevant: false, whyForYou: "只是转发，没有新信息。" });
+
+      // 淘汰的判断不是输出材料——它的正文只有一条淘汰理由。
+      const incremental = await radarJson<Judgment[]>(environment, [
+        "deliver", "take", "--brief", brief.id, "--to", "周报",
+      ]);
+      const ids = incremental.map((judgment) => judgment.id);
+      expect(ids.sort()).toEqual([relevant.id, offTopic.id].sort());
+      expect(ids).not.toContain(dropped.id);
+
+      // 按关注对象取材：名字或别名机械匹配，别的判断不进来。
+      expect(
+        (await radarJson<Judgment[]>(environment, [
+          "deliver", "take", "--brief", brief.id, "--to", "周报", "--subject", "Postgres",
+        ])).map((judgment) => judgment.id),
+      ).toEqual([relevant.id]);
+
+      // 交付记录归属单个 Brief：拿别的 Brief 的 URL 记不进这条判断的账。
+      const crossBrief = await radar(environment, [
+        "deliver", "mark", "--brief", other.id, "--to", "周报", "--judgment", relevant.id,
+      ]);
+      expect(crossBrief.code).not.toBe(0);
+      expect(
+        await radarJson<Delivery[]>(environment, ["deliver", "history", "--brief", other.id]),
+      ).toEqual([]);
     } finally {
       await harness.dispose();
     }

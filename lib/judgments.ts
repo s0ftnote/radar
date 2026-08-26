@@ -135,7 +135,12 @@ export function recordJudgment(input: RecordJudgmentInput): Judgment {
     // Agent 自报的关联，双向都记一条——取材时顺着链走，方向无所谓。
     for (const relatedId of new Set(input.relatedJudgmentIds ?? [])) {
       if (relatedId === judgmentId) continue;
-      if (!getJudgment(relatedId)) throw new UnknownJudgmentError(relatedId);
+      // 只能挂同一条 Brief 里的判断——判断归属单个 Brief，关联也不能跨过去
+      // （ADR 0007）。跨 Brief 的 id 就当不存在。
+      const related = getJudgment(relatedId);
+      if (!related || related.briefId !== entry.briefId) {
+        throw new UnknownJudgmentError(relatedId);
+      }
       db.prepare(
         `INSERT INTO judgment_relations (judgment_id, related_judgment_id) VALUES (?, ?)
          ON CONFLICT DO NOTHING`,

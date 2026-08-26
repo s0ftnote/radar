@@ -239,7 +239,9 @@ function initializeSchema(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS deliveries (
       judgment_id TEXT NOT NULL REFERENCES judgments(id),
       destination TEXT NOT NULL CHECK (destination <> ''),
-      external_reference TEXT,
+      -- 外部引用是 Agent 自报的，Radar 不解释也不校验，只保证它还在。
+      -- 空串不是引用，那只会让「还在不在」答不上来。
+      external_reference TEXT CHECK (external_reference IS NULL OR external_reference <> ''),
       delivered_at TEXT NOT NULL,
       PRIMARY KEY (judgment_id, destination)
     ) STRICT;

@@ -248,14 +248,17 @@ export function createRadarApp(): Hono {
       throw new HTTPException(400, { message: "`limit` 需要一个正整数。" });
     }
     return context.json(
-      takeForDelivery({
-        briefId: context.req.param("briefId"),
-        destination: decodeURIComponent(context.req.param("destination")),
-        since: context.req.query("since"),
-        until: context.req.query("until"),
-        relatedTo: context.req.query("relatedTo"),
-        limit: Math.min(requested, maximumWorkPackageLimit),
-      }),
+      domainCall(() =>
+        takeForDelivery({
+          briefId: context.req.param("briefId"),
+          destination: destinationOf(context.req.param("destination")),
+          since: context.req.query("since"),
+          until: context.req.query("until"),
+          relatedTo: context.req.query("relatedTo"),
+          subject: context.req.query("subject"),
+          limit: Math.min(requested, maximumWorkPackageLimit),
+        }),
+      ),
     );
   });
 
@@ -270,6 +273,7 @@ export function createRadarApp(): Hono {
     return context.json(
       domainCall(() =>
         markDelivered({
+          briefId: context.req.param("briefId"),
           judgmentId: requiredText(body.judgmentId, "判断 id"),
           destination: requiredText(body.destination, "交付去处"),
           externalReference:
@@ -283,8 +287,9 @@ export function createRadarApp(): Hono {
   app.delete("/briefs/:briefId/deliveries/:destination/:judgmentId", (context) => {
     domainCall(() =>
       unmarkDelivered(
+        context.req.param("briefId"),
         context.req.param("judgmentId"),
-        decodeURIComponent(context.req.param("destination")),
+        destinationOf(context.req.param("destination")),
       ),
     );
     return context.body(null, 204);
@@ -355,6 +360,14 @@ async function jsonBody(request: Request): Promise<Record<string, unknown>> {
     throw new HTTPException(400, { message: "请求体必须是一个 JSON 对象。" });
   }
   return parsed as Record<string, unknown>;
+}
+
+/**
+ * 路径里的交付去处。Hono 已经把它解码过了，这里只再修一次边——写进去时
+ * `requiredText` 会 trim，取出来也得一样，否则「 周报」标进去、取不出来。
+ */
+function destinationOf(raw: string): string {
+  return requiredText(raw, "交付去处");
 }
 
 function requiredText(value: unknown, label: string): string {

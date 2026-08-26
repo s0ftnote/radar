@@ -64,9 +64,13 @@ Brief
 
 交付
   radar deliver take --brief <id> --to <去处> [--since <ISO>] [--until <ISO>]
-                     [--related-to <judgmentId>] [--limit <n>]
+                     [--related-to <judgmentId>] [--subject <名字>] [--limit <n>]
                                   取还没送到这个去处的判断。去处是你自己起的
-                                  标签，Radar 不预设也不校验
+                                  标签，Radar 不预设也不校验。只给相关的判断，
+                                  淘汰掉的不是输出材料
+                                  --related-to 顺着关联链取材，链上已经送过的
+                                  也一并给出——「这件事上次是怎么写的」问的就是它
+                                  --subject 按关注对象的名字或别名机械匹配
   radar deliver mark --brief <id> --to <去处> --judgment <id> [--ref <外部引用>]
                                   显式标记已送到。读到不算送到；同一判断送去
                                   多个去处各记各的。--ref 是你自己的引用
@@ -341,11 +345,13 @@ async function pending(argv: string[]): Promise<void> {
  * 读到不算送到——跨系统没法原子提交，所以是至少一次交付，账实不符时
  * `radar deliver unmark` 自己把账改回来。
  */
+/** 去处是用户自己起的标签，可能带斜杠或空格，进 URL 路径前必须编码。 */
+function destinationSegment(argv: string[]): string {
+  return encodeURIComponent(requiredOption(argv, "--to"));
+}
+
 async function deliver(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
-  if (!["take", "mark", "unmark", "history"].includes(subcommand ?? "")) {
-    fail("`radar deliver` 的子命令是 take / mark / unmark / history。");
-  }
   const briefId = requiredOption(rest, "--brief");
   const base = `/briefs/${briefId}/deliveries`;
 
@@ -355,28 +361,30 @@ async function deliver(argv: string[]): Promise<void> {
     return emit(await callRadar(`${base}${query}`));
   }
 
-  const destination = encodeURIComponent(requiredOption(rest, "--to"));
-
   if (subcommand === "take") {
     const query = new URLSearchParams();
     for (const [flag, key] of [
       ["--since", "since"],
       ["--until", "until"],
       ["--related-to", "relatedTo"],
+      ["--subject", "subject"],
       ["--limit", "limit"],
     ] as const) {
       const value = option(rest, flag);
       if (value) query.set(key, value);
     }
     const suffix = query.size > 0 ? `?${query.toString()}` : "";
-    return emit(await callRadar(`${base}/${destination}/pending${suffix}`));
+    return emit(await callRadar(`${base}/${destinationSegment(rest)}/pending${suffix}`));
   }
 
   if (subcommand === "unmark") {
-    await callRadar(`${base}/${destination}/${requiredOption(rest, "--judgment")}`, {
-      method: "DELETE",
-    });
+    const judgmentId = requiredOption(rest, "--judgment");
+    await callRadar(`${base}/${destinationSegment(rest)}/${judgmentId}`, { method: "DELETE" });
     return;
+  }
+
+  if (subcommand !== "mark") {
+    fail("`radar deliver` 的子命令是 take / mark / unmark / history。");
   }
 
   emit(
