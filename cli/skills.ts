@@ -11,8 +11,13 @@ export function shippedSkillsDirectory(): string {
   return resolve(packageRoot(), "skills");
 }
 
+/**
+ * `~/.agents/skills` 是跨 Agent 的公共位置，不是某一家的目录。Radar 不挑
+ * Agent——它不调用任何模型，三份 Skill 由用户自己那个 Agent 执行（ADR 0009），
+ * 装进谁的私有目录都是替用户做了不该做的选择。
+ */
 export function defaultSkillsTarget(): string {
-  return resolve(homedir(), ".claude", "skills");
+  return resolve(homedir(), ".agents", "skills");
 }
 
 /**

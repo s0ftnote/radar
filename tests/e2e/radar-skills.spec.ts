@@ -81,7 +81,7 @@ test.describe("三份 Skill 与安装", () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), "radar-skills-data-"));
     const target = await mkdtemp(join(tmpdir(), "radar-skills-"));
     try {
-      // 目标目录里本来就有别人的 Skill——那是常态，~/.claude/skills 不是空的。
+      // 目标目录里本来就有别人的 Skill——那是常态，~/.agents/skills 不是空的。
       mkdirSync(join(target, "someone-elses-skill"));
       writeFileSync(join(target, "someone-elses-skill", "SKILL.md"), "不是 Radar 装的。");
 
