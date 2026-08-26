@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -22,6 +22,14 @@ type WorkPackage = {
 type Judgment = { id: string; whatItIs: string };
 
 const briefBody = "关注开发者反复表达、正在变化、可能还没被满足的需求与痛点。";
+
+/** model-invoked 靠的是 description 写清了用户会说什么，Agent 才认得出该用哪份。 */
+const triggerPhrases: Record<string, RegExp> = {
+  // 用户读报告时随口一句「这条没意思」，管家角色要认得出那是反馈。
+  "radar-steward": /这条没意思/,
+  "radar-judgment": /待判断|最近有什么/,
+  "radar-delivery": /周报|Obsidian/,
+};
 
 const judgeContract = (content: PendingContent, extra: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -52,6 +60,8 @@ test.describe("三份 Skill 与安装", () => {
       // model-invoked 靠的就是 description：Agent 自己认出该用它，用户不必点名。
       const description = /\ndescription: (.+)/.exec(frontMatter![1])?.[1] ?? "";
       expect(description.length, `${name} 的 description 太短，触发不了`).toBeGreaterThan(40);
+      // description 里要写清用户会说什么，不是这份 skill 叫什么。
+      expect(description, `${name} 的 description 没写触发的场合`).toMatch(triggerPhrases[name]!);
 
       // 用法现场 `radar --help`，不抄进 Skill（ADR 0012）。
       expect(text).toContain("radar --help");
@@ -68,29 +78,36 @@ test.describe("三份 Skill 与安装", () => {
   });
 
   test("radar skills install 幂等覆盖，装的是随本版 Radar 来的那三份", async () => {
+    const dataDirectory = await mkdtemp(join(tmpdir(), "radar-skills-data-"));
     const target = await mkdtemp(join(tmpdir(), "radar-skills-"));
     try {
-      const first = await radar({ dataDirectory: target }, ["skills", "install", "--dir", target]);
+      // 目标目录里本来就有别人的 Skill——那是常态，~/.claude/skills 不是空的。
+      mkdirSync(join(target, "someone-elses-skill"));
+      writeFileSync(join(target, "someone-elses-skill", "SKILL.md"), "不是 Radar 装的。");
+
+      const first = await radar({ dataDirectory }, ["skills", "install", "--dir", target]);
       expect(first.code).toBe(0);
       expect(readdirSync(target).sort()).toEqual([
-        "radar-delivery", "radar-judgment", "radar-steward",
+        "radar-delivery", "radar-judgment", "radar-steward", "someone-elses-skill",
       ]);
 
       // 上一版留下的文件不该赖着不走，装第二次结果一模一样。
       writeFileSync(join(target, "radar-steward", "STALE.md"), "上一版留下的");
-      const second = await radar({ dataDirectory: target }, ["skills", "install", "--dir", target]);
+      const second = await radar({ dataDirectory }, ["skills", "install", "--dir", target]);
       expect(second.code).toBe(0);
       expect(readdirSync(join(target, "radar-steward"))).toEqual(["SKILL.md"]);
+
+      // 只碰自己那三份：别人的 Skill 原样还在。
+      expect(readFileSync(join(target, "someone-elses-skill", "SKILL.md"), "utf8"))
+        .toBe("不是 Radar 装的。");
 
       // 装的就是仓库里那份，不是另抄一份。
       expect(readFileSync(join(target, "radar-steward", "SKILL.md"), "utf8")).toBe(
         readFileSync(resolve(repositoryRoot, "skills/radar-steward/SKILL.md"), "utf8"),
       );
-
-      // 同目录下别人的 Skill 不动。
-      expect(readdirSync(target)).toContain("radar-steward");
     } finally {
       await rm(target, { recursive: true, force: true });
+      await rm(dataDirectory, { recursive: true, force: true });
     }
   });
 
