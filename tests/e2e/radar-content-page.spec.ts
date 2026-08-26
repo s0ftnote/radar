@@ -47,10 +47,11 @@ test.describe("内容页", () => {
       JSON.stringify({
         queueEntryId: kept.queueEntryId,
         relevant: true,
-        whatItIs: "一条关于证据可追溯的抱怨。",
-        evidence: "原帖说删帖之后引用就断了。",
+        // Agent 按 Markdown 写，里面还夹着从原帖抄来的敌意片段。
+        whatItIs: "一条关于证据可追溯的抱怨。\n\n- 删帖之后引用就断\n- 没有快照",
+        evidence: "原帖说删帖之后引用就断了：<img src=x onerror=alert(1)>",
         uncertainty: "不知道这是普遍现象还是个例。",
-        whyForYou: "这正是这条 Brief 关注的痛点。",
+        whyForYou: "这正是这条 Brief 关注的、**反复出现**又没被满足的痛点。[原帖](javascript:alert(1))",
         judgedBy: "claude-code",
       }),
     );
@@ -184,6 +185,16 @@ test.describe("内容页", () => {
     expect(text).toContain("地址是个 javascript: 伪协议");
     expect(text).toContain('<span class="content-title">');
     expect(text).not.toContain("href=\"javascript:");
+  });
+
+  test("Agent 写的文本按 Markdown 渲染，原始标签照样转义", async () => {
+    const text = await page(`?brief=${brief.id}&state=for_you`);
+    // 判断的四问是 Agent 写的，按 Markdown 写就按 Markdown 摆。
+    expect(text).toContain("<strong>反复出现</strong>");
+    expect(text).toContain("<li>");
+    // 渲染成 HTML 不等于放行 HTML：原始标签转义，`javascript:` 留成文本。
+    expect(text).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(text).not.toContain('href="javascript:');
   });
 
   test("服务端渲染，不引入 JSX 运行时", async () => {

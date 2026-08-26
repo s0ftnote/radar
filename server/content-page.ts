@@ -2,6 +2,7 @@ import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import type { Brief } from "../lib/briefs.js";
 import type { ContentFacets, ContentItem, ContentState } from "../lib/brief-content.js";
+import { renderMarkdown } from "./markdown.js";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 
@@ -66,7 +67,10 @@ function renderNoBrief(): Html {
 function renderBrief(view: ContentView): Html {
   const brief = view.brief!;
   return html`<h1>${brief.name}</h1>
-      <p class="lede">${brief.currentRevision.body}</p>
+      <details class="standard">
+        <summary>这条 Brief 的判断标准</summary>
+        <div class="prose">${renderMarkdown(brief.currentRevision.body)}</div>
+      </details>
       <p class="meta">
         队列还有 ${view.queueDepth} 条待判断 ·
         ${view.lastJudgedAt ? `上次判断 ${view.lastJudgedAt}` : "还没判断过"}
@@ -171,7 +175,9 @@ function renderJudgment(item: ContentItem): Html | "" {
         ]
       : [["为什么没给你", judgment.whyForYou]];
   return html`<dl class="quad">
-            ${lines.map(([label, value]) => html`<dt>${label}</dt><dd>${value}</dd>`)}
+            ${lines.map(
+              ([label, value]) => html`<dt>${label}</dt><dd class="prose">${renderMarkdown(value)}</dd>`,
+            )}
           </dl>
           <p class="meta">判断者 ${judgment.judgedBy}</p>`;
 }

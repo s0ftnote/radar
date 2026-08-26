@@ -339,3 +339,64 @@ code {
 .said { margin: 12px 0 0; color: var(--green-ink); font-size: 13px; }
 
 .empty { margin: 32px 0; color: var(--muted); }
+
+
+/* Agent 写的文本按 Markdown 写——列表、加粗、分段，就照它写的摆。 */
+.prose > :first-child { margin-top: 0; }
+.prose > :last-child { margin-bottom: 0; }
+
+.prose p,
+.prose ul,
+.prose ol { margin: 0 0 10px; }
+
+.prose ul,
+.prose ol { padding-left: 1.3em; }
+
+.prose li { margin: 2px 0; }
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  margin: 16px 0 6px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.prose a { color: var(--green); }
+
+.prose pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border-radius: 8px;
+}
+
+.prose blockquote {
+  margin: 0 0 10px;
+  padding-left: 12px;
+  color: var(--muted);
+  border-left: 2px solid var(--line-strong);
+}
+
+/* 判断标准动辄几十行，折起来——它是背景，不该每次都挡在内容前面。 */
+.standard {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.standard summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.standard summary:hover { color: var(--green); }
+.standard > .prose { margin: 14px 0 0; font-size: 14px; }
+
+.quad dd.prose { font-size: 14px; }
