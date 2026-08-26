@@ -220,7 +220,9 @@ function assertQueuedInBrief(briefId: string, sourceContentId: string): void {
   const queued = database()
     .prepare("SELECT 1 FROM queue_entries WHERE brief_id = ? AND source_content_id = ?")
     .get(briefId, sourceContentId);
-  if (!queued) throw new Error("判断引用的 Signal 不在这个 Radar Brief 的来源内容里。");
+  if (!queued) {
+    throw new RadarDomainError("判断引用的 Signal 不在这个 Radar Brief 的来源内容里。", 400);
+  }
 }
 
 /** Signal 与关联各取一次，不按判断条数发查询。 */

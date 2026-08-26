@@ -4,6 +4,7 @@ import { RadarDomainError } from "./domain-error.js";
 import {
   getEndpoint,
   isBackingOff,
+  isDue,
   isCollectable,
   isEnabled,
   listEndpoints,
@@ -20,7 +21,12 @@ export type AcquisitionResult = {
   seenContentCount: number;
   queuedCount: number;
   error?: string;
-  skippedBecause?: "already_collecting" | "backing_off" | "not_collectable" | "out_of_time";
+  skippedBecause?:
+    | "already_collecting"
+    | "backing_off"
+    | "not_collectable"
+    | "not_due"
+    | "out_of_time";
 };
 
 /** 连续失败退避的上限。永不因失败自动下架端点（ADR 0010），只是越退越慢。 */
@@ -183,18 +189,26 @@ function staleBefore(now: string): string {
   return new Date(Date.parse(now) - staleCollectionSeconds * 1_000).toISOString();
 }
 
-/** 把所有端点催一遍。逐个来——退避与防重入照旧由 collectEndpoint 把关。 */
+const collectAllTimeoutMilliseconds = 60_000;
+
 /**
  * 催一次全实例采集。同步返回，带 60 秒总超时（#45）——催的人在等着看结果，
  * 端点多起来一趟能走很久。到点之后不再开新的端点，剩下的如实标成「没轮到」：
  * 它们照样由调度器按渠道节奏采，超时不是失败，不进退避。
+ *
+ * **不绕过渠道速率限制**（#45）：没到渠道节奏的端点这一趟不采。点名某一条
+ * 端点才越过退避，那是用户的显式决定。
  */
-const collectAllTimeoutMilliseconds = 60_000;
-
 export async function collectAllEndpoints(): Promise<AcquisitionResult[]> {
   const deadline = Date.now() + collectAllTimeoutMilliseconds;
   const results: AcquisitionResult[] = [];
   for (const endpoint of listEndpoints()) {
+    // 退避中的端点照样交给 collectEndpoint 说「在退避」——那比「还没到点」
+    // 具体，两个都成立时用具体的那句。
+    if (!isBackingOff(endpoint) && !isDue(endpoint)) {
+      results.push(skipped(endpoint.id, "not_due"));
+      continue;
+    }
     results.push(
       Date.now() >= deadline
         ? skipped(endpoint.id, "out_of_time")

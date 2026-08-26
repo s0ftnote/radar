@@ -174,13 +174,7 @@ export function createRadarApp(): Hono {
   app.put("/settings/rsshub", async (context) => {
     const body = await jsonBody(context.req.raw);
     const raw = typeof body.baseUrl === "string" ? body.baseUrl.trim() : "";
-    {
-      try {
-        setRsshubBaseUrl(raw === "" ? null : raw);
-      } catch {
-        throw new RadarDomainError(`${raw} 不是一个网址。`, 400);
-      }
-    }
+    setRsshubBaseUrl(raw === "" ? null : raw);
     return context.json({ baseUrl: rsshubBaseUrl() });
   });
 
@@ -464,7 +458,6 @@ function textList(value: unknown): string[] | undefined {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-/** 领域层用普通 Error 表达用户可修正的输入问题，到了 HTTP 边界它们是 400。 */
 /** 一次给多少条由服务端说了算：客户端要不到无限长的一包，也不能要半条。 */
 function limitOf(raw: string | undefined): number {
   const requested = Number(raw ?? defaultWorkPackageLimit);

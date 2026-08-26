@@ -1,5 +1,5 @@
 import { collectEndpoint } from "../lib/acquisition.js";
-import { isBackingOff, isCollectable, listEndpoints, type Endpoint } from "../lib/endpoints.js";
+import { isBackingOff, isCollectable, isDue, listEndpoints } from "../lib/endpoints.js";
 import { sweepRetentionWindow } from "../lib/queue.js";
 
 export type Scheduler = { stop(): void };
@@ -26,7 +26,7 @@ export function startScheduler(): Scheduler {
 
       for (const endpoint of listEndpoints()) {
         if (stopped) break;
-        if (!isCollectable(endpoint) || !isDue(endpoint)) continue;
+        if (!isCollectable(endpoint) || isBackingOff(endpoint) || !isDue(endpoint)) continue;
         const result = await collectEndpoint(endpoint.id);
         if (result.status === "failed") {
           console.error(`[Radar] 采集 ${endpoint.id} 失败：${result.error}`);
@@ -50,13 +50,10 @@ export function startScheduler(): Scheduler {
 }
 
 function tickSeconds(): number {
-  const intervals = listEndpoints().map((endpoint) => endpoint.collectionIntervalSeconds);
+  // 只看真的会被采的端点：`配置后解锁` 那一档由 Agent 推来，它渠道上的节奏
+  // 不该把巡视频率往下拽。
+  const intervals = listEndpoints()
+    .filter(isCollectable)
+    .map((endpoint) => endpoint.collectionIntervalSeconds);
   return Math.max(1, Math.min(maximumTickSeconds, ...intervals));
-}
-
-function isDue(endpoint: Endpoint): boolean {
-  const now = Date.now();
-  if (isBackingOff(endpoint)) return false;
-  if (!endpoint.lastSuccessAt) return true;
-  return now - Date.parse(endpoint.lastSuccessAt) >= endpoint.collectionIntervalSeconds * 1_000;
 }

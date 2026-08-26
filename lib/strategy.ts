@@ -134,7 +134,7 @@ function parseFormula(value: unknown): StrategyFormula {
   if (!(halfLife > 0)) throw new InvalidStrategyError("freshnessHalfLifeHours 要大于 0。");
 
   const endpointWeights: Record<string, number> = {};
-  for (const [endpointId, weight] of Object.entries(fields(raw.endpointWeights))) {
+  for (const [endpointId, weight] of Object.entries(asRecord(raw.endpointWeights) ?? {})) {
     if (typeof weight !== "number" || !Number.isFinite(weight)) {
       throw new InvalidStrategyError(`端点 ${endpointId} 的权重要是一个有限的数。`);
     }
@@ -174,10 +174,6 @@ function numberOr(value: unknown, fallback: number): number {
     throw new InvalidStrategyError("策略里的每个权重都要是一个有限的数。");
   }
   return value;
-}
-
-function fields(value: unknown): Record<string, unknown> {
-  return asRecord(value) ?? {};
 }
 
 function mapStrategy(row: StrategyRow): QueueStrategy {

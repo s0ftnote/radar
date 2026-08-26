@@ -109,19 +109,17 @@ export function listPendingContents(briefId: string, limit: number): PendingCont
  * 每个有候选的端点先保底占一条，剩下的名额纯按分数发。取够之后整包再按分数
  * 排一次——配额决定谁进来，分数决定先看谁。
  */
-const endpointQuota = 1;
-
 function withEndpointQuota(scored: ScoredCandidate[], limit: number): ScoredCandidate[] {
   const taken = new Set<string>();
-  const perEndpoint = new Map<string, number>();
+  const covered = new Set<string>();
   const picked: ScoredCandidate[] = [];
 
-  // scored 已按分数排好，所以每个端点保底的那条就是它自己最高分的那条。
+  // 保底是一条。scored 已按分数排好，所以每个端点保底的那条就是它自己最高分
+  // 的那条。
   for (const item of scored) {
     if (picked.length >= limit) break;
-    const used = perEndpoint.get(item.content.endpointId) ?? 0;
-    if (used >= endpointQuota) continue;
-    perEndpoint.set(item.content.endpointId, used + 1);
+    if (covered.has(item.content.endpointId)) continue;
+    covered.add(item.content.endpointId);
     taken.add(item.content.queueEntryId);
     picked.push(item);
   }
@@ -258,14 +256,9 @@ export function requeueContent(
 export function queueStatus(briefId: string): {
   queueDepth: number;
   lastJudgedAt: string | null;
-  retentionDays: number;
 } {
   const judged = database()
     .prepare("SELECT MAX(created_at) AS last FROM judgments WHERE brief_id = ?")
     .get(briefId) as { last: string | null };
-  return {
-    queueDepth: queueDepth(briefId),
-    lastJudgedAt: judged.last,
-    retentionDays: retentionDays(),
-  };
+  return { queueDepth: queueDepth(briefId), lastJudgedAt: judged.last };
 }

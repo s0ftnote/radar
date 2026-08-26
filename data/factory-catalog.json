@@ -8,12 +8,6 @@
       "collectionIntervalSeconds": 900
     },
     {
-      "id": "github",
-      "name": "GitHub（仓库自带 Atom）",
-      "configState": "ready",
-      "collectionIntervalSeconds": 1800
-    },
-    {
       "id": "agent-push",
       "name": "配置后解锁（你的 Agent 推送）",
       "configState": "unlocked_by_config",
@@ -89,7 +83,7 @@
     },
     {
       "id": "github-releases-node",
-      "channelId": "github",
+      "channelId": "rss",
       "name": "nodejs/node 的 Releases",
       "url": "https://github.com/nodejs/node/releases.atom",
       "licenseBasis": {
@@ -100,7 +94,7 @@
     },
     {
       "id": "github-releases-anthropic-claude-code",
-      "channelId": "github",
+      "channelId": "rss",
       "name": "anthropics/claude-code 的 Releases",
       "url": "https://github.com/anthropics/claude-code/releases.atom",
       "licenseBasis": {

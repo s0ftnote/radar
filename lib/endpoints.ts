@@ -89,6 +89,20 @@ export function isEnabled(endpoint: Endpoint): boolean {
   return endpoint.userDisabledAt === null && endpoint.retiredAt === null;
 }
 
+/**
+ * 到点了没：渠道级节奏说了算，不做端点级覆盖（#44）。定时巡视与 `radar
+ * collect` 走同一个判定——催一次采集不绕过渠道速率限制。
+ *
+ * 只管节奏，不管退避：退避是另一件事，由 `collectEndpoint` 自己说，那样跳过
+ * 的理由才不会被这里含糊成「还没到点」。
+ */
+export function isDue(endpoint: Endpoint, now = new Date()): boolean {
+  if (!endpoint.lastSuccessAt) return true;
+  return (
+    now.getTime() - Date.parse(endpoint.lastSuccessAt) >= endpoint.collectionIntervalSeconds * 1_000
+  );
+}
+
 /** 正在退避里：连续失败之后 Radar 自己压住的下一次采集时间还没到（ADR 0010）。 */
 export function isBackingOff(endpoint: Endpoint, now = new Date()): boolean {
   return endpoint.retryAfter !== null && Date.parse(endpoint.retryAfter) > now.getTime();

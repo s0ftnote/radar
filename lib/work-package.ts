@@ -2,6 +2,7 @@ import { getBrief, type BriefRevision } from "./briefs.js";
 import { listFeedback, type Feedback } from "./feedback.js";
 import { listRecentJudgmentSummaries } from "./judgments.js";
 import { listPendingContents, queueDepth, type PendingContent } from "./queue.js";
+import { RadarDomainError } from "./domain-error.js";
 
 export type WorkPackage = {
   brief: { id: string; name: string; revision: BriefRevision };
@@ -21,7 +22,7 @@ const recentJudgmentLimit = 50;
 
 export function assembleWorkPackage(briefId: string, limit: number): WorkPackage {
   const brief = getBrief(briefId);
-  if (!brief) throw new Error("找不到这个 Radar Brief。");
+  if (!brief) throw new RadarDomainError("找不到这个 Radar Brief。", 404);
 
   return {
     brief: { id: brief.id, name: brief.name, revision: brief.currentRevision },

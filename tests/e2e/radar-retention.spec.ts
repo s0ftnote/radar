@@ -14,7 +14,7 @@ type WorkPackage = {
   pendingContents: Array<{ queueEntryId: string; sourceContentId: string; title: string }>;
   queueDepth: number;
 };
-type QueueStatus = { queueDepth: number; lastJudgedAt: string | null; retentionDays: number };
+type QueueStatus = { queueDepth: number; lastJudgedAt: string | null };
 
 const briefBody = "关注开发者反复表达、正在变化、可能还没被满足的需求与痛点。";
 
@@ -45,8 +45,8 @@ test.describe("保留窗口与回捞", () => {
       const parked = before.pendingContents[0]!;
 
       // 默认 30 天，实例级可配（#43）。
-      expect((await radarJson<QueueStatus>(environment, ["queue", "--brief", brief.id])).retentionDays).toBe(30);
-      expect(await radarJson<{ days: number }>(environment, ["retention", "--days", "7"])).toEqual({ days: 7 });
+      expect(await radarJson(environment, ["retention"])).toEqual({ days: 30 });
+      expect(await radarJson(environment, ["retention", "--days", "7"])).toEqual({ days: 7 });
 
       await stopRadar(harness.radarProcess);
       backdateQueue(environment.dataDirectory, 30);

@@ -53,7 +53,8 @@ Brief
                                   规则每天从你那台刷新，只在粘网址那一刻用一次
   radar rsshub show | clear
   radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
-                                  不给 --endpoint 就全催一遍，退避照样生效
+                                  不给 --endpoint 就全催一遍，退避与渠道节奏
+                                  照样生效，整趟 60 秒封顶
 
 排队策略（独立对象，不塞进 Brief）
   radar strategy set --brief <id> --rationale <依据> --by <作者>
