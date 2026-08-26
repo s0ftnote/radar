@@ -45,10 +45,30 @@ test.describe("出厂来源目录", () => {
   });
 
   // 建 Brief 时按需求挑源靠的就是 topics（ADR 0018）：没标的那条永远不会被挑中。
-  test("每条出厂端点都标了 topics", () => {
+  test("每条出厂端点都标了 topics，且用的是同一个小词表", () => {
+    // 词表小才挑得动：同一个领域两种写法，Agent 就会漏掉其中一半。加新词是
+    // 显式动作，改这里一行——目录不因此长出分类体系（ADR 0014）。
+    const vocabulary = new Set([
+      "ai",
+      "chinese-tech",
+      "devtools",
+      "hardware",
+      "opensource",
+      "podcast",
+      "product",
+      "science",
+      "security",
+      "startups",
+      "systems",
+      "video",
+      "webdev",
+    ]);
     for (const endpoint of catalog.endpoints) {
       expect(endpoint.topics?.length, `${endpoint.id} 没标 topics`).toBeGreaterThan(0);
-      for (const topic of endpoint.topics!) expect(topic).toMatch(/^[a-z][a-z-]*$/);
+      for (const topic of endpoint.topics!) {
+        expect(topic).toMatch(/^[a-z][a-z-]*$/);
+        expect(vocabulary, `${endpoint.id} 的 topic「${topic}」不在词表里`).toContain(topic);
+      }
     }
   });
 

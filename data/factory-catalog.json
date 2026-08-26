@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 3,
+  "catalogVersion": 4,
   "channels": [
     {
       "id": "rss",
@@ -162,6 +162,1044 @@
       "topics": [
         "product",
         "startups"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "simon-willison-blog",
+      "channelId": "rss",
+      "name": "Simon Willison 的博客",
+      "url": "https://simonwillison.net/atom/everything/",
+      "topics": [
+        "ai",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://simonwillison.net/",
+        "note": "Simon Willison 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "lwn-headlines",
+      "channelId": "rss",
+      "name": "LWN.net 头条",
+      "url": "https://lwn.net/headlines/rss",
+      "topics": [
+        "systems",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://lwn.net/",
+        "note": "LWN.net 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "brendan-gregg-blog",
+      "channelId": "rss",
+      "name": "Brendan Gregg 的博客",
+      "url": "https://www.brendangregg.com/blog/rss.xml",
+      "topics": [
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.brendangregg.com/",
+        "note": "Brendan Gregg 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "krebs-on-security",
+      "channelId": "rss",
+      "name": "Krebs on Security",
+      "url": "https://krebsonsecurity.com/feed/",
+      "topics": [
+        "security"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://krebsonsecurity.com/",
+        "note": "Krebs on Security 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "schneier-on-security",
+      "channelId": "rss",
+      "name": "Schneier on Security",
+      "url": "https://www.schneier.com/feed/atom/",
+      "topics": [
+        "security"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.schneier.com/",
+        "note": "Bruce Schneier 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "css-tricks",
+      "channelId": "rss",
+      "name": "CSS-Tricks",
+      "url": "https://css-tricks.com/feed/",
+      "topics": [
+        "webdev"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://css-tricks.com/",
+        "note": "CSS-Tricks 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "hackaday",
+      "channelId": "rss",
+      "name": "Hackaday",
+      "url": "https://hackaday.com/feed/",
+      "topics": [
+        "hardware",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://hackaday.com/",
+        "note": "Hackaday 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "nature-latest",
+      "channelId": "rss",
+      "name": "Nature 最新研究",
+      "url": "https://www.nature.com/nature.rss",
+      "topics": [
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.nature.com/nature/",
+        "note": "Nature 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "quanta-magazine",
+      "channelId": "rss",
+      "name": "Quanta Magazine",
+      "url": "https://api.quantamagazine.org/feed/",
+      "topics": [
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.quantamagazine.org/",
+        "note": "Quanta Magazine 自己发布的官方 feed；这一条从 Horizon 的 presets（MIT）里挑出来，Radar 直连原站。"
+      }
+    },
+    {
+      "id": "github-releases-openai-python",
+      "channelId": "rss",
+      "name": "openai/openai-python 的 Releases",
+      "url": "https://github.com/openai/openai-python/releases.atom",
+      "topics": [
+        "ai",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/openai/openai-python",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-anthropic-sdk-python",
+      "channelId": "rss",
+      "name": "anthropics/anthropic-sdk-python 的 Releases",
+      "url": "https://github.com/anthropics/anthropic-sdk-python/releases.atom",
+      "topics": [
+        "ai",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/anthropics/anthropic-sdk-python",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-ollama",
+      "channelId": "rss",
+      "name": "ollama/ollama 的 Releases",
+      "url": "https://github.com/ollama/ollama/releases.atom",
+      "topics": [
+        "ai",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/ollama/ollama",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-vllm",
+      "channelId": "rss",
+      "name": "vllm-project/vllm 的 Releases",
+      "url": "https://github.com/vllm-project/vllm/releases.atom",
+      "topics": [
+        "ai",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/vllm-project/vllm",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-llama-cpp",
+      "channelId": "rss",
+      "name": "ggml-org/llama.cpp 的 Releases",
+      "url": "https://github.com/ggml-org/llama.cpp/releases.atom",
+      "topics": [
+        "ai",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/ggml-org/llama.cpp",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-langchain",
+      "channelId": "rss",
+      "name": "langchain-ai/langchain 的 Releases",
+      "url": "https://github.com/langchain-ai/langchain/releases.atom",
+      "topics": [
+        "ai",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/langchain-ai/langchain",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-transformers",
+      "channelId": "rss",
+      "name": "huggingface/transformers 的 Releases",
+      "url": "https://github.com/huggingface/transformers/releases.atom",
+      "topics": [
+        "ai",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/huggingface/transformers",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-pytorch",
+      "channelId": "rss",
+      "name": "pytorch/pytorch 的 Releases",
+      "url": "https://github.com/pytorch/pytorch/releases.atom",
+      "topics": [
+        "ai",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/pytorch/pytorch",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-rust",
+      "channelId": "rss",
+      "name": "rust-lang/rust 的 Releases",
+      "url": "https://github.com/rust-lang/rust/releases.atom",
+      "topics": [
+        "devtools",
+        "systems",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/rust-lang/rust",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-neovim",
+      "channelId": "rss",
+      "name": "neovim/neovim 的 Releases",
+      "url": "https://github.com/neovim/neovim/releases.atom",
+      "topics": [
+        "devtools",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/neovim/neovim",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-next-js",
+      "channelId": "rss",
+      "name": "vercel/next.js 的 Releases",
+      "url": "https://github.com/vercel/next.js/releases.atom",
+      "topics": [
+        "webdev",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/vercel/next.js",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "github-releases-kubernetes",
+      "channelId": "rss",
+      "name": "kubernetes/kubernetes 的 Releases",
+      "url": "https://github.com/kubernetes/kubernetes/releases.atom",
+      "topics": [
+        "systems",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://github.com/kubernetes/kubernetes",
+        "note": "GitHub 每个仓库自己就出 Atom，不经过任何中间层。"
+      }
+    },
+    {
+      "id": "openai-news",
+      "channelId": "rss",
+      "name": "OpenAI 官方动态",
+      "url": "https://openai.com/news/rss.xml",
+      "topics": [
+        "ai",
+        "product"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://openai.com/news/",
+        "note": "OpenAI 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "google-ai-blog",
+      "channelId": "rss",
+      "name": "Google AI 博客",
+      "url": "https://blog.google/technology/ai/rss/",
+      "topics": [
+        "ai",
+        "product"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://blog.google/technology/ai/",
+        "note": "Google 官方博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "google-deepmind-blog",
+      "channelId": "rss",
+      "name": "Google DeepMind 博客",
+      "url": "https://deepmind.google/blog/rss.xml",
+      "topics": [
+        "ai",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://deepmind.google/discover/blog/",
+        "note": "Google DeepMind 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "google-research-blog",
+      "channelId": "rss",
+      "name": "Google Research 博客",
+      "url": "https://research.google/blog/rss/",
+      "topics": [
+        "ai",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://research.google/blog/",
+        "note": "Google Research 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "huggingface-blog",
+      "channelId": "rss",
+      "name": "Hugging Face 博客",
+      "url": "https://huggingface.co/blog/feed.xml",
+      "topics": [
+        "ai",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://huggingface.co/blog",
+        "note": "Hugging Face 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "vercel-blog",
+      "channelId": "rss",
+      "name": "Vercel 官方动态",
+      "url": "https://vercel.com/atom",
+      "topics": [
+        "webdev",
+        "product"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://vercel.com/blog",
+        "note": "Vercel 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "cloudflare-blog",
+      "channelId": "rss",
+      "name": "Cloudflare 博客",
+      "url": "https://blog.cloudflare.com/rss/",
+      "topics": [
+        "systems",
+        "security",
+        "webdev"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://blog.cloudflare.com/",
+        "note": "Cloudflare 官方博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "supabase-blog",
+      "channelId": "rss",
+      "name": "Supabase 博客",
+      "url": "https://supabase.com/rss.xml",
+      "topics": [
+        "webdev",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://supabase.com/blog",
+        "note": "Supabase 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "meta-engineering-blog",
+      "channelId": "rss",
+      "name": "Engineering at Meta",
+      "url": "https://engineering.fb.com/feed/",
+      "topics": [
+        "systems",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://engineering.fb.com/",
+        "note": "Meta 官方工程博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "rust-blog",
+      "channelId": "rss",
+      "name": "Rust 官方博客",
+      "url": "https://blog.rust-lang.org/feed.xml",
+      "topics": [
+        "devtools",
+        "systems",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://blog.rust-lang.org/",
+        "note": "Rust 项目官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "go-blog",
+      "channelId": "rss",
+      "name": "Go 官方博客",
+      "url": "https://go.dev/blog/feed.atom",
+      "topics": [
+        "devtools",
+        "systems",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://go.dev/blog/",
+        "note": "Go 项目官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "python-insider",
+      "channelId": "rss",
+      "name": "Python Insider",
+      "url": "https://blog.python.org/feeds/posts/default",
+      "topics": [
+        "devtools",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://blog.python.org/",
+        "note": "Python 官方开发者博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "kubernetes-blog",
+      "channelId": "rss",
+      "name": "Kubernetes 官方博客",
+      "url": "https://kubernetes.io/feed.xml",
+      "topics": [
+        "systems",
+        "devtools",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://kubernetes.io/blog/",
+        "note": "Kubernetes 项目官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "postgresql-news",
+      "channelId": "rss",
+      "name": "PostgreSQL 官方新闻",
+      "url": "https://www.postgresql.org/news.rss",
+      "topics": [
+        "systems",
+        "devtools",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.postgresql.org/about/newsarchive/",
+        "note": "PostgreSQL 官方自己发布的 feed。"
+      }
+    },
+    {
+      "id": "google-security-blog",
+      "channelId": "rss",
+      "name": "Google 安全博客",
+      "url": "https://security.googleblog.com/feeds/posts/default",
+      "topics": [
+        "security"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://security.googleblog.com/",
+        "note": "Google 官方安全博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "google-project-zero",
+      "channelId": "rss",
+      "name": "Google Project Zero",
+      "url": "https://googleprojectzero.blogspot.com/feeds/posts/default",
+      "topics": [
+        "security",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://googleprojectzero.blogspot.com/",
+        "note": "Project Zero 官方博客自己发布的 feed。"
+      }
+    },
+    {
+      "id": "arxiv-cs-ai",
+      "channelId": "rss",
+      "name": "arXiv cs.AI 新论文",
+      "url": "https://rss.arxiv.org/rss/cs.AI",
+      "topics": [
+        "ai",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://info.arxiv.org/help/rss.html",
+        "note": "arXiv 官方为每个分类提供的 feed，机器读取由 arXiv 自己说明。"
+      }
+    },
+    {
+      "id": "techcrunch",
+      "channelId": "rss",
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "topics": [
+        "startups",
+        "product",
+        "ai"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://techcrunch.com/",
+        "note": "TechCrunch 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "julia-evans-blog",
+      "channelId": "rss",
+      "name": "Julia Evans 的博客",
+      "url": "https://jvns.ca/atom.xml",
+      "topics": [
+        "devtools",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://jvns.ca/",
+        "note": "Julia Evans 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "latent-space",
+      "channelId": "rss",
+      "name": "Latent Space",
+      "url": "https://www.latent.space/feed",
+      "topics": [
+        "ai",
+        "podcast"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.latent.space/",
+        "note": "Latent Space 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "import-ai",
+      "channelId": "rss",
+      "name": "Import AI",
+      "url": "https://importai.substack.com/feed",
+      "topics": [
+        "ai",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://importai.substack.com/",
+        "note": "Import AI 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "syntax-fm",
+      "channelId": "rss",
+      "name": "Syntax 播客",
+      "url": "https://feed.syntax.fm/rss",
+      "topics": [
+        "podcast",
+        "webdev"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://syntax.fm/",
+        "note": "Syntax 自己发布的官方播客 feed。"
+      }
+    },
+    {
+      "id": "v2ex-index",
+      "channelId": "rss",
+      "name": "V2EX 首页",
+      "url": "https://www.v2ex.com/index.xml",
+      "topics": [
+        "chinese-tech",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.v2ex.com/about",
+        "note": "V2EX 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "v2ex-create",
+      "channelId": "rss",
+      "name": "V2EX 分享创造",
+      "url": "https://www.v2ex.com/feed/create.xml",
+      "topics": [
+        "chinese-tech",
+        "product",
+        "startups"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.v2ex.com/go/create",
+        "note": "V2EX 自己给每个节点出的官方 feed。"
+      }
+    },
+    {
+      "id": "v2ex-programmer",
+      "channelId": "rss",
+      "name": "V2EX 程序员",
+      "url": "https://www.v2ex.com/feed/programmer.xml",
+      "topics": [
+        "chinese-tech",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.v2ex.com/go/programmer",
+        "note": "V2EX 自己给每个节点出的官方 feed。"
+      }
+    },
+    {
+      "id": "sspai",
+      "channelId": "rss",
+      "name": "少数派",
+      "url": "https://sspai.com/feed",
+      "topics": [
+        "chinese-tech",
+        "product"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://sspai.com/",
+        "note": "少数派自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "ruanyifeng-blog",
+      "channelId": "rss",
+      "name": "阮一峰的网络日志（含科技爱好者周刊）",
+      "url": "https://www.ruanyifeng.com/blog/atom.xml",
+      "topics": [
+        "chinese-tech",
+        "devtools",
+        "webdev"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.ruanyifeng.com/blog/",
+        "note": "阮一峰自己发布的官方 feed，《科技爱好者周刊》也走这一条。"
+      }
+    },
+    {
+      "id": "solidot",
+      "channelId": "rss",
+      "name": "奇客 Solidot",
+      "url": "https://www.solidot.org/index.rss",
+      "topics": [
+        "chinese-tech",
+        "opensource",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.solidot.org/",
+        "note": "Solidot 自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "williamlong-blog",
+      "channelId": "rss",
+      "name": "月光博客",
+      "url": "https://www.williamlong.info/rss.xml",
+      "topics": [
+        "chinese-tech",
+        "security"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.williamlong.info/",
+        "note": "月光博客自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "qbitai",
+      "channelId": "rss",
+      "name": "量子位",
+      "url": "https://www.qbitai.com/feed",
+      "topics": [
+        "chinese-tech",
+        "ai"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.qbitai.com/",
+        "note": "量子位官网自己发布的 feed，不经过任何微信转发中间层。"
+      }
+    },
+    {
+      "id": "infoq-china",
+      "channelId": "rss",
+      "name": "InfoQ 中文站",
+      "url": "https://www.infoq.cn/feed",
+      "topics": [
+        "chinese-tech",
+        "devtools",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.infoq.cn/",
+        "note": "InfoQ 中文站自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "oschina-news",
+      "channelId": "rss",
+      "name": "OSCHINA 开源资讯",
+      "url": "https://www.oschina.net/news/rss",
+      "topics": [
+        "chinese-tech",
+        "opensource",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.oschina.net/news",
+        "note": "开源中国自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "ifanr",
+      "channelId": "rss",
+      "name": "爱范儿",
+      "url": "https://www.ifanr.com/feed",
+      "topics": [
+        "chinese-tech",
+        "product"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.ifanr.com/",
+        "note": "爱范儿自己发布的官方 feed。"
+      }
+    },
+    {
+      "id": "youtube-fireship",
+      "channelId": "rss",
+      "name": "Fireship",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCsBjURrPoezykLs9EqgamOA",
+      "topics": [
+        "video",
+        "devtools",
+        "webdev"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@Fireship",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "youtube-two-minute-papers",
+      "channelId": "rss",
+      "name": "Two Minute Papers",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg",
+      "topics": [
+        "video",
+        "ai",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@TwoMinutePapers",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "youtube-yannic-kilcher",
+      "channelId": "rss",
+      "name": "Yannic Kilcher",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCZHmQk67mSJgfCCTn7xBfew",
+      "topics": [
+        "video",
+        "ai"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@YannicKilcher",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "youtube-theprimeagen",
+      "channelId": "rss",
+      "name": "ThePrimeagen",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8ENHE5xdFSwx71u3fDH5Xw",
+      "topics": [
+        "video",
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@ThePrimeagen",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "youtube-anthropic",
+      "channelId": "rss",
+      "name": "Anthropic 官方频道",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCrDwWp7EBBv4NwvScIpBDOA",
+      "topics": [
+        "video",
+        "ai"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@anthropic-ai",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "youtube-openai",
+      "channelId": "rss",
+      "name": "OpenAI 官方频道",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCXZCJLdBC09xxGZ6gcdrc6A",
+      "topics": [
+        "video",
+        "ai"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@OpenAI",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "youtube-google-deepmind",
+      "channelId": "rss",
+      "name": "Google DeepMind 官方频道",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCP7jMXSY2xbc3KCAE0MHQ-A",
+      "topics": [
+        "video",
+        "ai"
+      ],
+      "licenseBasis": {
+        "basis": "publisher-provided-feed",
+        "reference": "https://www.youtube.com/@GoogleDeepMind",
+        "note": "YouTube 官方给每个频道出的 Atom，无需登录，频道 id 已逐条核实。"
+      }
+    },
+    {
+      "id": "reddit-machinelearning",
+      "channelId": "agent-push",
+      "name": "Reddit r/MachineLearning",
+      "url": "https://www.reddit.com/r/MachineLearning/",
+      "topics": [
+        "ai",
+        "science"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-localllama",
+      "channelId": "agent-push",
+      "name": "Reddit r/LocalLLaMA",
+      "url": "https://www.reddit.com/r/LocalLLaMA/",
+      "topics": [
+        "ai",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-linux",
+      "channelId": "agent-push",
+      "name": "Reddit r/linux",
+      "url": "https://www.reddit.com/r/linux/",
+      "topics": [
+        "systems",
+        "opensource"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-netsec",
+      "channelId": "agent-push",
+      "name": "Reddit r/netsec",
+      "url": "https://www.reddit.com/r/netsec/",
+      "topics": [
+        "security"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-webdev",
+      "channelId": "agent-push",
+      "name": "Reddit r/webdev",
+      "url": "https://www.reddit.com/r/webdev/",
+      "topics": [
+        "webdev"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-rust",
+      "channelId": "agent-push",
+      "name": "Reddit r/rust",
+      "url": "https://www.reddit.com/r/rust/",
+      "topics": [
+        "devtools",
+        "systems"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-commandline",
+      "channelId": "agent-push",
+      "name": "Reddit r/commandline",
+      "url": "https://www.reddit.com/r/commandline/",
+      "topics": [
+        "devtools"
+      ],
+      "licenseBasis": {
+        "basis": "agent-pushed",
+        "reference": "https://www.redditinc.com/policies/data-api-terms",
+        "note": "Radar 不自采 Reddit：由你的 Agent 用自己的采集工具采完推给这条端点（ADR 0011）。"
+      }
+    },
+    {
+      "id": "reddit-science",
+      "channelId": "agent-push",
+      "name": "Reddit r/science",
+      "url": "https://www.reddit.com/r/science/",
+      "topics": [
+        "science"
       ],
       "licenseBasis": {
         "basis": "agent-pushed",
