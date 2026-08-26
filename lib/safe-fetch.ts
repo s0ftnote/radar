@@ -1,5 +1,7 @@
+import type { LookupFunction } from "node:net";
 import { lookup } from "node:dns/promises";
 import { isIPv4, isIPv6 } from "node:net";
+import { Agent, fetch as undiciFetch } from "undici";
 import { RadarDomainError } from "./domain-error.js";
 
 /**
@@ -7,9 +9,9 @@ import { RadarDomainError } from "./domain-error.js";
  * 不加防护就是一个 SSRF 跳板：`http://127.0.0.1:5432`、`http://192.168.1.1`、
  * 云上的 `169.254.169.254` 元数据端点，都在这台机器够得着的范围里。
  *
- * 所以：先把域名解析成 IP，逐个核对，然后**直接用那个 IP 发请求**（带上原来
- * 的 Host 头）。核对完再让 fetch 自己解析一次，中间那次解析可以换答案——
- * 那正是 DNS 重绑定。重定向逐跳复核，同一套规则再走一遍。
+ * 所以：先把域名解析成 IP，逐个核对，然后**把连接钉在那个 IP 上**——网址、
+ * Host 头、TLS 的 SNI 全都保持原样。核对完再让 fetch 自己解析一次，中间那次
+ * 解析可以换答案，那正是 DNS 重绑定。重定向逐跳复核，同一套规则再走一遍。
  */
 export class BlockedAddressError extends RadarDomainError {
   constructor(host: string, reason: string) {
@@ -36,14 +38,22 @@ const defaults = {
   maximumRedirects: 5,
 };
 
-export type SafeResponse = { url: string; status: number; contentType: string; body: string };
+export type SafeResponse = {
+  url: string;
+  status: number;
+  contentType: string;
+  body: string;
+};
 
 /** 只做地址核对，不发请求——粘网址那一刻先把不该请求的地址挡在门外。 */
-export async function assertPublicAddress(rawUrl: string): Promise<void> {
+export async function assertAllowedAddress(rawUrl: string): Promise<void> {
   await resolveAllowedAddress(parseHttpUrl(rawUrl), false);
 }
 
-export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeResponse> {
+export async function safeFetch(
+  rawUrl: string,
+  options: SafeFetchOptions = {},
+): Promise<SafeResponse> {
   const timeoutMilliseconds = options.timeoutMilliseconds ?? defaults.timeoutMilliseconds;
   const maximumBytes = options.maximumBytes ?? defaults.maximumBytes;
   const maximumRedirects = options.maximumRedirects ?? defaults.maximumRedirects;
@@ -51,32 +61,48 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const deadline = AbortSignal.timeout(timeoutMilliseconds);
 
   let target = parseHttpUrl(rawUrl);
-  for (let hop = 0; hop <= maximumRedirects; hop += 1) {
-    const address = await resolveAllowedAddress(
-      target,
-      hop === 0 && options.allowPrivateOrigin === true,
-    );
-    const response = await requestOnce(target, address, options.accept, deadline);
-
-    const location = response.headers.get("location");
-    if (isRedirect(response.status) && location) {
-      // 每一跳都从头核对一遍：第一跳合规不代表它指过去的地方也合规。
-      response.body?.cancel().catch(() => {});
-      target = parseHttpUrl(new URL(location, target).toString());
-      continue;
+  try {
+    return await followRedirects();
+  } catch (error) {
+    // 整趟超时的那一刻，底下抛出来的是一句 abort。换成人话，不然用户在
+    // 「无法连接来源」后面看到的是 `This operation was aborted`。
+    if (deadline.aborted) {
+      throw new RadarDomainError(
+        `请求 ${target.hostname} 超过 ${Math.round(timeoutMilliseconds / 1000)} 秒还没读完，不再等了。`,
+        400,
+      );
     }
-
-    if (!response.ok) {
-      throw new RadarDomainError(`${target.hostname} 返回 HTTP ${response.status}。`, 400);
-    }
-    return {
-      url: target.toString(),
-      status: response.status,
-      contentType: response.headers.get("content-type") ?? "",
-      body: await readCapped(response, maximumBytes),
-    };
+    throw error;
   }
-  throw new RadarDomainError(`${rawUrl} 的重定向超过 ${maximumRedirects} 跳，不再跟下去。`, 400);
+
+  async function followRedirects(): Promise<SafeResponse> {
+    for (let hop = 0; hop <= maximumRedirects; hop += 1) {
+      const address = await resolveAllowedAddress(
+        target,
+        hop === 0 && options.allowPrivateOrigin === true,
+      );
+      const response = await requestOnce(target, address, options.accept, deadline);
+
+      const location = response.headers.get("location");
+      if (isRedirect(response.status) && location) {
+        // 每一跳都从头核对一遍：第一跳合规不代表它指过去的地方也合规。
+        response.body?.cancel().catch(() => {});
+        target = parseHttpUrl(new URL(location, target).toString());
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new RadarDomainError(`${target.hostname} 返回 HTTP ${response.status}。`, 400);
+      }
+      return {
+        url: target.toString(),
+        status: response.status,
+        contentType: response.headers.get("content-type") ?? "",
+        body: await readCapped(response, maximumBytes),
+      };
+    }
+    throw new RadarDomainError(`${rawUrl} 的重定向超过 ${maximumRedirects} 跳，不再跟下去。`, 400);
+  }
 }
 
 function parseHttpUrl(raw: string): URL {
@@ -89,7 +115,7 @@ function parseHttpUrl(raw: string): URL {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new BlockedAddressError(url.protocol, "只请求 http 与 https。");
   }
-  // 凭据写在网址里就会随重定向被带走，而且我们要换成 IP 发请求。
+  // 凭据写在网址里就会随重定向被带走。
   if (url.username || url.password) {
     throw new BlockedAddressError(url.hostname, "网址里不要带用户名密码。");
   }
@@ -98,7 +124,7 @@ function parseHttpUrl(raw: string): URL {
 
 /**
  * 解析出来的**每一个**地址都得合规。只看第一个不够：一个域名可以同时给出
- * 一个公网地址和一个内网地址，fetch 挑哪个不归我们说了算。
+ * 一个公网地址和一个内网地址，连的时候挑哪个不归我们说了算。
  */
 async function resolveAllowedAddress(url: URL, allowPrivate: boolean): Promise<string> {
   const host = url.hostname.replace(/^\[|\]$/g, "");
@@ -136,6 +162,10 @@ function blockedReason(address: string): string | null {
   }
   if (/^f[cd]/.test(lower)) return "那是内网地址。";
   if (/^fe[89ab]/.test(lower)) return "那是链路本地地址。";
+  // 还有两种把 IPv4 包在 IPv6 里的写法：NAT64 的 64:ff9b::/96 与 6to4 的
+  // 2002::/16。它们最后落到的还是那个 IPv4 地址，按那个地址算。
+  const translated = translatedIPv4(lower);
+  if (translated) return blockedIPv4Reason(translated);
   return null;
 }
 
@@ -146,8 +176,23 @@ function embeddedIPv4(lower: string): string | null {
 
   const hex = /^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(lower);
   if (!hex) return null;
-  const high = Number.parseInt(hex[1]!, 16);
-  const low = Number.parseInt(hex[2]!, 16);
+  return dottedFromHextets(hex[1]!, hex[2]!);
+}
+
+/** NAT64（`64:ff9b::a9fe:a9fe`）与 6to4（`2002:a9fe:a9fe::`）里包着的那个 IPv4。 */
+function translatedIPv4(lower: string): string | null {
+  const nat64 = /^64:ff9b:(?::0)*:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(lower);
+  if (nat64) return dottedFromHextets(nat64[1]!, nat64[2]!);
+  const nat64Dotted = /^64:ff9b:(?::0)*:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
+  if (nat64Dotted) return nat64Dotted[1]!;
+  const sixToFour = /^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4})(?::|$)/.exec(lower);
+  if (sixToFour) return dottedFromHextets(sixToFour[1]!, sixToFour[2]!);
+  return null;
+}
+
+function dottedFromHextets(highHextet: string, lowHextet: string): string {
+  const high = Number.parseInt(highHextet, 16);
+  const low = Number.parseInt(lowHextet, 16);
   return [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
 }
 
@@ -159,31 +204,48 @@ function blockedIPv4Reason(address: string): string | null {
   }
   if (a === 169 && b === 254) return "那是链路本地地址，云上的元数据端点也在这一段。";
   if (a === 100 && b >= 64 && b <= 127) return "那是运营商级内网地址。";
+  if (a === 192 && b === 0) return "那是 IETF 保留地址。";
+  // 198.18.0.0/15 是给网络设备做基准测试的保留段，看着该挡，但挡不得：
+  // 开着 fake-ip 的代理（Clash 那一类）就把所有域名解析到这一段，挡了等于
+  // 让 Radar 在那些机器上完全不能采集。
+
   if (a >= 224) return "那不是一个能请求的单播地址。";
   return null;
 }
 
 /**
- * 核对过的是 IP，那就请求这个 IP，Host 头写回原来的域名。让 fetch 自己再解析
- * 一次域名就等于把核对结果作废——两次解析之间答案可以变（DNS 重绑定）。
+ * 核对过的是 IP，那就把这一次连接钉死在这个 IP 上：换掉解析函数，网址、Host
+ * 头、TLS 的 SNI 全不动。改写网址里的主机名也能钉住地址，但那样 Host 头和
+ * 证书校验就都对着 IP 了——虚拟主机会给错站点，https 直接连不上。
  */
 function requestOnce(
   url: URL,
   address: string,
   accept: string | undefined,
   signal: AbortSignal,
-): Promise<Response> {
-  const direct = new URL(url);
-  direct.hostname = isIPv6(address) ? `[${address}]` : address;
-
-  return fetch(direct, {
-    headers: {
-      host: url.host,
-      ...(accept ? { accept } : {}),
-    },
+): ReturnType<typeof undiciFetch> {
+  const dispatcher = new Agent({ connect: { lookup: pinnedLookup(address) } });
+  return undiciFetch(url, {
+    headers: accept ? { accept } : {},
     redirect: "manual",
     signal,
-  });
+    dispatcher,
+  }).finally(() => void dispatcher.close().catch(() => {}));
+}
+
+/** 解析已经做过了，这里只把那一个答案交回去。 */
+function pinnedLookup(address: string): LookupFunction {
+  const family = isIPv6(address) ? 6 : 4;
+  return ((_hostname, options, callback) => {
+    if (options && typeof options === "object" && options.all) {
+      (callback as (error: null, addresses: Array<{ address: string; family: number }>) => void)(
+        null,
+        [{ address, family }],
+      );
+      return;
+    }
+    (callback as (error: null, address: string, family: number) => void)(null, address, family);
+  }) as LookupFunction;
 }
 
 function isRedirect(status: number): boolean {
@@ -194,7 +256,10 @@ function isRedirect(status: number): boolean {
  * 按 chunk 累加，超上限立刻断开。信 `content-length` 没用——恶意的一方
  * 想报多少就报多少，甚至可以不报。
  */
-async function readCapped(response: Response, maximumBytes: number): Promise<string> {
+async function readCapped(
+  response: Awaited<ReturnType<typeof undiciFetch>>,
+  maximumBytes: number,
+): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return "";
 
@@ -206,7 +271,10 @@ async function readCapped(response: Response, maximumBytes: number): Promise<str
       if (done) break;
       size += value.byteLength;
       if (size > maximumBytes) {
-        throw new RadarDomainError(`响应超过 ${Math.round(maximumBytes / 1_000_000)} MB，不再读下去。`, 400);
+        throw new RadarDomainError(
+          `响应超过 ${Math.round(maximumBytes / 1_000_000)} MB，不再读下去。`,
+          400,
+        );
       }
       chunks.push(value);
     }

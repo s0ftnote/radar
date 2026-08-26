@@ -34,6 +34,9 @@ export function rsshubBaseUrl(): string | null {
 
 export function setRsshubBaseUrl(url: string | null): void {
   const db = database();
+  // 换了地址，手上那份规则就是从别处来的了：清掉刷新时间，下一次粘网址
+  // 立刻从新地址刷一次，不用等满一天。
+  db.prepare("DELETE FROM instance_settings WHERE key = ?").run(refreshedAtKey);
   if (url === null) {
     db.prepare("DELETE FROM instance_settings WHERE key = ?").run(baseUrlKey);
     return;
@@ -118,6 +121,12 @@ export async function refreshRulesIfStale(now = new Date()): Promise<boolean> {
     | undefined;
   if (row && now.getTime() - Date.parse(row.value) < refreshIntervalMilliseconds) return false;
 
+  // 记的是「试过了」，不是「成功了」。那台实例关着的时候，每粘一次网址都
+  // 重试一次就是每次都白等一个超时；一天一次就够了，中间用手上那份。
+  db.prepare(
+    "INSERT INTO instance_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ).run(refreshedAtKey, now.toISOString());
+
   try {
     // 自建的 RSSHub 常常就在 localhost 或者局域网里——那是用户自己填的地址。
     const response = await safeFetch(`${base}/api/namespace`, {
@@ -135,9 +144,6 @@ export async function refreshRulesIfStale(now = new Date()): Promise<boolean> {
     return false;
   }
 
-  db.prepare(
-    "INSERT INTO instance_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-  ).run(refreshedAtKey, now.toISOString());
   return true;
 }
 

@@ -1,6 +1,6 @@
 import { RadarDomainError } from "./domain-error.js";
 import { matchRsshubRoutes, refreshRulesIfStale } from "./rsshub.js";
-import { BlockedAddressError, assertPublicAddress, safeFetch } from "./safe-fetch.js";
+import { BlockedAddressError, assertAllowedAddress, safeFetch } from "./safe-fetch.js";
 
 /**
  * 粘一个网址进来，Radar 尽力把它变成一条可订阅的采集端点。依次尝试：
@@ -31,15 +31,20 @@ export class NothingToSubscribeError extends RadarDomainError {
 
 /**
  * 粘进来的网址指着内网就不去请求——那是别人塞给用户的地址，不是他自己的
- * 决定。验收要拿一个本机起的假站点当被粘的网址，只有那时才放行第一跳。
+ * 决定。验收要拿一个本机起的假站点当被粘的网址，所以留一个口子，但它只放行
+ * 点名的那几个主机名：整条防护在验收里照样是活的，别的地址一样挡。
  */
-function allowPrivateDiscovery(): boolean {
-  return process.env.RADAR_ALLOW_PRIVATE_DISCOVERY === "1";
+function privateOriginAllowed(url: URL): boolean {
+  const allowed = (process.env.RADAR_ALLOW_PRIVATE_DISCOVERY ?? "")
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+  return allowed.includes(url.hostname);
 }
 
 export async function discoverCandidates(pastedUrl: string): Promise<Candidate[]> {
   const url = parsed(pastedUrl);
-  if (!allowPrivateDiscovery()) await refuseIfPrivate(url);
+  if (!privateOriginAllowed(url)) await refuseIfPrivate(url);
 
   await refreshRulesIfStale();
   const candidates: Candidate[] = matchRsshubRoutes(url.toString()).map((candidate) => ({
@@ -62,7 +67,7 @@ export async function discoverCandidates(pastedUrl: string): Promise<Candidate[]
  * 「这个地址我不会去请求」。
  */
 async function refuseIfPrivate(url: URL): Promise<void> {
-  await assertPublicAddress(url.toString());
+  await assertAllowedAddress(url.toString());
 }
 
 function parsed(pastedUrl: string): URL {
@@ -83,7 +88,7 @@ async function pageFeeds(url: URL): Promise<Candidate[]> {
   try {
     const response = await safeFetch(url.toString(), {
       accept: "text/html,application/xhtml+xml",
-      allowPrivateOrigin: allowPrivateDiscovery(),
+      allowPrivateOrigin: privateOriginAllowed(url),
     });
     // 粘进来的本身就是一份 feed 时，它自己就是唯一那条候选。
     if (/(?:rss|atom)\+xml|text\/xml|application\/xml/i.test(response.contentType)) {
@@ -99,48 +104,61 @@ async function pageFeeds(url: URL): Promise<Candidate[]> {
     return [];
   }
 
-  const candidates: Candidate[] = [];
+  const declared: Candidate[] = [];
   for (const tag of body.match(/<link\b[^>]*>/gi) ?? []) {
     if (!/rel\s*=\s*["']?alternate/i.test(tag)) continue;
     if (!/type\s*=\s*["']?application\/(?:rss|atom)\+xml/i.test(tag)) continue;
     const href = /href\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
     if (!href) continue;
     const title = /title\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1];
-    candidates.push({
+    declared.push({
       name: title?.trim() || url.hostname,
       feedUrl: new URL(href, finalUrl).toString(),
       via: "page-feed",
     });
   }
-  return candidates;
+  return withoutBlockedAddresses(declared);
 }
 
 /**
- * 认得该域名的渠道适配器。目前只有一条：GitHub 每个仓库自己就出 Atom，
- * 不需要经过任何中间层。新增适配器就在这张表里加一行。
+ * 页面声明的订阅地址是那个页面写的，不是用户写的——它可以指着 `169.254.169.254`。
+ * 挑中之后这条候选会变成一条端点，而端点采集对第一跳是放行私网的，所以拦在
+ * 这里：不合规的候选根本不出现在待挑列表里。
  */
-const adapters: Array<{ host: RegExp; build(url: URL): Candidate[] }> = [
-  {
-    host: /^(?:www\.)?github\.com$/,
-    build(url) {
-      const [owner, repo] = url.pathname.split("/").filter(Boolean);
-      if (!owner || !repo) return [];
-      return [
-        {
-          name: `${owner}/${repo} 的 Releases`,
-          feedUrl: `https://github.com/${owner}/${repo}/releases.atom`,
-          via: "channel-adapter",
-        },
-        {
-          name: `${owner}/${repo} 的 Commits`,
-          feedUrl: `https://github.com/${owner}/${repo}/commits.atom`,
-          via: "channel-adapter",
-        },
-      ];
-    },
-  },
-];
+async function withoutBlockedAddresses(candidates: Candidate[]): Promise<Candidate[]> {
+  const verdicts = await Promise.all(
+    candidates.map((candidate) => {
+      const feedUrl = new URL(candidate.feedUrl);
+      if (privateOriginAllowed(feedUrl)) return true;
+      // 只丢「这个地址不该请求」的。解析不出来不算——DNS 一时不通不该让一条
+      // 正经候选从列表里消失。
+      return assertAllowedAddress(candidate.feedUrl).then(
+        () => true,
+        (error: unknown) => !(error instanceof BlockedAddressError),
+      );
+    }),
+  );
+  return candidates.filter((_, index) => verdicts[index]);
+}
 
+/**
+ * 认得该域名的渠道适配器。目前只有 GitHub：每个仓库自己就出 Atom，不需要
+ * 经过任何中间层。
+ */
 function adapterCandidates(url: URL): Candidate[] {
-  return adapters.find((adapter) => adapter.host.test(url.hostname))?.build(url) ?? [];
+  if (!/^(?:www\.)?github\.com$/.test(url.hostname)) return [];
+  const [owner, repo] = url.pathname.split("/").filter(Boolean);
+  if (!owner || !repo) return [];
+  return [
+    {
+      name: `${owner}/${repo} 的 Releases`,
+      feedUrl: `https://github.com/${owner}/${repo}/releases.atom`,
+      via: "channel-adapter",
+    },
+    {
+      name: `${owner}/${repo} 的 Commits`,
+      feedUrl: `https://github.com/${owner}/${repo}/commits.atom`,
+      via: "channel-adapter",
+    },
+  ];
 }

@@ -59,9 +59,6 @@ async function fetchFeedXml(url: string): Promise<string> {
     });
     return response.body;
   } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
-      throw new Error("来源连接超时，请确认 URL 可公开访问后重试。");
-    }
     throw new Error(
       `无法连接来源，请检查 URL 或网络后重试：${error instanceof Error ? error.message : String(error)}`,
     );

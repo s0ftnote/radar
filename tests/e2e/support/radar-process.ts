@@ -13,8 +13,10 @@ export type RunningRadar = { process: ChildProcess; port: number; output(): stri
 export type RadarEnvironment = {
   dataDirectory: string;
   catalogPath?: string;
-  /** 验收要拿一个本机起的假站点当被粘的网址，只有那时才放行第一跳。 */
-  allowPrivateDiscovery?: boolean;
+  /** 验收要拿本机起的假站点当被粘的网址，点名放行这几个主机名的第一跳。 */
+  privateDiscoveryHosts?: string[];
+  /** 自签证书要让 Radar 那个进程认，只能在起进程之前塞进环境。 */
+  extraEnv?: NodeJS.ProcessEnv;
 };
 
 export async function startRadar(
@@ -24,7 +26,8 @@ export async function startRadar(
     command?: string[];
     cwd?: string;
     catalogPath?: string;
-    allowPrivateDiscovery?: boolean;
+    privateDiscoveryHosts?: string[];
+    extraEnv?: NodeJS.ProcessEnv;
   } = {},
 ): Promise<RunningRadar> {
   const port = options.port ?? 33123;
@@ -37,7 +40,8 @@ export async function startRadar(
     env: radarEnv({
       dataDirectory,
       catalogPath: options.catalogPath,
-      allowPrivateDiscovery: options.allowPrivateDiscovery,
+      privateDiscoveryHosts: options.privateDiscoveryHosts,
+      extraEnv: options.extraEnv,
     }),
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -93,9 +97,10 @@ export function radarEnv(environment: RadarEnvironment): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, RADAR_DATA_DIR: environment.dataDirectory };
   if (environment.catalogPath) env.RADAR_CATALOG = environment.catalogPath;
   else delete env.RADAR_CATALOG;
-  if (environment.allowPrivateDiscovery) env.RADAR_ALLOW_PRIVATE_DISCOVERY = "1";
-  else delete env.RADAR_ALLOW_PRIVATE_DISCOVERY;
-  return env;
+  if (environment.privateDiscoveryHosts?.length) {
+    env.RADAR_ALLOW_PRIVATE_DISCOVERY = environment.privateDiscoveryHosts.join(",");
+  } else delete env.RADAR_ALLOW_PRIVATE_DISCOVERY;
+  return { ...env, ...environment.extraEnv };
 }
 
 export type CliRun = { stdout: string; stderr: string; code: number };
