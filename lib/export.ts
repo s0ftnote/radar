@@ -1,9 +1,3 @@
-import { getBrief, listBriefRevisions, UnknownBriefError, type BriefRevision } from "./briefs.js";
-import { database } from "./database.js";
-import { listDeliveries, type Delivery } from "./deliveries.js";
-import { listFeedback, type Feedback } from "./feedback.js";
-import { listJudgments, type Judgment } from "./judgments.js";
-
 /**
  * 完整导出：用户从一个实例带走的档案。同时给两样东西——一份可机读的结构，
  * 和一份不装任何东西就能读的正文。
@@ -14,6 +8,12 @@ import { listJudgments, type Judgment } from "./judgments.js";
  * 来源授权凭据（OAuth token、API key、Cookie）是本地 secret，不属于领域数据，
  * 也不进这份档案（ADR 0008）。这里只读，不写任何一张表。
  */
+import { getBrief, listBriefRevisions, UnknownBriefError, type BriefRevision } from "./briefs.js";
+import { database } from "./database.js";
+import { listDeliveries, type Delivery } from "./deliveries.js";
+import { listFeedback, type Feedback } from "./feedback.js";
+import { listJudgments, type Judgment } from "./judgments.js";
+
 export type ExportedSourceContent = {
   id: string;
   endpointId: string;
@@ -59,8 +59,9 @@ export function exportBrief(briefId: string, radarVersion: string, now = new Dat
 }
 
 /**
- * 这个 Brief 引用到的来源内容：进过它的队列的，判断落在它身上的，以及被那些
- * 判断引为证据的。别的 Brief 的内容不进来——档案脱离它们照样读得完整。
+ * 这个 Brief 引用到的来源内容：进过它的队列的（判断挂在代次上，所以判过的
+ * 都在里面），以及被那些判断引为证据的。别的 Brief 的内容不进来——档案脱离
+ * 它们照样读得完整。
  */
 function sourceContentsForBrief(briefId: string): ExportedSourceContent[] {
   const rows = database()
@@ -71,7 +72,6 @@ function sourceContentsForBrief(briefId: string): ExportedSourceContent[] {
        FROM source_contents AS content
        JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
        WHERE content.id IN (SELECT source_content_id FROM queue_entries WHERE brief_id = ?)
-          OR content.id IN (SELECT source_content_id FROM judgments WHERE brief_id = ?)
           OR content.id IN (
                SELECT signal.source_content_id FROM judgment_signals AS signal
                JOIN judgments AS judgment ON judgment.id = signal.judgment_id
@@ -79,7 +79,7 @@ function sourceContentsForBrief(briefId: string): ExportedSourceContent[] {
              )
        ORDER BY content.acquired_at, content.id`,
     )
-    .all(briefId, briefId, briefId) as Array<{
+    .all(briefId, briefId) as Array<{
     id: string;
     endpoint_id: string;
     endpoint_name: string;
@@ -110,23 +110,22 @@ function sourceContentsForBrief(briefId: string): ExportedSourceContent[] {
  * 可直接阅读的那一份。Markdown 是纯文本，任何编辑器都打得开——不需要 Radar
  * 还活着，也不需要懂 SQLite。
  */
+function groupBy<T>(items: T[], keyOf: (item: T) => string | null): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyOf(item);
+    if (key === null) continue;
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+}
+
 function renderReadable(archive: BriefArchive): string {
   const contents = new Map(archive.sourceContents.map((content) => [content.id, content]));
-  const deliveriesByJudgment = new Map<string, Delivery[]>();
-  for (const delivery of archive.deliveries) {
-    deliveriesByJudgment.set(delivery.judgmentId, [
-      ...(deliveriesByJudgment.get(delivery.judgmentId) ?? []),
-      delivery,
-    ]);
-  }
-  const feedbackByJudgment = new Map<string, Feedback[]>();
-  for (const item of archive.feedback) {
-    if (!item.judgmentId) continue;
-    feedbackByJudgment.set(item.judgmentId, [
-      ...(feedbackByJudgment.get(item.judgmentId) ?? []),
-      item,
-    ]);
-  }
+  const deliveriesByJudgment = groupBy(archive.deliveries, (delivery) => delivery.judgmentId);
+  const feedbackByJudgment = groupBy(archive.feedback, (item) => item.judgmentId);
 
   const relevant = archive.judgments.filter((judgment) => judgment.relevant);
   const eliminated = archive.judgments.filter((judgment) => !judgment.relevant);
@@ -140,16 +139,16 @@ function renderReadable(archive: BriefArchive): string {
     "",
     "## 这个 Brief 现在说什么",
     "",
-    archive.revisions[0]?.body ?? "（没有正文）",
+    archive.revisions[0]!.body,
     "",
     `## 判断：相关 ${relevant.length} 条`,
     "",
   ];
 
   for (const judgment of relevant) {
-    const content = contents.get(judgment.sourceContentId);
+    const content = contents.get(judgment.sourceContentId)!;
     lines.push(
-      `### ${content?.title ?? judgment.sourceContentId}`,
+      `### ${oneLine(content.title)}`,
       "",
       `${judgment.createdAt}，由 ${judgment.judgedBy} 判断。`,
       "",
@@ -158,11 +157,9 @@ function renderReadable(archive: BriefArchive): string {
       `- **还不确定**：${judgment.uncertainty}`,
       `- **为什么给你**：${judgment.whyForYou}`,
     );
-    if (content) {
-      lines.push(`- **来源**：${content.endpointName} · ${content.originUrl}`);
-    }
+    lines.push(`- **来源**：${content.endpointName} · ${content.originUrl}`);
     for (const signal of judgment.signals) {
-      lines.push(`- **另一条证据**：${signal.title} · ${signal.originUrl}`);
+      lines.push(`- **另一条证据**：${oneLine(signal.title)} · ${signal.originUrl}`);
     }
     for (const delivery of deliveriesByJudgment.get(judgment.id) ?? []) {
       const reference = delivery.externalReference ? `，引用 ${delivery.externalReference}` : "";
@@ -176,13 +173,14 @@ function renderReadable(archive: BriefArchive): string {
 
   lines.push(`## 判断：淘汰 ${eliminated.length} 条`, "");
   for (const judgment of eliminated) {
-    const content = contents.get(judgment.sourceContentId);
-    lines.push(`- ${content?.title ?? judgment.sourceContentId}——${judgment.whyForYou}`);
+    const content = contents.get(judgment.sourceContentId)!;
+    // 淘汰的也带上出处：「这条为什么没给我」要答得出，答的时候得看得见原文。
+    lines.push(`- ${oneLine(content.title)}——${judgment.whyForYou}（${content.originUrl}）`);
   }
   lines.push("");
 
   const briefLevelFeedback = archive.feedback.filter((item) => !item.judgmentId);
-  lines.push(`## 反馈：${archive.feedback.length} 条`, "");
+  lines.push(`## 反馈：${briefLevelFeedback.length} 条挂在 Brief 上`, "");
   for (const item of briefLevelFeedback) {
     lines.push(`- ${item.createdAt}｜${item.disposition}——${item.note}`);
   }
@@ -204,15 +202,31 @@ function renderReadable(archive: BriefArchive): string {
   lines.push(`## 来源内容快照：${archive.sourceContents.length} 条`, "");
   for (const content of archive.sourceContents) {
     lines.push(
-      `### ${content.title}`,
+      `### ${oneLine(content.title)}`,
       "",
       `${content.endpointName}｜发布于 ${content.publishedAt ?? "未知"}｜` +
         `采于 ${content.acquiredAt}｜${content.originUrl}`,
       "",
-      content.body,
+      quoted(content.body),
       "",
     );
   }
 
   return lines.join("\n");
+}
+
+/**
+ * 来源正文是外面写的，原样贴进来它自己就能伪造出几节标题。整段引用起来：
+ * 读的人一眼看得出哪些字是这份档案说的，哪些是采回来的原文。
+ */
+function quoted(body: string): string {
+  return body
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
+}
+
+/** 标题只占一行，换行与 Markdown 的标题记号都不让它带进来。 */
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").replace(/^#+/, "").trim();
 }

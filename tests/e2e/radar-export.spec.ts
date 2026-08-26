@@ -101,7 +101,7 @@ test.describe("完整导出", () => {
 
       // 导出前后领域数据一模一样——导出是只读操作。
       const before = await radarJson<unknown>(harness.environment, ["judgments", "--brief", brief.id]);
-      const written = await radarJson<{ machineReadable: string; readable: string }>(
+      const [written] = await radarJson<Array<{ machineReadable: string; readable: string }>>(
         harness.environment, ["export", "--brief", brief.id, "--dir", outputDirectory],
       );
       expect(await radarJson<unknown>(harness.environment, ["judgments", "--brief", brief.id]))
@@ -109,8 +109,8 @@ test.describe("完整导出", () => {
 
       // Radar 停了，档案照样读得完——它就是两个普通文件。
       await stopRadar(harness.radarProcess);
-      const archive = JSON.parse(await readFile(written.machineReadable, "utf8")) as Archive;
-      const readable = await readFile(written.readable, "utf8");
+      const archive = JSON.parse(await readFile(written!.machineReadable, "utf8")) as Archive;
+      const readable = await readFile(written!.readable, "utf8");
 
       // 可机读结构：Brief 及其修订、来源内容（含正文快照）、判断、反馈、交付记录。
       expect(archive.brief.name).toBe("Demand Radar");
@@ -141,6 +141,36 @@ test.describe("完整导出", () => {
 
       // 来源授权凭据是本地 secret，不进导出。
       expect(JSON.stringify(archive)).not.toMatch(/token|cookie|api[_-]?key|secret|password/i);
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+      await harness.dispose();
+    }
+  });
+
+  test("不点名 Brief 就把东西全带走，每个一个自成一体的子目录", async () => {
+    test.setTimeout(120_000);
+    const harness = await startHarness("export-all", 33211);
+    const outputDirectory = await mkdtemp(join(tmpdir(), "radar-export-all-"));
+    try {
+      const first = await radarJson<{ id: string }>(
+        harness.environment, ["brief", "create", "--name", "第一条线"], "第一条线的正文。",
+      );
+      const second = await radarJson<{ id: string }>(
+        harness.environment, ["brief", "create", "--name", "第二条线"], "第二条线的正文。",
+      );
+
+      const written = await radarJson<Array<{ brief: string; machineReadable: string }>>(
+        harness.environment, ["export", "--dir", outputDirectory],
+      );
+      expect(written.map((entry) => entry.brief).sort()).toEqual(["第一条线", "第二条线"]);
+      for (const [briefId, name] of [[first.id, "第一条线"], [second.id, "第二条线"]] as const) {
+        const archive = JSON.parse(
+          await readFile(join(outputDirectory, briefId, "export.json"), "utf8"),
+        ) as Archive;
+        expect(archive.brief.name).toBe(name);
+        // 每一份都自成一体：另一条线不在里面。
+        expect(JSON.stringify(archive)).not.toContain(name === "第一条线" ? "第二条线" : "第一条线");
+      }
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
       await harness.dispose();

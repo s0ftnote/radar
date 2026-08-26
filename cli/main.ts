@@ -2,6 +2,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { radarDataDirectory } from "../lib/data-directory.js";
+import type { BriefExport } from "../lib/export.js";
 import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
 import { callRadar, readStdin } from "./client.js";
 import { defaultSkillsTarget, installSkills } from "./skills.js";
@@ -95,11 +96,12 @@ Brief
                                   写回用户明说的反馈，正文从 stdin 读
 
 导出
-  radar export --brief <id> [--dir <目录>]
+  radar export [--brief <id>] [--dir <目录>]
                                   完整导出：一份可机读的 export.json 加一份
-                                  直接读的 README.md。单个 Brief 的档案不依赖
-                                  其他 Brief，也不需要 Radar 还活着。凭据是
-                                  本地 secret，不进导出
+                                  直接读的 README.md。不点名 Brief 就全导出，
+                                  每个一个自成一体的子目录。单个 Brief 的档案
+                                  不依赖其他 Brief，也不需要 Radar 还活着。
+                                  凭据是本地 secret，不进导出
 
 Skill
   radar skills install [--dir <目录>]
@@ -486,20 +488,27 @@ async function feedback(argv: string[]): Promise<void> {
  * （ADR 0007）。凭据是本地 secret，不在里面（ADR 0008）。
  */
 async function exportBrief(argv: string[]): Promise<void> {
-  const briefId = requiredOption(argv, "--brief");
-  const archive = (await callRadar(`/briefs/${briefId}/export`)) as {
-    archive: { brief: { name: string } };
-    readable: string;
-  };
-  const directory = resolve(option(argv, "--dir") ?? `radar-export-${briefId}`);
-  mkdirSync(directory, { recursive: true });
-  const files = {
-    machineReadable: resolve(directory, "export.json"),
-    readable: resolve(directory, "README.md"),
-  };
-  writeFileSync(files.machineReadable, `${JSON.stringify(archive.archive, null, 2)}\n`);
-  writeFileSync(files.readable, archive.readable);
-  emit({ brief: archive.archive.brief.name, directory, ...files });
+  const requested = option(argv, "--brief");
+  // 不点名就是「把东西全带走」：每个 Brief 一个自成一体的子目录。
+  const briefIds = requested
+    ? [requested]
+    : ((await callRadar("/briefs")) as Array<{ id: string }>).map((brief) => brief.id);
+  const root = resolve(option(argv, "--dir") ?? `radar-export-${briefIds.length === 1 ? briefIds[0] : "all"}`);
+
+  const written = [];
+  for (const briefId of briefIds) {
+    const exported = (await callRadar(`/briefs/${briefId}/export`)) as BriefExport;
+    const directory = briefIds.length === 1 ? root : resolve(root, briefId);
+    mkdirSync(directory, { recursive: true });
+    const files = {
+      machineReadable: resolve(directory, "export.json"),
+      readable: resolve(directory, "README.md"),
+    };
+    writeFileSync(files.machineReadable, `${JSON.stringify(exported.archive, null, 2)}\n`);
+    writeFileSync(files.readable, exported.readable);
+    written.push({ brief: exported.archive.brief.name, directory, ...files });
+  }
+  emit(written);
 }
 
 async function readJsonStdin(): Promise<unknown> {
