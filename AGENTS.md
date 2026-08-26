@@ -34,3 +34,4 @@ This repository uses a single-context domain documentation layout. See `docs/age
 端点的 `id` 一旦发布就**永不复用、永不改写**；换地址改 `url` 字段，不要新开一条。下架用 `retired` + 一句理由，不要删行。见 [ADR 0014](docs/adr/0014-the-factory-catalog-ships-with-the-version-and-reconciles-on-upgrade.md)。
 
 <!-- lorekeeper:enabled -->
+Before non-obvious work, check `.lore/MAP.md` for reusable experience.
