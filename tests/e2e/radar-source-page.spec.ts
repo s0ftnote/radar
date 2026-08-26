@@ -83,7 +83,7 @@ test.describe("来源页", () => {
   });
 
   const page = async (): Promise<string> => {
-    const response = await fetch(origin);
+    const response = await fetch(`${origin}/sources`);
     expect(response.ok).toBeTruthy();
     return response.text();
   };

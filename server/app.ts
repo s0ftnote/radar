@@ -59,6 +59,12 @@ import {
   maximumWorkPackageLimit,
 } from "../lib/work-package.js";
 import { renderHomePage, type DiscoveryPanel } from "./home-page.js";
+import { renderContentPage } from "./content-page.js";
+import {
+  contentFacets,
+  listBriefContent,
+  type ContentState,
+} from "../lib/brief-content.js";
 import { packageRoot } from "../lib/package-root.js";
 import { radarVersion } from "../lib/version.js";
 
@@ -80,7 +86,26 @@ export function createRadarApp(): Hono {
     context.json({ ok: true, version: radarVersion(), dataDirectory: radarDataDirectory() }),
   );
 
-  app.get("/", (context) => context.html(homePage()));
+  // 首页是内容页，来源页在 /sources（ADR 0017）。
+  app.get("/", (context) => context.html(contentPage(context.req.query(), context.req.queries())));
+
+  app.get("/sources", (context) => context.html(homePage()));
+
+  /**
+   * 页面上唯一那个写动作：在一条判断上说「有用 / 没用」。写完送回原来那一页
+   * ——包括当时的筛选，不然点一次就被弹回全部。
+   */
+  app.post("/content/feedback", async (context) => {
+    const form = await context.req.formData();
+    const disposition = String(form.get("disposition") ?? "");
+    recordFeedback({
+      briefId: String(form.get("briefId") ?? ""),
+      judgmentId: String(form.get("judgmentId") ?? ""),
+      disposition,
+      note: disposition === "useful" ? "有用" : "没用",
+    });
+    return context.redirect(backTo(form.get("back")), 303);
+  });
 
   // 粘网址加源的三步都在这一页上完成：找候选 → 挑一条 → 加进来。
   app.post("/sources/discover", async (context) => {
@@ -102,14 +127,14 @@ export function createRadarApp(): Hono {
       name: String(form.get("name") ?? "").trim() || String(form.get("url") ?? ""),
       url: String(form.get("url") ?? "").trim(),
     });
-    return context.redirect("/", 303);
+    return context.redirect("/sources", 303);
   });
 
   app.post("/settings/rsshub", async (context) => {
     const form = await context.req.formData();
     const raw = String(form.get("baseUrl") ?? "").trim();
     setRsshubBaseUrl(raw === "" ? null : raw);
-    return context.redirect("/", 303);
+    return context.redirect("/sources", 303);
   });
 
   // 字体与样式住在包里，不在 cwd 里——`radar` 装成全局命令后能在任意目录起。
@@ -150,7 +175,7 @@ export function createRadarApp(): Hono {
   app.post("/sources/:endpointId/enabled", async (context) => {
     const form = await context.req.formData();
     setEnabled(context.req.param("endpointId"), form.get("enabled") === "true");
-    return context.redirect("/", 303);
+    return context.redirect("/sources", 303);
   });
 
   // 粘一个网址进来，尽力把它变成一条可订阅的端点。这里只给候选，不落库——
@@ -429,6 +454,63 @@ async function jsonBody(request: Request): Promise<Record<string, unknown>> {
  */
 function destinationOf(raw: string): string {
   return requiredText(raw, "交付去处");
+}
+
+/**
+ * 内容页显示最近这么多条。上限是页面的事，不是领域的事——Radar 一条都不丢，
+ * 只是一页里不摊开五千条（ADR 0010）。
+ */
+const contentPageLimit = 200;
+
+function contentPage(query: Record<string, string>, queries: Record<string, string[]>) {
+  const briefs = listBriefs();
+  const brief = briefs.find((each) => each.id === query.brief) ?? briefs[0] ?? null;
+  if (!brief) {
+    return renderContentPage({
+      briefs,
+      brief: null,
+      items: [],
+      facets: { counts: { for_you: 0, filtered: 0, pending: 0 }, endpoints: [] },
+      queueDepth: 0,
+      lastJudgedAt: null,
+      activeStates: [],
+      activeEndpointId: null,
+      truncatedAt: null,
+    });
+  }
+
+  const activeStates = (queries.state ?? []).filter(isContentState);
+  const activeEndpointId = query.endpoint ?? null;
+  // 多取一条就知道是不是还有下一页，不用再数一遍全量。
+  const items = listBriefContent(
+    { briefId: brief.id, states: activeStates, endpointId: activeEndpointId ?? undefined },
+    contentPageLimit + 1,
+  );
+  const status = queueStatus(brief.id);
+  return renderContentPage({
+    briefs,
+    brief,
+    items: items.slice(0, contentPageLimit),
+    facets: contentFacets(brief.id),
+    queueDepth: status.queueDepth,
+    lastJudgedAt: status.lastJudgedAt,
+    activeStates,
+    activeEndpointId,
+    truncatedAt: items.length > contentPageLimit ? contentPageLimit : null,
+  });
+}
+
+function isContentState(value: string): value is ContentState {
+  return value === "for_you" || value === "filtered" || value === "pending";
+}
+
+/**
+ * 送回内容页。只接受本站的相对路径——`back` 是表单字段，谁都能改，直接拿去
+ * 重定向就是一个开放跳转。
+ */
+function backTo(raw: FormDataEntryValue | null): string {
+  const value = typeof raw === "string" ? raw : "";
+  return value.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 
 function homePage(discovery?: DiscoveryPanel) {

@@ -217,7 +217,7 @@ async function up(argv: string[]): Promise<void> {
   }
 
   process.stdout.write(`[Radar] 本地数据目录：${radarDataDirectory()}\n`);
-  process.stdout.write(`[Radar] 来源页：http://127.0.0.1:${service.port}\n`);
+  process.stdout.write(`[Radar] 打开 http://127.0.0.1:${service.port}\n`);
   process.stdout.write("[Radar] Ctrl-C 停止。\n");
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {

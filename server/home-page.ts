@@ -34,11 +34,15 @@ export function renderHomePage(input: {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Radar · 本地信号聚合站</title>
+    <title>Radar · 来源</title>
     <link rel="stylesheet" href="/assets/styles.css" />
   </head>
   <body>
     <main id="main-content" class="page">
+      <nav class="tabs">
+        <a class="tab" href="/">内容</a>
+        <span class="tab is-current">来源</span>
+      </nav>
       <h1>Radar</h1>
       <p class="lede">这台 Radar 正在本机运行，版本 ${input.version}。</p>
       <p class="meta">本地数据目录：<code>${input.dataDirectory}</code></p>
