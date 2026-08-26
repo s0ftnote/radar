@@ -34,7 +34,6 @@ export type ScoredCandidate = {
   content: PendingContent;
   score: number;
   contributions: Record<string, number>;
-  round: number;
 };
 
 /**
@@ -69,7 +68,7 @@ export function scoreCandidates(
     }
 
     const score = Object.values(contributions).reduce((total, value) => total + value, 0);
-    return { content: toPendingContent(row), score, contributions, round: 0 };
+    return { content: toPendingContent(row), score, contributions };
   });
 }
 

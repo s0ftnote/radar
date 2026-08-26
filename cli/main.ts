@@ -73,6 +73,14 @@ Brief
                                   + 全部反馈 + 最近判断的紧凑清单
   radar judge                     写回判断，契约 JSON 从 stdin 读
   radar judgments --brief <id>    列出已写回的判断
+  radar queue --brief <id>        队列还有多深、最近一次判断是什么时候。
+                                  两个机械事实，不含判断
+  radar requeue --brief <id> --content <sourceContentId>
+                                  显式回捞：给这条内容开一个新的队列代次。
+                                  判过的重判、过了保留窗口被移出去的捞回来，
+                                  走的都是这一条
+  radar retention [--days <n>]    队列保留窗口，默认 30 天。超过窗口仍没判断的
+                                  内容移出待判断队列，但不删除，随时能回捞
 
 交付
   radar deliver take --brief <id> --to <去处> [--since <ISO>] [--until <ISO>]
@@ -155,6 +163,17 @@ async function main(argv: string[]): Promise<void> {
         return await strategy(rest);
       case "pending":
         return await pending(rest);
+      case "queue":
+        return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/queue`));
+      case "requeue":
+        return emit(
+          await callRadar(`/briefs/${requiredOption(rest, "--brief")}/queue/requeue`, {
+            method: "POST",
+            body: { sourceContentId: requiredOption(rest, "--content") },
+          }),
+        );
+      case "retention":
+        return await retention(rest);
       case "judge":
         return emit(await callRadar("/judgments", { method: "POST", body: await readJsonStdin() }));
       case "judgments":
@@ -368,6 +387,13 @@ async function strategy(argv: string[]): Promise<void> {
       },
     }),
   );
+}
+
+/** 不给 --days 就是问一句现在是多少天。 */
+async function retention(argv: string[]): Promise<void> {
+  const days = numberOption(argv, "--days", 1, 3_650);
+  if (days === undefined) return emit(await callRadar("/settings/retention"));
+  emit(await callRadar("/settings/retention", { method: "PUT", body: { days } }));
 }
 
 async function pending(argv: string[]): Promise<void> {

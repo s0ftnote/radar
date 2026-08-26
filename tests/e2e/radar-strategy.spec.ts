@@ -96,9 +96,20 @@ test.describe("排队策略", () => {
         environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
       );
 
+      // 默认公式是纯新鲜度，alpha 两条都比 beta 新。分数说了算，所以两条
+      // alpha 在前——但 beta 照样占得到它那条保底名额（ADR 0010：配额约束的是
+      // 「每个端点至少占几条」，不是把名额均分）。
       const before = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       expect(before.pendingContents.map((content) => content.endpointId)).toEqual([
-        "fixture-alpha", "fixture-beta", "fixture-alpha",
+        "fixture-alpha", "fixture-alpha", "fixture-beta",
+      ]);
+
+      // 名额不够时保底照样兑现：只要两条，最高分那条 + beta 的保底那条。
+      const capped = await radarJson<WorkPackage>(
+        environment, ["pending", "--brief", brief.id, "--limit", "2"],
+      );
+      expect(capped.pendingContents.map((content) => content.endpointId)).toEqual([
+        "fixture-alpha", "fixture-beta",
       ]);
 
       // beta 那条正文里有「本地优先」；给它一个压过新鲜度的权重。

@@ -35,7 +35,13 @@ import { RadarDomainError } from "../lib/domain-error.js";
 import { exportBrief } from "../lib/export.js";
 import { rsshubBaseUrl, setRsshubBaseUrl } from "../lib/rsshub.js";
 import { listJudgments, recordJudgment } from "../lib/judgments.js";
-import { enqueueCurrentPage } from "../lib/queue.js";
+import {
+  enqueueCurrentPage,
+  queueStatus,
+  requeueContent,
+  retentionDays,
+  setRetentionDays,
+} from "../lib/queue.js";
 import {
   currentStrategy,
   listStrategyRevisions,
@@ -159,6 +165,13 @@ export function createRadarApp(): Hono {
   });
 
   // 唯一那处实例级设置：你的 RSSHub 地址（ADR 0013）。
+  app.get("/settings/retention", (context) => context.json({ days: retentionDays() }));
+
+  app.put("/settings/retention", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(domainCall(() => ({ days: setRetentionDays(Number(body.days)) })));
+  });
+
   app.get("/settings/rsshub", (context) => context.json({ baseUrl: rsshubBaseUrl() }));
 
   app.put("/settings/rsshub", async (context) => {
@@ -237,6 +250,25 @@ export function createRadarApp(): Hono {
   app.get("/briefs/:briefId/export", (context) =>
     context.json(exportBrief(context.req.param("briefId"), radarVersion())),
   );
+
+  // 取数角色要的两个机械事实：队列还有多深、最近一次判断是什么时候（#44）。
+  app.get("/briefs/:briefId/queue", (context) =>
+    context.json(queueStatus(context.req.param("briefId"))),
+  );
+
+  // 显式回捞：判过的、或过了保留窗口被移出去的，开一个新的代次重判。
+  app.post("/briefs/:briefId/queue/requeue", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      domainCall(() =>
+        requeueContent(
+          context.req.param("briefId"),
+          requiredText(body.sourceContentId, "内容 id"),
+        ),
+      ),
+      201,
+    );
+  });
 
   app.get("/briefs/:briefId/revisions", (context) =>
     context.json(listBriefRevisions(context.req.param("briefId"))),
