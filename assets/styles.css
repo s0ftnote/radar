@@ -205,3 +205,137 @@ code {
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
 }
+
+
+/* 两张页之间来回：内容与来源（ADR 0017）。 */
+.tabs {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 26px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.tab { color: var(--faint); text-decoration: none; }
+.tab:hover { color: var(--green); }
+.tab.is-current { color: var(--ink); }
+
+/* 筛选是链接不是脚本——每一种视图都留得住一个网址。 */
+.briefs,
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.briefs { margin: 26px 0 0; }
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.filter-label {
+  width: 30px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.chip {
+  padding: 5px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.chip:hover { color: var(--green); border-color: var(--faint); }
+
+.chip.is-on {
+  color: var(--surface);
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.chip .count { color: var(--faint); font-variant-numeric: tabular-nums; }
+.chip.is-on .count { color: color-mix(in srgb, #fff 65%, transparent); }
+
+/* 内容流。一条流加筛选，不分死区块——档的边界随判断不断移动。 */
+.contents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.content {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.content-head {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.content-title {
+  font-family: var(--editorial);
+  font-size: 19px;
+  line-height: 1.3;
+  text-decoration: none;
+}
+
+.content-title:hover { text-decoration: underline; }
+
+/* 判过没给的压低一档：它在那儿是为了让你能追问，不是为了抢注意力。 */
+.content.is-filtered .content-title { color: var(--muted); font-size: 17px; }
+.content.is-pending .content-title { font-size: 17px; }
+
+.status.is-for-you { color: var(--green-ink); background: var(--green-soft); }
+.status.is-filtered,
+.status.is-pending { color: var(--muted); background: var(--surface-soft); }
+
+/* AI 判断的四问原样摆着——凭什么这么说，跟结论一样重要。 */
+.quad {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
+.quad dt { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.quad dd { margin: 0; }
+
+.says {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.says button {
+  min-height: 36px;
+  padding: 6px 14px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.says button:hover { color: var(--green); border-color: var(--faint); }
+
+.said { margin: 12px 0 0; color: var(--green-ink); font-size: 13px; }
+
+.empty { margin: 32px 0; color: var(--muted); }

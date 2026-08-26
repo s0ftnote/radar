@@ -278,7 +278,7 @@ test.describe("粘网址发现可订阅端点", () => {
       });
     try {
       // 唯一那处实例级设置就在这一页上。
-      expect(await (await fetch(origin)).text()).toContain("你的 RSSHub 地址");
+      expect(await (await fetch(`${origin}/sources`)).text()).toContain("你的 RSSHub 地址");
       expect((await post("/settings/rsshub", { baseUrl: site.url })).status).toBe(303);
       expect(await radarJson<{ baseUrl: string }>(harness.environment, ["rsshub", "show"]))
         .toEqual({ baseUrl: site.url });
