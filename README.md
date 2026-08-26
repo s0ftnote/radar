@@ -46,6 +46,16 @@ CLI 之间没有契约版本号，也不做版本检测：`radar skills install`
 `radar up` 没在跑时，Skill 会照实告诉你「Radar 服务没在跑」并让你先 `radar up`——它不会凭
 记忆编一份周报，也不会绕过 CLI 自己去读数据目录。
 
+## 记得让 Agent 给自己建定时任务
+
+Radar 只会按计划**采集**。判断与出报告都由你的 Agent 做，而 Agent 不会自己醒——**它得有定时
+任务**。装完 Skill 跟它说一句：
+
+> 每天早上给我判一遍 Radar 里的新内容；每周一出一份周报。
+
+Claude Code、OpenClaw、Hermes 这类 Agent 都能给自己建定时任务；到点它被唤醒，自己会认出该
+用判断还是取数那份 Skill。没有定时任务，Radar 里的内容会一直堆着，直到你开口。
+
 ## 粘一个网址加源
 
 ```sh
