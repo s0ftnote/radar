@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { expect, test } from "@playwright/test";
 import { startFeedFixture, type FeedFixture } from "./support/feed-fixture.js";
 import { waitForFirstCollection, type Endpoint } from "./support/harness.js";
@@ -134,6 +135,57 @@ test.describe("出厂来源目录的升级对账", () => {
       expect(find(mine.id).provenance).toBe("user");
       expect(find(mine.id).url).toBe(`${feed.url}/mine`);
       expect(find(mine.id).userDisabledAt).toBeNull();
+    } finally {
+      await stopRadar(radarProcess);
+      await feed.close();
+      await rm(dataDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("地址被用户自己那条占着时先放着不动，腾出来之后自己跟上", async () => {
+    test.setTimeout(180_000);
+    const dataDirectory = await mkdtemp(join(tmpdir(), "radar-upgrade-clash-"));
+    const feed = await startFeedFixture();
+    feed.replacePage("/shared", []);
+    const catalogPath = join(dataDirectory, "catalog.json");
+    const environment: RadarEnvironment = { dataDirectory, catalogPath };
+    await writeCatalog(catalogPath, feed, 1, [
+      { id: "fixture-alpha", name: "Fixture Alpha", url: `${feed.url}/alpha` },
+    ]);
+
+    let radarProcess = await startRadar(dataDirectory, { port: 33209, catalogPath });
+    try {
+      // 用户先自己登记了这个地址。
+      const mine = await radarJson<Endpoint>(environment, [
+        "sources", "add", "--channel", "rss", "--name", "我先加的", "--url", `${feed.url}/shared`,
+      ]);
+
+      // 目录这一版把 alpha 搬到那个地址上：他那条不碰，alpha 也不半改。
+      await stopRadar(radarProcess);
+      await writeCatalog(catalogPath, feed, 2, [
+        { id: "fixture-alpha", name: "改了名字", url: `${feed.url}/shared` },
+      ]);
+      radarProcess = await startRadar(dataDirectory, { port: 33209, catalogPath });
+
+      const clashing = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const alpha = clashing.find((endpoint) => endpoint.id === "fixture-alpha")!;
+      expect(alpha.url).toBe(`${feed.url}/alpha`);
+      expect(alpha.name).toBe("Fixture Alpha");
+      expect(clashing.find((endpoint) => endpoint.id === mine.id)!.url).toBe(`${feed.url}/shared`);
+
+      // 用户把自己那条的地址腾开，下次起服务对账就自己跟上了。
+      await radar(environment, ["sources", "disable", mine.id]);
+      await stopRadar(radarProcess);
+      const database = new DatabaseSync(join(dataDirectory, "radar.sqlite"));
+      database.prepare("UPDATE endpoints SET url = ? WHERE id = ?")
+        .run(`${feed.url}/mine-elsewhere`, mine.id);
+      database.close();
+      radarProcess = await startRadar(dataDirectory, { port: 33209, catalogPath });
+
+      const caughtUp = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const moved = caughtUp.find((endpoint) => endpoint.id === "fixture-alpha")!;
+      expect(moved.url).toBe(`${feed.url}/shared`);
+      expect(moved.name).toBe("改了名字");
     } finally {
       await stopRadar(radarProcess);
       await feed.close();

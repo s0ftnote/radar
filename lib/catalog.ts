@@ -51,14 +51,15 @@ export function readFactoryCatalog(path: string): FactoryCatalog {
  * 这里发生的全是「人写下的决定」——目录是人改的。Radar 自己观察到的失败只
  * 导致退避，从不走到这里（ADR 0010）。
  */
-export function reconcileFactoryCatalog(catalog: FactoryCatalog): boolean {
+export function reconcileFactoryCatalog(catalog: FactoryCatalog): void {
   const db = database();
   const installed = db
     .prepare("SELECT value FROM instance_settings WHERE key = 'catalog_version'")
     .get() as { value: string } | undefined;
-  if (installed && Number(installed.value) === catalog.catalogVersion) return false;
+  if (installed && Number(installed.value) === catalog.catalogVersion) return;
 
   const now = new Date().toISOString();
+  let deferred = 0;
   inTransaction(() => {
     for (const channel of catalog.channels) {
       db.prepare(
@@ -72,10 +73,13 @@ export function reconcileFactoryCatalog(catalog: FactoryCatalog): boolean {
     }
 
     for (const endpoint of catalog.endpoints) {
-      const url = urlToWrite(endpoint);
-      // 用户早就自己登记过这个地址，而目录这一条还没进过库：他那条正在采着
-      // 同一个东西，让它采。用户加的一律不碰，也不能让对账在启动时炸掉。
-      if (url === null) continue;
+      // 地址被别的行占着就整条先放着不动：认 id 不认 URL，但 url 上有唯一
+      // 约束，硬写会让整场对账在启动时炸掉；只改一半又会留下一行采着死地址
+      // 的端点。这一轮不动它，也不记版本号，下次起服务再对一次。
+      if (urlTakenByAnother(endpoint)) {
+        deferred += 1;
+        continue;
+      }
       db.prepare(
         `INSERT INTO endpoints
           (id, channel_id, name, url, provenance, license_basis, retired_at, retired_reason,
@@ -84,7 +88,7 @@ export function reconcileFactoryCatalog(catalog: FactoryCatalog): boolean {
          ON CONFLICT(id) DO UPDATE SET
            channel_id = excluded.channel_id,
            name = excluded.name,
-           url = ?,
+           url = excluded.url,
            license_basis = excluded.license_basis,
            -- 退役时间记的是第一次读到这条退役的时候，后面再对账不往前推。
            retired_at = CASE
@@ -102,31 +106,24 @@ export function reconcileFactoryCatalog(catalog: FactoryCatalog): boolean {
         endpoint.retired ? now : null,
         endpoint.retired ?? null,
         now,
-        url,
       );
     }
 
-    db.prepare(
-      `INSERT INTO instance_settings (key, value) VALUES ('catalog_version', ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    ).run(String(catalog.catalogVersion));
+    // 有端点这一轮没对上，就不记下版本号：下次起服务再对一次，等那个地址
+    // 腾出来它自然就跟上了。记了版本号等于让它永远跟不上。
+    if (deferred === 0) {
+      db.prepare(
+        `INSERT INTO instance_settings (key, value) VALUES ('catalog_version', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      ).run(String(catalog.catalogVersion));
+    }
   });
-  return true;
 }
 
-/**
- * `url` 上有唯一约束，而用户可能早就自己登记过同一个地址。撞上那种行时：
- * 已经在库里的端点保留原来的 url，还没进库的这次就不进。用户加的那条一律
- * 不碰，也不能让整场对账在启动时炸掉。
- */
-function urlToWrite(endpoint: CatalogEndpoint): string | null {
+/** 这个地址已经被另一行占着——用户自己登记过，或者另一条出厂端点还没搬走。 */
+function urlTakenByAnother(endpoint: CatalogEndpoint): boolean {
   const taken = database()
     .prepare("SELECT id FROM endpoints WHERE url = ? AND id <> ?")
     .get(endpoint.url, endpoint.id) as { id: string } | undefined;
-  if (!taken) return endpoint.url;
-  const current = database()
-    .prepare("SELECT url FROM endpoints WHERE id = ?")
-    .get(endpoint.id) as { url: string } | undefined;
-  // 已经在库里的就保留原地址（搬家撞上了用户那条），还没进库的这次就不进。
-  return current?.url ?? null;
+  return taken !== undefined;
 }
