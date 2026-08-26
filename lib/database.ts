@@ -99,6 +99,30 @@ function initializeSchema(db: DatabaseSync): void {
     ) STRICT;
 
     -- Brief 级排除：这个 Brief 不看它，其他 Brief 照采。
+    -- 关注对象：Brief 内部的一行书签。名字 + 用于机械匹配的别名 + 关联采集端点。
+    -- Radar 不核对身份、不区分人与组织——「什么算这个对象的实质出场」写在 Brief 正文里。
+    -- 只有用户明确的自然语言修正才能增删，Radar 与 Agent 都不能自动加入。
+    CREATE TABLE IF NOT EXISTS watched_subjects (
+      id TEXT PRIMARY KEY,
+      brief_id TEXT NOT NULL REFERENCES briefs(id),
+      name TEXT NOT NULL CHECK (name <> ''),
+      created_at TEXT NOT NULL,
+      UNIQUE (brief_id, name)
+    ) STRICT;
+
+    -- 别名只供机械匹配，不代表 Radar 认得这是同一个人。
+    CREATE TABLE IF NOT EXISTS watched_subject_aliases (
+      subject_id TEXT NOT NULL REFERENCES watched_subjects(id) ON DELETE CASCADE,
+      alias TEXT NOT NULL CHECK (alias <> ''),
+      PRIMARY KEY (subject_id, alias)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS watched_subject_endpoints (
+      subject_id TEXT NOT NULL REFERENCES watched_subjects(id) ON DELETE CASCADE,
+      endpoint_id TEXT NOT NULL REFERENCES endpoints(id),
+      PRIMARY KEY (subject_id, endpoint_id)
+    ) STRICT;
+
     CREATE TABLE IF NOT EXISTS brief_endpoint_exclusions (
       brief_id TEXT NOT NULL REFERENCES briefs(id),
       endpoint_id TEXT NOT NULL REFERENCES endpoints(id),
