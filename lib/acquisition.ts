@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { database, inTransaction } from "./database.js";
+import { RadarDomainError } from "./domain-error.js";
 import {
   getEndpoint,
   isBackingOff,
   isCollectable,
+  isEnabled,
   listEndpoints,
   UnknownEndpointError,
   type Endpoint,
@@ -56,10 +58,7 @@ export async function collectEndpoint(
     const feed = await fetchFeed(endpoint.url);
     const completedAt = new Date().toISOString();
     const counts = inTransaction(() => {
-      let created = 0;
-      for (const entry of feed.entries) {
-        if (persistEntry(endpointId, entry, completedAt) === "created") created += 1;
-      }
+      const created = persistBatch(endpointId, feed.entries, completedAt);
       db.prepare(
         `UPDATE endpoints SET
            name = CASE WHEN provenance = 'user' THEN ? ELSE name END,
@@ -195,4 +194,120 @@ function skipped(
     queuedCount: 0,
     skippedBecause: because,
   };
+}
+
+/** 推来的一条内容。必须带正文——只推地址的推送是不完整的推送（ADR 0015）。 */
+export type PushedEntry = {
+  externalId: unknown;
+  title: unknown;
+  originUrl: unknown;
+  body: unknown;
+  publishedAt?: unknown;
+};
+
+/**
+ * 需要登录态的平台 Radar 够不着，由用户自己的 Agent 采完推来（ADR 0011）。
+ * Radar 不写登录态适配器、不保管任何登录态——推来的内容和自采的走同一条路：
+ * 同样按 external_id 去重、同样存正文快照、同样入队。
+ */
+export function acceptPushedEntries(
+  endpointId: string,
+  entries: PushedEntry[],
+): AcquisitionResult {
+  const endpoint = getEndpoint(endpointId);
+  if (!endpoint) throw new UnknownEndpointError(endpointId);
+  if (!isEnabled(endpoint)) throw new EndpointNotAcceptingPushError(endpointId, "已经停用了");
+  if (endpoint.channelConfigState !== "unlocked_by_config") {
+    throw new EndpointNotAcceptingPushError(endpointId, "所在渠道由 Radar 自采，不收推送");
+  }
+  if (entries.length === 0) throw new EmptyPushError();
+
+  const feedEntries = entries.map(toFeedEntry);
+  const pushedAt = new Date().toISOString();
+
+  const created = inTransaction(() => {
+    const count = persistBatch(endpointId, feedEntries, pushedAt);
+    // 推送只记一件事：最后一次收到推送是什么时候。它不是一次采集尝试，不进
+    // 采集历史；久未推送是这个分工的代价，不是故障，所以也不碰失败计数与退避。
+    database().prepare("UPDATE endpoints SET last_push_at = ? WHERE id = ?").run(pushedAt, endpointId);
+    return count;
+  });
+
+  return {
+    endpointId,
+    status: "success",
+    newContentCount: created,
+    seenContentCount: feedEntries.length,
+    queuedCount: enqueueForAllBriefs(),
+  };
+}
+
+/** 把一批内容落进库里，返回其中新出现的条数。自采与推送共用。 */
+function persistBatch(endpointId: string, entries: FeedEntry[], seenAt: string): number {
+  let created = 0;
+  for (const entry of entries) {
+    if (persistEntry(endpointId, entry, seenAt) === "created") created += 1;
+  }
+  return created;
+}
+
+function toFeedEntry(entry: PushedEntry): FeedEntry {
+  const externalId = text(entry.externalId);
+  if (!externalId) throw new PushMissingExternalIdError();
+  const body = text(entry.body);
+  if (!body) throw new PushMissingBodyError(externalId);
+  const originUrl = text(entry.originUrl);
+  if (!originUrl) throw new PushMissingOriginUrlError(externalId);
+  const title = text(entry.title);
+  if (!title) throw new PushMissingTitleError(externalId);
+  return {
+    externalId,
+    title,
+    originUrl,
+    body,
+    publishedAt: text(entry.publishedAt) || null,
+    // 只留契约里那几个字段。Agent 夹带的别的东西一律不落盘——Radar 里不出现
+    // 任何登录态凭据（ADR 0011）。
+    rawPayload: JSON.stringify({ externalId, title, originUrl, body }),
+  };
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export class EmptyPushError extends RadarDomainError {
+  constructor() {
+    super("这次推送里一条内容都没有。", 400);
+  }
+}
+
+export class EndpointNotAcceptingPushError extends RadarDomainError {
+  constructor(endpointId: string, because: string) {
+    super(`采集端点 ${endpointId} ${because}。`, 409);
+  }
+}
+
+export class PushMissingExternalIdError extends RadarDomainError {
+  constructor() {
+    super("每条推送都要带 externalId，那是去重的依据。", 400);
+  }
+}
+
+export class PushMissingBodyError extends RadarDomainError {
+  constructor(externalId: string) {
+    super(`推送 ${externalId} 没带正文。只推地址不算完整的推送。`, 400);
+  }
+}
+
+export class PushMissingTitleError extends RadarDomainError {
+  constructor(externalId: string) {
+    super(`推送 ${externalId} 没带标题。`, 400);
+  }
+}
+
+export class PushMissingOriginUrlError extends RadarDomainError {
+  constructor(externalId: string) {
+    super(`推送 ${externalId} 没带原文地址。`, 400);
+  }
 }

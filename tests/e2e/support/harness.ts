@@ -27,6 +27,12 @@ export async function fixtureCatalog(
       catalogVersion: 1,
       channels: [
         { id: "rss", name: "RSS / Atom", configState: "ready", collectionIntervalSeconds },
+        {
+          id: "agent-push",
+          name: "配置后解锁（Agent 推送）",
+          configState: "unlocked_by_config",
+          collectionIntervalSeconds,
+        },
       ],
       endpoints: [
         {

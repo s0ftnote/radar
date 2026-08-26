@@ -1,7 +1,12 @@
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { collectAllEndpoints, collectEndpoint } from "../lib/acquisition.js";
+import {
+  acceptPushedEntries,
+  collectAllEndpoints,
+  collectEndpoint,
+  type PushedEntry,
+} from "../lib/acquisition.js";
 import {
   createBrief,
   getBrief,
@@ -84,6 +89,17 @@ export function createRadarApp(): Hono {
     const body = await jsonBody(context.req.raw);
     return context.json(
       domainCall(() => setUserDisabled(context.req.param("endpointId"), body.enabled === false)),
+    );
+  });
+
+  // 需要登录态的平台由用户自己的 Agent 采完推来（ADR 0011）。
+  // 契约由领域层把关，这里不重复校验一遍。
+  app.post("/endpoints/:endpointId/push", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    const entries = Array.isArray(body.entries) ? (body.entries as PushedEntry[]) : [];
+    return context.json(
+      domainCall(() => acceptPushedEntries(context.req.param("endpointId"), entries)),
+      201,
     );
   });
 
