@@ -148,3 +148,60 @@ code {
 
 .source-action button:hover { border-color: var(--line-strong); color: var(--green); }
 
+
+/* 粘网址加源，以及唯一那处实例级设置（ADR 0013）。 */
+.panel { margin: 38px 0 0; }
+
+.panel-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.paste {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.paste input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+
+.paste input:hover { border-color: var(--faint); }
+
+.paste button {
+  min-height: 42px;
+  padding: 9px 16px;
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 650;
+  background: var(--green);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.paste button:hover { background: var(--green-hover); }
+
+.candidates {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.candidate {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}

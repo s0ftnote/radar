@@ -1,4 +1,5 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { safeFetch } from "./safe-fetch.js";
 
 export type FeedEntry = {
   /** 内容身份用 feed 自带的 guid / id，不用标题正文的整体哈希。 */
@@ -42,36 +43,26 @@ export async function fetchFeed(url: string): Promise<ParsedFeed> {
   }
 }
 
+/**
+ * 采集是这台本机服务发起的，它坐在用户的内网里，所以走 `safeFetch`：逐跳
+ * 复核重定向、超时与响应体上限都在那里（`lib/safe-fetch.ts`）。
+ *
+ * 端点地址本身放行私网——用户把端点指向自建服务是他自己的决定，登记那一刻
+ * 就把过关了。重定向之后的每一跳照样严查：公网 feed 把你弹到 127.0.0.1
+ * 不是任何人的决定。
+ */
 async function fetchFeedXml(url: string): Promise<string> {
-  let response: Response;
   try {
-    response = await fetch(url, {
-      headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" },
-      redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
+    const response = await safeFetch(url, {
+      accept: "application/rss+xml, application/atom+xml, application/xml, text/xml",
+      allowPrivateOrigin: true,
     });
+    return response.body;
   } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
-      throw new Error("来源连接超时，请确认 URL 可公开访问后重试。");
-    }
     throw new Error(
       `无法连接来源，请检查 URL 或网络后重试：${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  if (!response.ok) throw new Error(`来源返回 HTTP ${response.status}，请检查 URL 或稍后重试。`);
-
-  const declaredLength = Number(response.headers.get("content-length") ?? "0");
-  if (declaredLength > 5_000_000) throw new Error("Feed 超过 5 MB，当前本地切片不会保存它。");
-  let xml: string;
-  try {
-    xml = await response.text();
-  } catch (error) {
-    throw new Error(
-      `读取来源内容失败，请稍后重试：${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (xml.length > 5_000_000) throw new Error("Feed 超过 5 MB，当前本地切片不会保存它。");
-  return xml;
 }
 
 function normalizeFeed(document: Record<string, unknown>, feedUrl: string): ParsedFeed {

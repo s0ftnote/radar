@@ -30,7 +30,9 @@ import {
   takeForDelivery,
   unmarkDelivered,
 } from "../lib/deliveries.js";
+import { discoverCandidates } from "../lib/discovery.js";
 import { RadarDomainError } from "../lib/domain-error.js";
+import { rsshubBaseUrl, setRsshubBaseUrl } from "../lib/rsshub.js";
 import { listJudgments, recordJudgment } from "../lib/judgments.js";
 import { enqueueCurrentPage } from "../lib/queue.js";
 import {
@@ -49,7 +51,7 @@ import {
   defaultWorkPackageLimit,
   maximumWorkPackageLimit,
 } from "../lib/work-package.js";
-import { renderHomePage } from "./home-page.js";
+import { renderHomePage, type DiscoveryPanel } from "./home-page.js";
 import { packageRoot } from "./package-root.js";
 import { radarVersion } from "./version.js";
 
@@ -71,15 +73,39 @@ export function createRadarApp(): Hono {
     context.json({ ok: true, version: radarVersion(), dataDirectory: radarDataDirectory() }),
   );
 
-  app.get("/", (context) =>
-    context.html(
-      renderHomePage({
-        version: radarVersion(),
-        dataDirectory: radarDataDirectory(),
-        endpoints: listEndpoints(),
+  app.get("/", (context) => context.html(homePage()));
+
+  // 粘网址加源的三步都在这一页上完成：找候选 → 挑一条 → 加进来。
+  app.post("/sources/discover", async (context) => {
+    const form = await context.req.formData();
+    const pastedUrl = String(form.get("url") ?? "").trim();
+    try {
+      return context.html(homePage({ pastedUrl, candidates: await discover(pastedUrl) }));
+    } catch (error) {
+      // 页面只说一句结果，细节问 Agent（ADR 0013）。
+      const message = error instanceof RadarDomainError ? error.message : "没找到可订阅的 feed。";
+      return context.html(homePage({ pastedUrl, message }));
+    }
+  });
+
+  app.post("/sources/add", async (context) => {
+    const form = await context.req.formData();
+    domainCall(() =>
+      registerUserEndpoint({
+        channelId: "rss",
+        name: String(form.get("name") ?? "").trim() || String(form.get("url") ?? ""),
+        url: String(form.get("url") ?? "").trim(),
       }),
-    ),
-  );
+    );
+    return context.redirect("/", 303);
+  });
+
+  app.post("/settings/rsshub", async (context) => {
+    const form = await context.req.formData();
+    const raw = String(form.get("baseUrl") ?? "").trim();
+    domainCall(() => setRsshubBaseUrl(raw === "" ? null : raw));
+    return context.redirect("/", 303);
+  });
 
   // 字体与样式住在包里，不在 cwd 里——`radar` 装成全局命令后能在任意目录起。
   app.use("/assets/*", serveStatic({ root: packageRoot() }));
@@ -122,6 +148,29 @@ export function createRadarApp(): Hono {
     const form = await context.req.formData();
     setEnabled(context.req.param("endpointId"), form.get("enabled") === "true");
     return context.redirect("/", 303);
+  });
+
+  // 粘一个网址进来，尽力把它变成一条可订阅的端点。这里只给候选，不落库——
+  // 挑中哪条由用户说了算，挑完走普通的登记（ADR 0014）。
+  app.post("/discover", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(await discover(requiredText(body.url, "网址")));
+  });
+
+  // 唯一那处实例级设置：你的 RSSHub 地址（ADR 0013）。
+  app.get("/settings/rsshub", (context) => context.json({ baseUrl: rsshubBaseUrl() }));
+
+  app.put("/settings/rsshub", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    const raw = typeof body.baseUrl === "string" ? body.baseUrl.trim() : "";
+    domainCall(() => {
+      try {
+        setRsshubBaseUrl(raw === "" ? null : raw);
+      } catch {
+        throw new RadarDomainError(`${raw} 不是一个网址。`, 400);
+      }
+    });
+    return context.json({ baseUrl: rsshubBaseUrl() });
   });
 
   // 需要登录态的平台由用户自己的 Agent 采完推来（ADR 0011）。
@@ -388,6 +437,26 @@ async function jsonBody(request: Request): Promise<Record<string, unknown>> {
  */
 function destinationOf(raw: string): string {
   return requiredText(raw, "交付去处");
+}
+
+function homePage(discovery?: DiscoveryPanel) {
+  return renderHomePage({
+    version: radarVersion(),
+    dataDirectory: radarDataDirectory(),
+    endpoints: listEndpoints(),
+    rsshubBaseUrl: rsshubBaseUrl(),
+    discovery,
+  });
+}
+
+/** 领域错误由 `onError` 统一翻成 HTTP，异步路径也得走同一条路。 */
+async function discover(url: string) {
+  try {
+    return await discoverCandidates(url);
+  } catch (error) {
+    if (error instanceof RadarDomainError || error instanceof HTTPException) throw error;
+    throw new RadarDomainError(error instanceof Error ? error.message : String(error), 400);
+  }
 }
 
 /** 开关只有开和关两种写法，两个入口写的是同一份 Radar 状态。 */

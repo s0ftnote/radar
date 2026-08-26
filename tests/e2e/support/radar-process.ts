@@ -10,11 +10,25 @@ export type RunningRadar = { process: ChildProcess; port: number; output(): stri
  * 起一个真正的 `radar up`——验收的是装好之后用户敲的那条命令，
  * 不是一个测试专用的内嵌服务器。
  */
-export type RadarEnvironment = { dataDirectory: string; catalogPath?: string };
+export type RadarEnvironment = {
+  dataDirectory: string;
+  catalogPath?: string;
+  /** 验收要拿本机起的假站点当被粘的网址，点名放行这几个主机名的第一跳。 */
+  privateDiscoveryHosts?: string[];
+  /** 自签证书要让 Radar 那个进程认，只能在起进程之前塞进环境。 */
+  extraEnv?: NodeJS.ProcessEnv;
+};
 
 export async function startRadar(
   dataDirectory: string,
-  options: { port?: number; command?: string[]; cwd?: string; catalogPath?: string } = {},
+  options: {
+    port?: number;
+    command?: string[];
+    cwd?: string;
+    catalogPath?: string;
+    privateDiscoveryHosts?: string[];
+    extraEnv?: NodeJS.ProcessEnv;
+  } = {},
 ): Promise<RunningRadar> {
   const port = options.port ?? 33123;
   const [executable, ...argv] = options.command ?? [
@@ -23,7 +37,12 @@ export async function startRadar(
   ];
   const child = spawn(executable!, [...argv, "up", "--port", String(port)], {
     cwd: options.cwd ?? repositoryRoot,
-    env: radarEnv({ dataDirectory, catalogPath: options.catalogPath }),
+    env: radarEnv({
+      dataDirectory,
+      catalogPath: options.catalogPath,
+      privateDiscoveryHosts: options.privateDiscoveryHosts,
+      extraEnv: options.extraEnv,
+    }),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -78,7 +97,10 @@ export function radarEnv(environment: RadarEnvironment): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, RADAR_DATA_DIR: environment.dataDirectory };
   if (environment.catalogPath) env.RADAR_CATALOG = environment.catalogPath;
   else delete env.RADAR_CATALOG;
-  return env;
+  if (environment.privateDiscoveryHosts?.length) {
+    env.RADAR_ALLOW_PRIVATE_DISCOVERY = environment.privateDiscoveryHosts.join(",");
+  } else delete env.RADAR_ALLOW_PRIVATE_DISCOVERY;
+  return { ...env, ...environment.extraEnv };
 }
 
 export type CliRun = { stdout: string; stderr: string; code: number };

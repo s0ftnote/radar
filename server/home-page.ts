@@ -3,6 +3,7 @@ import type { HtmlEscapedString } from "hono/utils/html";
 
 /** `hono/html` 模板的返回类型。数组插值时它逐个转义，不需要自己拼字符串。 */
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
+import type { Candidate } from "../lib/discovery.js";
 import { isEnabled, type Endpoint } from "../lib/endpoints.js";
 
 /**
@@ -14,10 +15,19 @@ import { isEnabled, type Endpoint } from "../lib/endpoints.js";
  * `hono/html` 的插值默认转义——feed 标题、端点名与错误原因都由第三方控制，
  * 直接拼进模板字符串就是存储型 XSS。
  */
+export type DiscoveryPanel = {
+  pastedUrl: string;
+  /** 页面只说一句结果，细节问 Agent（ADR 0013）。 */
+  message?: string;
+  candidates?: Candidate[];
+};
+
 export function renderHomePage(input: {
   version: string;
   dataDirectory: string;
   endpoints: Endpoint[];
+  rsshubBaseUrl: string | null;
+  discovery?: DiscoveryPanel;
 }): Html {
   return html`<!doctype html>
 <html lang="zh-CN">
@@ -36,6 +46,8 @@ export function renderHomePage(input: {
       <ul class="sources">
         ${sortForDisplay(input.endpoints).map(renderRow)}
       </ul>
+      ${renderAddSource(input.discovery)}
+      ${renderRsshubSetting(input.rsshubBaseUrl)}
     </main>
   </body>
 </html>
@@ -118,4 +130,56 @@ function renderAction(endpoint: Endpoint): Html | "" {
           <input type="hidden" name="enabled" value="${enabled ? "false" : "true"}" />
           <button type="submit">${enabled ? "停用" : "恢复采集"}</button>
         </form>`;
+}
+
+/**
+ * 粘一个网址加源。可能匹配出多条候选（同一个主页往往对应视频、动态、专栏
+ * 几条路由），由用户挑；挑中之后它就是一条普通的 RSS/Atom 端点。
+ */
+function renderAddSource(discovery: DiscoveryPanel | undefined): Html {
+  return html`<section class="panel">
+        <h2 class="panel-title">粘一个网址加源</h2>
+        <form class="paste" method="post" action="/sources/discover">
+          <input
+            type="url"
+            name="url"
+            required
+            placeholder="https://…"
+            value="${discovery?.pastedUrl ?? ""}"
+          />
+          <button type="submit">找找看</button>
+        </form>
+        ${discovery?.message ? html`<p class="source-note">${discovery.message}</p>` : ""}
+        ${discovery?.candidates?.length
+          ? html`<ul class="candidates">${discovery.candidates.map(renderCandidate)}</ul>`
+          : ""}
+      </section>`;
+}
+
+function renderCandidate(candidate: Candidate): Html {
+  return html`<li class="candidate">
+            <div class="source-main">
+              <span class="source-name">${candidate.name}</span>
+              <span class="source-url">${candidate.feedUrl}</span>
+            </div>
+            <form class="source-action" method="post" action="/sources/add">
+              <input type="hidden" name="name" value="${candidate.name}" />
+              <input type="hidden" name="url" value="${candidate.feedUrl}" />
+              <button type="submit">加进来</button>
+            </form>
+          </li>`;
+}
+
+/** 唯一那处实例级设置。不填就跳过 RSSHub 那一步匹配（ADR 0013）。 */
+function renderRsshubSetting(baseUrl: string | null): Html {
+  return html`<section class="panel">
+        <h2 class="panel-title">你的 RSSHub 地址</h2>
+        <p class="source-note">
+          不填就跳过 RSSHub 那一步匹配。规则只在粘网址那一刻用一次，加进来的端点跟它没有关系。
+        </p>
+        <form class="paste" method="post" action="/settings/rsshub">
+          <input type="url" name="baseUrl" placeholder="https://rsshub.example" value="${baseUrl ?? ""}" />
+          <button type="submit">记下</button>
+        </form>
+      </section>`;
 }

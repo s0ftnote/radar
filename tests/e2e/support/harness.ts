@@ -66,12 +66,19 @@ export async function startHarness(
   label: string,
   port: number,
   collectionIntervalSeconds?: number,
+  privateDiscoveryHosts: string[] = [],
+  extraEnv?: NodeJS.ProcessEnv,
 ): Promise<Harness> {
   const dataDirectory = await mkdtemp(join(tmpdir(), `radar-${label}-`));
   const feed = await startFeedFixture();
   const catalogPath = await fixtureCatalog(dataDirectory, feed, collectionIntervalSeconds);
-  const environment = { dataDirectory, catalogPath };
-  const radarProcess = await startRadar(dataDirectory, { port, catalogPath });
+  const environment = { dataDirectory, catalogPath, privateDiscoveryHosts, extraEnv };
+  const radarProcess = await startRadar(dataDirectory, {
+    port,
+    catalogPath,
+    privateDiscoveryHosts,
+    extraEnv,
+  });
   return {
     environment,
     feed,
