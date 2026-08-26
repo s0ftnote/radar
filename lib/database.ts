@@ -165,6 +165,39 @@ function initializeSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS queue_entries_by_brief ON queue_entries(brief_id, queued_at);
 
     -- 判断以这一次判定为身份：Radar 只追加，不合并、不修订、不跨判断汇总。
+    -- 排队策略是独立对象、独立版本化，不塞进 Brief——Brief 只有用户明确修正
+    -- 才能改变，而策略是 Agent 自己改的。改的是顺序，不是判断标准。
+    CREATE TABLE IF NOT EXISTS queue_strategies (
+      id TEXT PRIMARY KEY,
+      brief_id TEXT NOT NULL REFERENCES briefs(id),
+      revision_number INTEGER NOT NULL,
+      formula TEXT NOT NULL,
+      rationale TEXT NOT NULL CHECK (rationale <> ''),
+      authored_by TEXT NOT NULL CHECK (authored_by <> ''),
+      created_at TEXT NOT NULL,
+      UNIQUE (brief_id, revision_number)
+    ) STRICT;
+
+    -- 平台自带的热度。只有平台自己给了才有——RSS 没有，推送渠道可能有。
+    -- Radar 不理解它，只把它当一个数（ADR 0010）。
+    CREATE TABLE IF NOT EXISTS source_content_hotness (
+      source_content_id TEXT PRIMARY KEY REFERENCES source_contents(id),
+      hotness REAL NOT NULL
+    ) STRICT;
+
+    -- 命中记账：这一代次进工作包时，哪几条信号给它贡献了分。纯计数，不读内容。
+    -- 按策略版本分开记——同一条代次在两版公式下各被加过分，那是两条不同的依据，
+    -- 混成一个总数就没法回答「换了公式之后是不是更准了」。
+    -- 还没下发过公式时用 'default' 这个哨兵：那段时间的依据同样要留着，
+    -- Agent 写第一版公式靠的就是它，所以这里不指向 queue_strategies。
+    CREATE TABLE IF NOT EXISTS queue_entry_signals (
+      queue_entry_id TEXT NOT NULL REFERENCES queue_entries(id),
+      strategy_id TEXT NOT NULL,
+      signal TEXT NOT NULL,
+      contribution REAL NOT NULL,
+      PRIMARY KEY (queue_entry_id, strategy_id, signal)
+    ) STRICT;
+
     CREATE TABLE IF NOT EXISTS judgments (
       id TEXT PRIMARY KEY,
       brief_id TEXT NOT NULL REFERENCES briefs(id),

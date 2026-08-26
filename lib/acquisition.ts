@@ -146,16 +146,19 @@ function persistEntry(
 
   if (existing) {
     db.prepare("UPDATE source_contents SET last_seen_at = ? WHERE id = ?").run(seenAt, existing.id);
+    // 正文快照定在采集当时不动（ADR 0015），热度是会变的那一面，跟着刷新。
+    recordHotness(existing.id, entry.hotness);
     return "seen";
   }
 
+  const contentId = randomUUID();
   db.prepare(
     `INSERT INTO source_contents
       (id, endpoint_id, external_id, title, body, origin_url, published_at,
        raw_json, acquired_at, last_seen_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
-    randomUUID(),
+    contentId,
     endpointId,
     entry.externalId,
     entry.title,
@@ -166,7 +169,19 @@ function persistEntry(
     seenAt,
     seenAt,
   );
+  recordHotness(contentId, entry.hotness);
   return "created";
+}
+
+/** 平台给了热度就记下来；没给就没有这一行，算分时按 0 处理。 */
+function recordHotness(sourceContentId: string, hotness: number | undefined): void {
+  if (typeof hotness !== "number") return;
+  database()
+    .prepare(
+      `INSERT INTO source_content_hotness (source_content_id, hotness) VALUES (?, ?)
+       ON CONFLICT(source_content_id) DO UPDATE SET hotness = excluded.hotness`,
+    )
+    .run(sourceContentId, hotness);
 }
 
 function staleBefore(now: string): string {
@@ -203,6 +218,8 @@ export type PushedEntry = {
   originUrl: unknown;
   body: unknown;
   publishedAt?: unknown;
+  /** 平台自带的热度（点赞、评论数一类）。Radar 不理解它，只当一个数。 */
+  hotness?: unknown;
 };
 
 /**
@@ -266,6 +283,10 @@ function toFeedEntry(entry: PushedEntry): FeedEntry {
     originUrl,
     body,
     publishedAt: text(entry.publishedAt) || null,
+    hotness:
+      typeof entry.hotness === "number" && Number.isFinite(entry.hotness)
+        ? entry.hotness
+        : undefined,
     // 只留契约里那几个字段。Agent 夹带的别的东西一律不落盘——Radar 里不出现
     // 任何登录态凭据（ADR 0011）。
     rawPayload: JSON.stringify({ externalId, title, originUrl, body }),

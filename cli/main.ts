@@ -43,6 +43,18 @@ Brief
   radar collect [--endpoint <id>] 催一次采集。点名端点会越过失败退避；
                                   不给 --endpoint 就全催一遍，退避照样生效
 
+排队策略（独立对象，不塞进 Brief）
+  radar strategy set --brief <id> --rationale <依据> --by <作者>
+                                  下发打分公式，JSON 从 stdin 读：
+                                  { freshnessHalfLifeHours, freshnessWeight,
+                                    endpointWeights, keywords: [{term, weight}],
+                                    hotnessWeight, hitRateWeight }
+                                  关键词只能加减分，不能用于排除
+  radar strategy show --brief <id>
+  radar strategy revisions --brief <id>
+  radar strategy stats --brief <id>
+                                  每个端点与每条信号的命中统计，纯计数
+
 判断
   radar pending --brief <id> [--limit <n>]
                                   取一个工作包：待判断内容 + Brief 正文
@@ -96,6 +108,8 @@ async function main(argv: string[]): Promise<void> {
         return await push(rest);
       case "collect":
         return await collect(rest);
+      case "strategy":
+        return await strategy(rest);
       case "pending":
         return await pending(rest);
       case "judge":
@@ -269,6 +283,35 @@ async function collect(argv: string[]): Promise<void> {
     );
   }
   emit(await callRadar("/collect", { method: "POST" }));
+}
+
+/**
+ * 排队策略是独立对象、独立版本化，不塞进 Brief——Brief 只有用户明确修正才能
+ * 改变。Agent 改策略改的是顺序，不是判断标准。
+ */
+async function strategy(argv: string[]): Promise<void> {
+  const [subcommand, ...rest] = argv;
+  if (subcommand !== "set" && subcommand !== "show" && subcommand !== "revisions" && subcommand !== "stats") {
+    fail("`radar strategy` 的子命令是 set / show / revisions / stats。");
+  }
+  const briefId = requiredOption(rest, "--brief");
+
+  if (subcommand === "show") return emit(await callRadar(`/briefs/${briefId}/strategy`));
+  if (subcommand === "revisions") {
+    return emit(await callRadar(`/briefs/${briefId}/strategy/revisions`));
+  }
+  if (subcommand === "stats") return emit(await callRadar(`/briefs/${briefId}/strategy/stats`));
+
+  emit(
+    await callRadar(`/briefs/${briefId}/strategy`, {
+      method: "PUT",
+      body: {
+        formula: await readJsonStdin(),
+        rationale: requiredOption(rest, "--rationale"),
+        authoredBy: requiredOption(rest, "--by"),
+      },
+    }),
+  );
 }
 
 async function pending(argv: string[]): Promise<void> {

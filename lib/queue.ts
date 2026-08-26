@@ -1,33 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { database } from "./database.js";
+import { database, inTransaction } from "./database.js";
 import { excludedFromBriefSql, listEndpointsToEnqueue } from "./endpoints.js";
-
-export type PendingContent = {
-  /** 不可变的队列代次 id。`radar judge` 消费它，代次唯一约束挡下重复写回。 */
-  queueEntryId: string;
-  sourceContentId: string;
-  endpointId: string;
-  endpointName: string;
-  title: string;
-  body: string;
-  originUrl: string;
-  publishedAt: string | null;
-  acquiredAt: string;
-  queuedAt: string;
-};
-
-type PendingRow = {
-  queue_entry_id: string;
-  source_content_id: string;
-  endpoint_id: string;
-  endpoint_name: string;
-  title: string;
-  body: string;
-  origin_url: string;
-  published_at: string | null;
-  acquired_at: string;
-  queued_at: string;
-};
+import {
+  scoreCandidates,
+  type CandidateRow,
+  type PendingContent,
+  type ScoredCandidate,
+} from "./scoring.js";
+export type { PendingContent };
+import { currentStrategy, defaultFormula, defaultStrategyId } from "./strategy.js";
 
 /**
  * 把端点「当前一页」上这个 Brief 从没入过队的内容入队。
@@ -89,37 +70,76 @@ export function queueDepth(briefId: string): number {
  * 被这个 Brief 排除掉的端点不出现在待判断里——排除是「这个 Brief 不看它」。
  * 代次本身不删（ADR 0010：只排序不丢弃），重新纳入时它们照样回来。
  *
- * 默认排序：纯新鲜度，再加一层确定性的端点轮转（修正后的 ADR 0010）。
- * 轮转由 Radar 固定实现、对所有 Brief 一致，不进排队策略——配额是跨端点的
- * 合并约束，不是单条内容的分值。
- *
- * 两步都下推到 SQL：队列按设计会无限增长，不能先全量捞出来再在内存里切。
- * 每个端点各按新鲜度编号，再按「第几轮、端点 id」排——那就是轮转。
+ * 排序是**两步**：先按策略给每条算分，**再做一层确定性的端点轮转**。轮转由
+ * Radar 固定实现、对所有 Brief 一致，不进策略——配额是跨端点的合并约束，
+ * 不是单条内容的分值。
  */
 export function listPendingContents(briefId: string, limit: number): PendingContent[] {
-  const rows = database().prepare(
-    `WITH ranked AS (
-       SELECT entry.id AS queue_entry_id, entry.queued_at, content.id AS source_content_id,
-         content.endpoint_id, endpoint.name AS endpoint_name, content.title, content.body,
-         content.origin_url, content.published_at, content.acquired_at,
-         COALESCE(content.published_at, content.acquired_at) AS freshness,
-         ROW_NUMBER() OVER (
-           PARTITION BY content.endpoint_id
-           ORDER BY COALESCE(content.published_at, content.acquired_at) DESC, content.id
-         ) AS rotation
-       FROM queue_entries AS entry
-       JOIN source_contents AS content ON content.id = entry.source_content_id
-       JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
-       WHERE entry.brief_id = ? AND entry.closed_at IS NULL
-         AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})
-     )
-     -- 两步：先按纯新鲜度排，再套一层确定性端点轮转。轮次之内仍然是新鲜度说了算，
-     -- 轮转只保证一个端点不会连着霸占开头（ADR 0010）。
-     SELECT * FROM ranked WHERE rotation <= ?
-     ORDER BY rotation, freshness DESC, source_content_id LIMIT ?`,
-  ).all(briefId, limit, limit) as PendingRow[];
+  const strategy = currentStrategy(briefId);
+  // 整条队列都参与算分，不先按新鲜度砍一刀——那样一条老内容再高的分也永远
+  // 浮不上来，那就是丢弃，不是排序（ADR 0010）。
+  const scored = scoreCandidates(briefId, listCandidates(briefId), strategy?.formula ?? defaultFormula);
 
-  return rows.map(mapPending);
+  // 第一步的结果：先把整池按分数排定。同分时按内容 id，保证确定性。
+  scored.sort(
+    (left, right) =>
+      right.score - left.score ||
+      left.content.sourceContentId.localeCompare(right.content.sourceContentId),
+  );
+
+  // 第二步：确定性端点轮转。每个端点按它在上面那个排名里的次序编号，
+  // 再按「第几轮、分数」排——一个端点就不会连着霸占开头。
+  const rotation = new Map<string, number>();
+  for (const item of scored) {
+    const round = (rotation.get(item.content.endpointId) ?? 0) + 1;
+    rotation.set(item.content.endpointId, round);
+    item.round = round;
+  }
+  scored.sort(
+    (left, right) =>
+      left.round - right.round ||
+      right.score - left.score ||
+      left.content.sourceContentId.localeCompare(right.content.sourceContentId),
+  );
+
+  const handedOut = scored.slice(0, limit);
+  recordSignalHits(strategy?.id ?? defaultStrategyId, handedOut);
+  return handedOut.map((item) => item.content);
+}
+
+function listCandidates(briefId: string): CandidateRow[] {
+  return database()
+    .prepare(
+      `SELECT entry.id AS queue_entry_id, entry.queued_at, content.id AS source_content_id,
+           content.endpoint_id, endpoint.name AS endpoint_name, content.title, content.body,
+           content.origin_url, content.published_at, content.acquired_at,
+           COALESCE(hot.hotness, 0) AS hotness
+         FROM queue_entries AS entry
+         JOIN source_contents AS content ON content.id = entry.source_content_id
+         JOIN endpoints AS endpoint ON endpoint.id = content.endpoint_id
+         LEFT JOIN source_content_hotness AS hot ON hot.source_content_id = content.id
+         WHERE entry.brief_id = ? AND entry.closed_at IS NULL
+           AND content.endpoint_id NOT IN (${excludedFromBriefSql('entry.brief_id')})`,
+    )
+    .all(briefId) as CandidateRow[];
+}
+
+/** 这一包里每条内容是靠哪几条信号得的分。纯计数的记账，不读内容。 */
+function recordSignalHits(strategyId: string, items: ScoredCandidate[]): void {
+  const db = database();
+  inTransaction(() => {
+    for (const item of items) {
+      for (const [signal, contribution] of Object.entries(item.contributions)) {
+        if (contribution === 0) continue;
+        db.prepare(
+          `INSERT INTO queue_entry_signals (queue_entry_id, strategy_id, signal, contribution)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(queue_entry_id, strategy_id, signal) DO UPDATE SET
+             contribution = excluded.contribution`,
+        ).run(item.content.queueEntryId, strategyId, signal, contribution);
+      }
+    }
+  });
 }
 
 export function getOpenQueueEntry(
@@ -133,17 +153,3 @@ export function getOpenQueueEntry(
   return row ? { id: row.id, briefId: row.brief_id, sourceContentId: row.source_content_id } : null;
 }
 
-function mapPending(row: PendingRow): PendingContent {
-  return {
-    queueEntryId: row.queue_entry_id,
-    sourceContentId: row.source_content_id,
-    endpointId: row.endpoint_id,
-    endpointName: row.endpoint_name,
-    title: row.title,
-    body: row.body,
-    originUrl: row.origin_url,
-    publishedAt: row.published_at,
-    acquiredAt: row.acquired_at,
-    queuedAt: row.queued_at,
-  };
-}
