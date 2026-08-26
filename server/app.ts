@@ -64,7 +64,13 @@ export function createRadarApp(): Hono {
   );
 
   app.get("/", (context) =>
-    context.html(renderHomePage({ version: radarVersion(), dataDirectory: radarDataDirectory() })),
+    context.html(
+      renderHomePage({
+        version: radarVersion(),
+        dataDirectory: radarDataDirectory(),
+        endpoints: listEndpoints(),
+      }),
+    ),
   );
 
   // 字体与样式住在包里，不在 cwd 里——`radar` 装成全局命令后能在任意目录起。
@@ -102,6 +108,14 @@ export function createRadarApp(): Hono {
     return context.json(
       domainCall(() => setUserDisabled(context.req.param("endpointId"), body.enabled === false)),
     );
+  });
+
+  // 来源页上唯一那个动作。表单提交完把用户送回那一页——页面是给人看的，
+  // 不该让浏览器停在一段 JSON 上。
+  app.post("/sources/:endpointId/enabled", async (context) => {
+    const form = await context.req.formData();
+    domainCall(() => setUserDisabled(context.req.param("endpointId"), form.get("enabled") !== "true"));
+    return context.redirect("/", 303);
   });
 
   // 需要登录态的平台由用户自己的 Agent 采完推来（ADR 0011）。

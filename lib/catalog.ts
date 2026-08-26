@@ -15,6 +15,8 @@ export type CatalogEndpoint = {
   name: string;
   url: string;
   licenseBasis: unknown;
+  /** 下架用一句理由，不要删行——端点 id 永不复用（ADR 0014）。 */
+  retired?: string;
 };
 
 export type FactoryCatalog = {
@@ -66,8 +68,9 @@ export function installFactoryCatalog(catalog: FactoryCatalog): void {
     for (const endpoint of catalog.endpoints) {
       db.prepare(
         `INSERT INTO endpoints
-          (id, channel_id, name, url, provenance, license_basis, created_at)
-         VALUES (?, ?, ?, ?, 'factory', ?, ?)
+          (id, channel_id, name, url, provenance, license_basis, retired_at, retired_reason,
+           created_at)
+         VALUES (?, ?, ?, ?, 'factory', ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING`,
       ).run(
         endpoint.id,
@@ -75,6 +78,8 @@ export function installFactoryCatalog(catalog: FactoryCatalog): void {
         endpoint.name,
         endpoint.url,
         JSON.stringify(endpoint.licenseBasis),
+        endpoint.retired ? now : null,
+        endpoint.retired ?? null,
         now,
       );
     }

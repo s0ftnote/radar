@@ -83,3 +83,69 @@ code {
   background: var(--surface-soft);
   border-radius: 5px;
 }
+
+/* 来源页：一张清单，看归网页、改归对话（ADR 0013）。 */
+.sources {
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.source {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 够不着的渠道灰着摆在那里，它是覆盖缺口的表达，不是要藏起来的东西。 */
+.source.is-unreachable { color: var(--faint); }
+
+.source-main { flex: 1; min-width: 0; }
+
+.source-name { font-weight: 650; }
+
+.source-url {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-note { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.source-note.is-error { color: var(--error); }
+
+.status {
+  padding: 2px 9px;
+  color: var(--green-ink);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  background: var(--green-soft);
+  border-radius: 999px;
+}
+
+.status.is-failing { color: var(--error); background: var(--error-soft); }
+.status.is-waiting,
+.status.is-off { color: var(--muted); background: var(--surface-soft); }
+
+.source-action button {
+  padding: 5px 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.source-action button:hover { border-color: var(--ink); }
+
+.channel {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
