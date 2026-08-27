@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness } from "./support/harness.js";
 import { radar, radarJson, stopRadar } from "./support/radar-process.js";
 
 /**
@@ -31,7 +31,6 @@ test.describe("完整导出", () => {
     const harness = await startHarness("export", 33210);
     const outputDirectory = await mkdtemp(join(tmpdir(), "radar-export-out-"));
     try {
-      await waitForFirstCollection(harness.environment);
       const brief = await createBriefWithAllSources<{ id: string }>(harness.environment, "Demand Radar", "关注开发者反复抱怨、还没被满足的痛点。");
       // 另一条 Brief 也在同一个实例里判着东西——它不该出现在这份档案里。
       const other = await createBriefWithAllSources<{ id: string }>(harness.environment, "别的关注线", "另一条完全无关的关注线。");

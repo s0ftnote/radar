@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect, test } from "@playwright/test";
 import { startFeedFixture, type FeedFixture } from "./support/feed-fixture.js";
-import { createBriefWithAllSources, waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, type Endpoint } from "./support/harness.js";
 import {
   radar,
   radarJson,
@@ -77,7 +77,6 @@ test.describe("出厂来源目录的升级对账", () => {
 
     let radarProcess: RunningRadar = await startRadar(dataDirectory, { port: 33207, catalogPath });
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<{ id: string }>(environment, "升级对账", "关注开发者留证据这件事。");
       const before = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const alphaQueue = before.pendingContents.filter(
@@ -90,7 +89,7 @@ test.describe("出厂来源目录的升级对账", () => {
         "sources", "add", "--channel", "rss", "--name", "我自己加的", "--url", `${feed.url}/mine`,
       ]);
       await radar(environment, ["sources", "disable", "fixture-beta"]);
-      const beforeUpgrade = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const beforeUpgrade = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       const alphaBefore = beforeUpgrade.find((endpoint) => endpoint.id === "fixture-alpha")!;
       const betaBefore = beforeUpgrade.find((endpoint) => endpoint.id === "fixture-beta")!;
       expect(alphaBefore.lastSuccessAt).not.toBeNull();
@@ -105,7 +104,7 @@ test.describe("出厂来源目录的升级对账", () => {
       ]);
       radarProcess = await startRadar(dataDirectory, { port: 33207, catalogPath });
 
-      const after = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const after = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       const find = (id: string) => after.find((endpoint) => endpoint.id === id)!;
 
       // 搬家只改 url：还是那一行，历史与来源状态原样接上。
@@ -122,10 +121,12 @@ test.describe("出厂来源目录的升级对账", () => {
       // 把用户手动停掉的源重新打开。
       expect(find("fixture-beta").userDisabledAt).toBe(betaBefore.userDisabledAt);
 
-      // 新增的自动加入并默认开。
+      // 新增的自动加入、实例级默认开着，但还没有哪条 Brief 要它，所以还不采
+      // ——目录是目录不是订阅（#104）。
       expect(find("fixture-gamma").provenance).toBe("factory");
       expect(find("fixture-gamma").userDisabledAt).toBeNull();
       expect(find("fixture-gamma").retiredAt).toBeNull();
+      expect(find("fixture-gamma").status).toBe("not_included");
 
       // 自己加的一律不碰。
       expect(find(mine.id).provenance).toBe("user");
@@ -163,7 +164,7 @@ test.describe("出厂来源目录的升级对账", () => {
       ]);
       radarProcess = await startRadar(dataDirectory, { port: 33209, catalogPath });
 
-      const clashing = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const clashing = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       const alpha = clashing.find((endpoint) => endpoint.id === "fixture-alpha")!;
       expect(alpha.url).toBe(`${feed.url}/alpha`);
       expect(alpha.name).toBe("Fixture Alpha");
@@ -178,7 +179,7 @@ test.describe("出厂来源目录的升级对账", () => {
       database.close();
       radarProcess = await startRadar(dataDirectory, { port: 33209, catalogPath });
 
-      const caughtUp = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const caughtUp = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       const moved = caughtUp.find((endpoint) => endpoint.id === "fixture-alpha")!;
       expect(moved.url).toBe(`${feed.url}/shared`);
       expect(moved.name).toBe("改了名字");
@@ -201,7 +202,7 @@ test.describe("出厂来源目录的升级对账", () => {
 
     let radarProcess = await startRadar(dataDirectory, { port: 33208, catalogPath });
     try {
-      expect(await radarJson<Endpoint[]>(environment, ["sources"])).toHaveLength(1);
+      expect(await radarJson<Endpoint[]>(environment, ["sources", "--catalog"])).toHaveLength(1);
 
       // 目录内容变了但版本号没变：对账整个不走。
       await stopRadar(radarProcess);
@@ -211,7 +212,7 @@ test.describe("出厂来源目录的升级对账", () => {
       ]);
       radarProcess = await startRadar(dataDirectory, { port: 33208, catalogPath });
 
-      const sources = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const sources = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       expect(sources).toHaveLength(1);
       expect(sources[0]!.name).toBe("Fixture Alpha");
     } finally {

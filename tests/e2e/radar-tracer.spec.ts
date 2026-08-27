@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness } from "./support/harness.js";
 import { delay, radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -58,13 +58,12 @@ test.describe("tracer bullet", () => {
     const harness = await startHarness("tracer", 33151);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
-
       // 出厂目录是仓库里的数据文件，每条端点带永不复用的稳定 id、provenance
-      // 与机器可读的许可依据。
-      const endpoints = await radarJson<Endpoint[]>(environment, ["sources"]);
+      // 与机器可读的许可依据。一条 Brief 都还没有，所以它们都还没在采。
+      const endpoints = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       expect(endpoints.map((endpoint) => endpoint.id)).toEqual(["fixture-alpha", "fixture-beta"]);
       expect(endpoints.every((endpoint) => endpoint.provenance === "factory")).toBe(true);
+      expect(endpoints.every((endpoint) => endpoint.status === "not_included")).toBe(true);
       expect(endpoints[0]!.licenseBasis?.basis).toBe("publisher-provided-feed");
 
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
@@ -180,7 +179,6 @@ test.describe("tracer bullet", () => {
     const harness = await startHarness("generation", 33152);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "代次验收", briefBody);
       const work = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const target = work.pendingContents[0]!;
@@ -238,7 +236,8 @@ test.describe("tracer bullet", () => {
     const harness = await startHarness("backoff", 33153);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
+      // 纳入之后 Radar 才采它，才谈得上采失败（#104）。
+      await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       feed.breakFeed();
       const failed = await radarJson<{ endpointId: string; status: string }>(environment, [
@@ -288,7 +287,6 @@ test.describe("tracer bullet", () => {
     const harness = await startHarness("currentpage", 33154);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
 
       const older = await createBriefWithAllSources<Brief>(environment, "先建的 Brief", briefBody);
       expect(
@@ -333,7 +331,7 @@ test.describe("tracer bullet", () => {
     const harness = await startHarness("reentrancy", 33155);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
+      await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       feed.delayNextResponse(1_500);
       const [first, second] = await Promise.all([
@@ -356,13 +354,17 @@ test.describe("tracer bullet", () => {
     }
   });
 
-  test("首采之后按渠道级节奏继续定时采集", async () => {
+  test("纳入之后才采，此后按渠道级节奏继续定时采集", async () => {
     test.setTimeout(120_000);
     // 渠道节奏调到 1 秒；调度的看一眼间隔跟着最快的渠道走。
     const harness = await startHarness("cadence", 33156, 1);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
+      // 一条 Brief 都没有：调度器照样每秒巡视一遍，但一个请求都不发（#104）。
+      await delay(2_000);
+      expect(feed.requestCount("/alpha")).toBe(0);
+
+      await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const afterFirst = feed.requestCount("/alpha");
       expect(afterFirst).toBeGreaterThanOrEqual(1);
 

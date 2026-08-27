@@ -8,8 +8,11 @@ export class UnknownEndpointError extends RadarDomainError {
   }
 }
 
-/** 来源状态：正常 / 最近失败 / 等推送。「够不着」不是来源状态，是渠道的配置状态。 */
-export type SourceStatus = "normal" | "recently_failed" | "awaiting_push";
+/**
+ * 来源状态：正常 / 最近失败 / 等推送 / 未纳入。「够不着」不是来源状态，是渠道的
+ * 配置状态。
+ */
+export type SourceStatus = "normal" | "recently_failed" | "awaiting_push" | "not_included";
 
 export type Endpoint = {
   id: string;
@@ -102,11 +105,29 @@ function inclusionsByEndpoint(): Map<string, Array<{ briefId: string; briefName:
 }
 
 /**
+ * 采不采它。三个条件：实例级开着、至少被一条 Brief 纳入、渠道是「装好即用」。
+ *
  * 停用有两个互不覆盖的字段。停用是人或 Agent 写下的决定——Radar 自己观察到的
  * 失败只导致退避，永不自动下架（ADR 0010）。
  */
 export function isCollectable(endpoint: Endpoint): boolean {
-  return isEnabled(endpoint) && endpoint.channelConfigState === "ready";
+  return isEnabled(endpoint) && isIncluded(endpoint) && endpoint.channelConfigState === "ready";
+}
+
+/**
+ * 至少被一条 Brief 纳入。出厂目录是一份目录不是一份订阅：没有任何 Brief 要它，
+ * 采回来也没人看，那就不采（ADR 0018）。
+ */
+export function isIncluded(endpoint: Endpoint): boolean {
+  return endpoint.includedInBriefs.length > 0;
+}
+
+/**
+ * 在采的：这条端点在这台 Radar 上有人管——被哪条 Brief 纳入了，或者用户自己
+ * 按下过停用。剩下的只是目录里摆着还能加的，`radar sources` 默认不列它们。
+ */
+export function isInUse(endpoint: Endpoint): boolean {
+  return isIncluded(endpoint) || endpoint.userDisabledAt !== null;
 }
 
 /** 实例级开着：用户没停用，目录也没退役。这两个决定互不覆盖。 */
@@ -141,12 +162,13 @@ export const includedInBriefSql = (briefIdExpression: string): string =>
   `SELECT endpoint_id FROM brief_endpoint_inclusions WHERE brief_id = ${briefIdExpression}`;
 
 /**
- * 这个 Brief 要入队的端点：实例级开着就入。**纳入不在这里生效**——纳入是读侧
- * 的事。入队时就把它挡掉会让没纳入那段时间的内容从来没入过队，之后纳入它也
- * 回不来，那就是丢弃了（ADR 0010：只排序不丢弃）。
+ * 要入队的端点：实例级开着，且至少被一条 Brief 纳入——那也正是 Radar 会去采的
+ * 那批（#104）。**某一条 Brief 纳没纳入不在这里生效**，纳入是读侧的事：入队时
+ * 就按 Brief 挡掉，会让没纳入那段时间的内容从来没入过队，之后纳入它也回不来，
+ * 那就是丢弃了（ADR 0010：只排序不丢弃）。
  */
 export function listEndpointsToEnqueue(): Endpoint[] {
-  return listEndpoints().filter(isEnabled);
+  return listEndpoints().filter((endpoint) => isEnabled(endpoint) && isIncluded(endpoint));
 }
 
 /**
@@ -265,7 +287,7 @@ function mapEndpoint(
     userDisabledAt: row.user_disabled_at,
     retiredAt: row.retired_at,
     retiredReason: row.retired_reason,
-    status: sourceStatus(row),
+    status: sourceStatus(row, includedInBriefs.length),
     lastAttemptAt: row.last_attempt_at,
     lastSuccessAt: row.last_success_at,
     lastError: row.last_error,
@@ -279,9 +301,11 @@ function mapEndpoint(
 
 /**
  * 「够不着」不是来源状态，它是采集渠道的配置状态。`等推送` 也不是故障——
- * 那个渠道的内容本来就由 Agent 推来（ADR 0011）。
+ * 那个渠道的内容本来就由 Agent 推来（ADR 0011）。`未纳入` 说的是没有任何
+ * Brief 要它，Radar 因此不采它——那不是「正常」，登记了不等于在采（#104）。
  */
-function sourceStatus(row: EndpointRow): SourceStatus {
+function sourceStatus(row: EndpointRow, includedCount: number): SourceStatus {
   if (row.config_state === "unlocked_by_config") return "awaiting_push";
-  return row.consecutive_failures > 0 ? "recently_failed" : "normal";
+  if (row.consecutive_failures > 0) return "recently_failed";
+  return includedCount === 0 ? "not_included" : "normal";
 }

@@ -5,8 +5,8 @@ import {
   getEndpoint,
   isBackingOff,
   isDue,
-  isCollectable,
   isEnabled,
+  isIncluded,
   listEndpoints,
   UnknownEndpointError,
   type Endpoint,
@@ -25,6 +25,7 @@ export type AcquisitionResult = {
     | "already_collecting"
     | "backing_off"
     | "not_collectable"
+    | "not_included"
     | "not_due"
     | "out_of_time";
 };
@@ -104,7 +105,10 @@ export async function collectEndpoint(
 }
 
 function whyNotNow(endpoint: Endpoint, force: boolean): AcquisitionResult["skippedBecause"] | null {
-  if (!isCollectable(endpoint)) return "not_collectable";
+  if (!isEnabled(endpoint) || endpoint.channelConfigState !== "ready") return "not_collectable";
+  // 没有任何 Brief 要它就不采——说清是「没人要」而不是笼统的「采不了」，
+  // 催采集的人才知道该去纳入它（#104）。
+  if (!isIncluded(endpoint)) return "not_included";
   if (!force && isBackingOff(endpoint)) return "backing_off";
   // 「已经在采」不在这里判——下面那条原子 UPDATE 抢不到 collecting_since 才算数。
   return null;

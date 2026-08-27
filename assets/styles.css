@@ -158,6 +158,56 @@ code {
 
 .source-action button:hover { border-color: var(--line-strong); color: var(--green); }
 
+/* 目录里还能加的：按 topics 折起来，一次只摊开一个领域。 */
+.topic-group {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.topic-group summary {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.topic-group summary:hover { color: var(--green); }
+.topic-group .count { margin-left: 6px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.sources.is-catalog { margin: 8px 0 0; border-top: none; }
+
+/* 纳入要选一条 Brief——纳入是 Brief 级的决定，页面不替用户挑默认那条。 */
+.source-include {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.source-include select {
+  max-width: 180px;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.source-include button {
+  min-height: 42px;
+  padding: 9px 16px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.source-include button:hover { color: var(--green); }
+
 
 /* 粘网址加源，以及唯一那处实例级设置（ADR 0013）。 */
 .panel { margin: 38px 0 0; }

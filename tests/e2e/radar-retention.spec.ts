@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness } from "./support/harness.js";
 import { radar, radarJson, startRadar, stopRadar } from "./support/radar-process.js";
 
 /**
@@ -35,7 +35,6 @@ test.describe("保留窗口与回捞", () => {
     const { environment } = harness;
     let restarted: Awaited<ReturnType<typeof startRadar>> | null = null;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       const before = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
@@ -89,7 +88,6 @@ test.describe("保留窗口与回捞", () => {
     const harness = await startHarness("requeue", 33190);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const workPackage = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const content = workPackage.pendingContents[0]!;

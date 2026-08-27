@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, type Endpoint } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -69,7 +69,6 @@ test.describe("管家角色的操作面", () => {
     const harness = await startHarness("subjects", 33162);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBrief(environment, "Demand Radar");
       const other = await createBrief(environment, "另一条 Brief");
 
@@ -127,8 +126,6 @@ test.describe("管家角色的操作面", () => {
     const harness = await startHarness("register", 33163);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
-
       feed.replacePage("/gamma", [
         {
           guid: "gamma-1",
@@ -141,11 +138,25 @@ test.describe("管家角色的操作面", () => {
         "sources", "add", "--channel", "rss", "--name", "我自己加的", "--url", `${feed.url}/gamma`,
       ]);
       expect(added.provenance).toBe("user");
+
+      // 登记了不等于在采：一条 Brief 都没纳入它，来源状态就是「未纳入」，
+      // `radar sources` 默认不列它，点名催它也不采（#104）。
+      expect(added.status).toBe("not_included");
+      expect(await radarJson<Endpoint[]>(environment, ["sources"])).toEqual([]);
+      expect(
+        await radarJson<{ status: string; skippedBecause?: string }>(
+          environment, ["collect", "--endpoint", added.id],
+        ),
+      ).toMatchObject({ status: "skipped", skippedBecause: "not_included" });
+
       // 升级对账唯一要用的区分：出厂那批与用户加的这条分得开。
-      const all = await radarJson<Endpoint[]>(environment, ["sources"]);
+      const all = await radarJson<Endpoint[]>(environment, ["sources", "--catalog"]);
       expect(all.filter((endpoint) => endpoint.provenance === "user").map((e) => e.id)).toEqual([added.id]);
       expect(all.filter((endpoint) => endpoint.provenance === "factory")).toHaveLength(2);
 
+      // 纳入一条 Brief 之后 Radar 才去采它。
+      const brief = await createBrief(environment, "Demand Radar");
+      await radarJson(environment, ["sources", "include", added.id, "--brief", brief.id]);
       await radarJson(environment, ["collect", "--endpoint", added.id]);
       const collected = (await radarJson<Endpoint[]>(environment, ["sources"])).find(
         (endpoint) => endpoint.id === added.id,
@@ -168,7 +179,8 @@ test.describe("管家角色的操作面", () => {
     const harness = await startHarness("inclusions", 33166);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
+      // 另一条 Brief 把两条端点都纳入了，实例因此一直在采它们。
+      await createBriefWithAllSources(environment, "另一条线", briefBody);
       const brief = await createBrief(environment, "Demand Radar");
 
       // 一条端点都没纳入：队列是空的，哪怕实例早就采到了内容——一条 Brief 只看
@@ -184,7 +196,7 @@ test.describe("管家角色的操作面", () => {
 
       await radarJson(environment, ["sources", "include", "fixture-alpha", "--brief", brief.id]);
 
-      // 纳入之后，下一次入队就收得到——采集是实例级的，一直在进行。
+      // 纳入之后，下一次入队就收得到——别的 Brief 纳着它，采集一直在进行。
       await radarJson(environment, ["collect", "--endpoint", "fixture-alpha"]);
       const filled = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       expect(filled.pendingContents.length).toBeGreaterThan(0);
@@ -206,7 +218,6 @@ test.describe("管家角色的操作面", () => {
     const harness = await startHarness("switches", 33164);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBrief(environment, "Demand Radar");
       const other = await createBrief(environment, "另一条 Brief");
 
@@ -220,6 +231,8 @@ test.describe("管家角色的操作面", () => {
       for (const endpointId of ["fixture-alpha", "fixture-beta"]) {
         await radarJson(environment, ["sources", "include", endpointId, "--brief", other.id]);
       }
+      // 纳入之后才有得采：这一催把两条端点的当前一页都取回来（#104）。
+      await radarJson(environment, ["collect"]);
 
       const scoped = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       expect(scoped.pendingContents.map((content) => content.endpointId)).toEqual(["fixture-beta"]);
@@ -228,7 +241,7 @@ test.describe("管家角色的操作面", () => {
         new Set(["fixture-alpha", "fixture-beta"]),
       );
 
-      // 没纳入不是停用：Radar 照样在采 alpha。
+      // 没纳入这条 Brief 不是停用：另一条 Brief 纳着 alpha，Radar 照样在采它。
       const stillCollecting = await radarJson<Endpoint[]>(environment, ["sources"]);
       expect(stillCollecting[0]!.userDisabledAt).toBeNull();
       expect(await radarJson<{ status: string }>(
@@ -295,7 +308,6 @@ test.describe("管家角色的操作面", () => {
     const harness = await startHarness("feedback", 33165);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBrief(environment, "Demand Radar");
 
       // Radar 不预设处置标签的可选值，也不解释它。

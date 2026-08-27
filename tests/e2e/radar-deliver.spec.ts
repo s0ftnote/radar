@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -50,7 +50,6 @@ test.describe("取数角色", () => {
     const harness = await startHarness("deliver", 33191);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const judgments = await judgeEverything(environment, brief.id);
       expect(judgments).toHaveLength(3);
@@ -113,7 +112,6 @@ test.describe("取数角色", () => {
     const harness = await startHarness("deliver-idempotent", 33192);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const [judgment] = await judgeEverything(environment, brief.id);
 
@@ -163,7 +161,6 @@ test.describe("取数角色", () => {
     const harness = await startHarness("deliver-chain", 33193);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const workPackage = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
 
@@ -241,7 +238,6 @@ test.describe("取数角色", () => {
     const harness = await startHarness("deliver-scope", 33195);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const other = await createBriefWithAllSources<Brief>(environment, "另一条线", briefBody);
       await radar(environment, [
@@ -307,7 +303,6 @@ test.describe("取数角色", () => {
     const harness = await startHarness("deliver-nooutput", 33194);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const [judgment] = await judgeEverything(environment, brief.id);
       await radarJson(environment, [

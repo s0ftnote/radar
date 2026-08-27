@@ -246,7 +246,7 @@ test.describe("粘网址发现可订阅端点", () => {
       expect(run.stderr).toContain("没有找到可订阅的 feed");
       expect(run.stderr).toContain("不会去抓 HTML");
       // 没有候选就是没有候选，不会凭空造一条端点出来。
-      expect(await radarJson<Endpoint[]>(harness.environment, ["sources"]))
+      expect(await radarJson<Endpoint[]>(harness.environment, ["sources", "--catalog"]))
         .toHaveLength(2);
     } finally {
       await site.close();
@@ -458,7 +458,7 @@ test.describe("粘网址发现可订阅端点", () => {
       // 响应体有上限，一直吐的那种在上限处被掐断，服务照样活着。
       const endless = await radar(harness.environment, ["discover", `${site.url}/endless`]);
       expect(endless.code).not.toBe(0);
-      expect(await radarJson<Endpoint[]>(harness.environment, ["sources"])).toHaveLength(2);
+      expect(await radarJson<Endpoint[]>(harness.environment, ["sources", "--catalog"])).toHaveLength(2);
     } finally {
       await site.close();
       await harness.dispose();
@@ -493,7 +493,7 @@ test.describe("粘网址发现可订阅端点", () => {
       expect((await post("/sources/add", {
         name: "每周更新", url: `${site.url}/blog/feed.xml`,
       })).status).toBe(303);
-      const added = (await radarJson<Endpoint[]>(harness.environment, ["sources"]))
+      const added = (await radarJson<Endpoint[]>(harness.environment, ["sources", "--catalog"]))
         .find((endpoint) => endpoint.name === "每周更新");
       expect(added?.provenance).toBe("user");
 
@@ -547,13 +547,17 @@ test.describe("粘网址发现可订阅端点", () => {
     );
     const site = await startSite();
     try {
+      // 登记的同时纳入一条 Brief——没被纳入的端点 Radar 压根不去采（#104）。
+      const brief = await radarJson<{ id: string }>(
+        harness.environment, ["brief", "create", "--name", "Demand Radar"], "关注开发者的痛点。",
+      );
       const endless = await radarJson<Endpoint>(harness.environment, [
         "sources", "add", "--channel", "rss", "--name", "没完没了",
-        "--url", `${site.url}/endless.xml`,
+        "--url", `${site.url}/endless.xml`, "--brief", brief.id,
       ]);
       const slow = await radarJson<Endpoint>(harness.environment, [
         "sources", "add", "--channel", "rss", "--name", "一直不说话",
-        "--url", `${site.url}/slow.xml`,
+        "--url", `${site.url}/slow.xml`, "--brief", brief.id,
       ]);
 
       await radar(harness.environment, ["collect", "--endpoint", endless.id]);

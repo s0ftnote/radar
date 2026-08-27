@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection, type Harness } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, type Harness } from "./support/harness.js";
 import { radarJson } from "./support/radar-process.js";
 
 /**
@@ -16,7 +16,7 @@ type PendingContent = {
 };
 type WorkPackage = { pendingContents: PendingContent[] };
 type Judgment = { id: string };
-type Endpoint = { id: string };
+type Endpoint = { id: string; includedInBriefs: Array<{ briefId: string }> };
 
 test.describe("内容页", () => {
   let harness: Harness;
@@ -29,7 +29,6 @@ test.describe("内容页", () => {
     test.setTimeout(120_000);
     harness = await startHarness("content-page", 33199);
     origin = `http://127.0.0.1:${harness.radarProcess.port}`;
-    await waitForFirstCollection(harness.environment);
 
     brief = await createBriefWithAllSources<Brief>(harness.environment, "开发者的痛点", "关注开发者反复抱怨、又没被满足的痛点。");
     // 两条判断故意取自不同端点，来源筛选那条用例才有东西可筛。

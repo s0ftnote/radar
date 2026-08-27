@@ -4,14 +4,16 @@ import type { HtmlEscapedString } from "hono/utils/html";
 /** `hono/html` 模板的返回类型。数组插值时它逐个转义，不需要自己拼字符串。 */
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 import type { Candidate } from "../lib/discovery.js";
-import { isEnabled, type Endpoint } from "../lib/endpoints.js";
+import { groupBy } from "../lib/group-by.js";
+import { isEnabled, isInUse, type Endpoint } from "../lib/endpoints.js";
 
 /**
- * Web 上只有这一张页，它就是首页（ADR 0013）。一眼看清这台 Radar 现在够得着
- * 什么、什么坏了、什么在等推送。**看归网页，改归对话**——页面上只有实例级
- * 停用一个动作，Brief 级纳入不上页面（那是 Brief 级的事，搬上来就要引入
- * Brief 选择器，一张清单立刻变成一个控制台）。topics 只是摆出来给人看的
- * 挑源依据，不是筛选器。
+ * 来源页（ADR 0013）。一眼看清这台 Radar 现在在采什么、什么坏了、什么在等
+ * 推送，以及目录里还摆着什么可以加。**看归网页，改归对话**——页面上的动作只
+ * 有两个：实例级停用，和把目录里的一条纳入某条 Brief。纳入之所以上页面，是
+ * 因为出厂目录是一份目录不是一份订阅：没被纳入的端点 Radar 压根不采（#104），
+ * 一张只能看不能加的目录等于摆着一堆点不动的东西。它要选一条 Brief——纳入
+ * 本来就是 Brief 级的决定，选不出来就说明该先去建一条。
  *
  * `hono/html` 的插值默认转义——feed 标题、端点名与错误原因都由第三方控制，
  * 直接拼进模板字符串就是存储型 XSS。
@@ -23,10 +25,14 @@ export type DiscoveryPanel = {
   candidates?: Candidate[];
 };
 
+/** 纳入要选一条 Brief，页面因此得知道有哪些 Brief。 */
+export type BriefChoice = { id: string; name: string };
+
 export function renderHomePage(input: {
   version: string;
   dataDirectory: string;
   endpoints: Endpoint[];
+  briefs: BriefChoice[];
   rsshubBaseUrl: string | null;
   discovery?: DiscoveryPanel;
 }): Html {
@@ -48,9 +54,8 @@ export function renderHomePage(input: {
       <p class="lede">这台 Radar 正在本机运行，版本 ${input.version}。</p>
       <p class="meta">本地数据目录：<code>${input.dataDirectory}</code></p>
       <p class="meta">改动请跟你的 Agent 说，或者 <code>radar --help</code>。这一页只管看。</p>
-      <ul class="sources">
-        ${sortForDisplay(input.endpoints).map(renderRow)}
-      </ul>
+      ${renderInUse(input.endpoints)}
+      ${renderCatalog(input.endpoints, input.briefs)}
       ${renderAddSource(input.discovery)}
       ${renderRsshubSetting(input.rsshubBaseUrl)}
     </main>
@@ -74,7 +79,74 @@ function sortForDisplay(endpoints: Endpoint[]): Endpoint[] {
   );
 }
 
-function renderRow(endpoint: Endpoint): Html {
+/**
+ * 在采的：被某条 Brief 纳入了的，加上用户自己停用掉的、以及目录退役掉的——
+ * 后两种都不在采，但那是有人写下的决定，得看得见、说得清、点得回来（ADR 0014
+ * 的退役理由就得有这么个地方摆着）。
+ */
+function renderInUse(endpoints: Endpoint[]): Html {
+  const inUse = sortForDisplay(
+    endpoints.filter((endpoint) => isInUse(endpoint) || endpoint.retiredAt !== null),
+  );
+  return html`<section class="panel">
+        <h2 class="panel-title">在采的</h2>
+        ${inUse.length === 0
+          ? html`<p class="empty">
+          一条都还没有。先跟你的 Agent 说你想持续知道什么，建一条 Brief，再从下面的目录里挑几条纳入。
+        </p>`
+          : html`<ul class="sources">
+          ${inUse.map((endpoint) => renderRow(endpoint, renderAction(endpoint)))}
+        </ul>`}
+      </section>`;
+}
+
+/**
+ * 目录里还能加的：登记着、没被任何 Brief 要、Radar 因此不采的那些。按 topics
+ * 分组折起来——出厂目录有几十条，摊开就是一堵墙，而挑源本来就是「先想清楚要
+ * 哪个领域」（ADR 0018）。退役的不在这里：它加不进来，说「还能加」是假话。
+ */
+function renderCatalog(endpoints: Endpoint[], briefs: BriefChoice[]): Html {
+  const addable = sortForDisplay(
+    endpoints.filter((endpoint) => !isInUse(endpoint) && endpoint.retiredAt === null),
+  );
+  const byTopic = groupBy(
+    addable.flatMap((endpoint) =>
+      (endpoint.topics.length > 0 ? endpoint.topics : [untagged]).map((topic) => ({
+        topic,
+        endpoint,
+      })),
+    ),
+    (each) => each.topic,
+  );
+  return html`<section class="panel">
+        <h2 class="panel-title">目录里还能加的</h2>
+        <p class="source-note">
+          这些 Radar 还没在采——一条端点被哪条 Brief 纳入了，Radar 才去采它。挑一条纳入，或者跟你的 Agent 说一声。
+        </p>
+        ${addable.length === 0
+          ? html`<p class="empty">目录里的都已经在采了。</p>`
+          : [...byTopic.entries()]
+              .sort(([left], [right]) => topicOrder(left) - topicOrder(right) || left.localeCompare(right))
+              .map(
+                ([topic, rows]) => html`<details class="topic-group">
+          <summary>${topic} <span class="count">${rows.length}</span></summary>
+          <ul class="sources is-catalog">
+            ${rows.map((row) => renderRow(row.endpoint, renderInclude(row.endpoint, briefs)))}
+          </ul>
+        </details>`,
+              )}
+      </section>`;
+}
+
+/** 用户自己加的端点没有 topics，Radar 不替它猜（ADR 0018），单独归一组排在最后。 */
+const untagged = "没标 topics";
+
+function topicOrder(topic: string): number {
+  return topic === untagged ? 1 : 0;
+}
+
+/** 一行。两半的行长得一样，差的只是右边那个动作。 */
+function renderRow(endpoint: Endpoint, action: Html | ""): Html {
   const unreachable = endpoint.channelConfigState === "unreachable";
   return html`<li class="source${unreachable ? " is-unreachable" : ""}">
         <div class="source-main">
@@ -85,7 +157,7 @@ function renderRow(endpoint: Endpoint): Html {
           ${renderNote(endpoint)}
         </div>
         ${renderStatus(endpoint)}
-        ${renderAction(endpoint)}
+        ${action}
       </li>`;
 }
 
@@ -104,6 +176,7 @@ function renderTopics(endpoint: Endpoint): Html | "" {
 function renderStatus(endpoint: Endpoint): Html {
   if (endpoint.retiredAt) return html`<span class="status is-off">已退役</span>`;
   if (endpoint.userDisabledAt) return html`<span class="status is-off">已停用</span>`;
+  if (endpoint.status === "not_included") return html`<span class="status is-waiting">未纳入</span>`;
   if (endpoint.status === "awaiting_push") return html`<span class="status is-waiting">等推送</span>`;
   if (endpoint.status === "recently_failed") return html`<span class="status is-failing">最近失败</span>`;
   return html`<span class="status">正常</span>`;
@@ -148,6 +221,24 @@ function renderAction(endpoint: Endpoint): Html | "" {
   return html`<form class="source-action" method="post" action="/sources/${endpoint.id}/enabled">
           <input type="hidden" name="enabled" value="${enabled ? "false" : "true"}" />
           <button type="submit">${enabled ? "停用" : "恢复采集"}</button>
+        </form>`;
+}
+
+/**
+ * 纳入到一条 Brief。必须选一条——纳入是 Brief 级的决定，页面上不替用户挑
+ * 「默认那条」。一条 Brief 都没有时这里没有动作可给，只说该先去哪儿。
+ */
+function renderInclude(endpoint: Endpoint, briefs: BriefChoice[]): Html | "" {
+  // 够不着的渠道纳进来也采不到，那颗按钮点了什么都不会发生。
+  if (endpoint.channelConfigState === "unreachable") return "";
+  if (briefs.length === 0) {
+    return html`<span class="source-note">还没有 Brief</span>`;
+  }
+  return html`<form class="source-include" method="post" action="/sources/${endpoint.id}/include">
+          <select name="briefId" aria-label="纳入到哪条 Brief">
+            ${briefs.map((brief) => html`<option value="${brief.id}">${brief.name}</option>`)}
+          </select>
+          <button type="submit">纳入</button>
         </form>`;
 }
 
