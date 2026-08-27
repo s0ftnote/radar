@@ -10,16 +10,27 @@ import { expect, test } from "@playwright/test";
 import { fixtureCatalog, startHarness, type Endpoint } from "./support/harness.js";
 import { startFeedFixture } from "./support/feed-fixture.js";
 import { radar, radarJson, startRadar, stopRadar } from "./support/radar-process.js";
+import { channelAdapterCandidates } from "../../lib/discovery.js";
 
 /**
  * 粘一个网址进来，Radar 尽力把它变成一条可订阅的采集端点；实在不行就明说
  * 够不着，不去猜、不去抓 HTML。
  */
 
-type Candidate = { name: string; feedUrl: string; via: string };
+type Candidate = {
+  name: string;
+  feedUrl: string;
+  via: string;
+  channelId: string;
+  needs?: string;
+};
 
-/** 一个假站点：一个带 feed 声明的页面、一个不带的、一个假 RSSHub。 */
-async function startSite(): Promise<{
+/**
+ * 一个假站点：一个带 feed 声明的页面、一个不带的、一个假 RSSHub。`wellKnown`
+ * 打开时它还在约定路径上摆一份真 feed，以及一个 `/rss` 上的软 404——那种
+ * HTTP 200 但根本不是 feed 的东西不该被当成候选。
+ */
+async function startSite(options: { wellKnown?: boolean } = {}): Promise<{
   url: string;
   namespaceHits(): number;
   close(): Promise<void>;
@@ -35,6 +46,18 @@ async function startSite(): Promise<{
       </head><body>正文</body></html>`,
     },
     "/plain": { type: "text/html; charset=utf-8", body: "<!doctype html><html><body>什么都没有</body></html>" },
+    ...(options.wellKnown
+      ? {
+          // 软 404：HTTP 200，可它不是 feed。只看状态码就会把它加进来。
+          "/rss": { type: "text/html; charset=utf-8", body: "<html><body>没有这个东西</body></html>" },
+          "/feed.xml": {
+            type: "application/rss+xml",
+            body: `<?xml version="1.0"?><rss version="2.0"><channel><title>约定路径上的 feed</title>
+              <item><guid>1</guid><title>第一条</title><link>https://example.com/1</link></item>
+              </channel></rss>`,
+          },
+        }
+      : {}),
     "/api/namespace": {
       type: "application/json",
       body: JSON.stringify({
@@ -154,6 +177,7 @@ test.describe("粘网址发现可订阅端点", () => {
       ]);
       expect(candidates[0]!.name).toBe("每周更新");
       expect(candidates.every((candidate) => candidate.via === "page-feed")).toBe(true);
+      expect(candidates.every((candidate) => candidate.channelId === "rss")).toBe(true);
 
       // 挑中之后它就是一个普通的 RSS/Atom 端点，跟发现这一步彻底脱钩。
       const added = await radarJson<Endpoint>(harness.environment, [
@@ -230,16 +254,125 @@ test.describe("粘网址发现可订阅端点", () => {
     }
   });
 
-  test("RSSHub 只是一份规则：没填地址就跳过，填了才给候选，规则每天从你那台刷新", async () => {
+  test("页面没声明时去敲约定路径；敲到的东西得真能解析成 RSS/Atom", async () => {
+    test.setTimeout(120_000);
+    const harness = await startHarness("discover-wellknown", 33207, undefined, ["127.0.0.1", "localhost"]);
+    const site = await startSite({ wellKnown: true });
+    try {
+      // 这个页面一个 <link rel=alternate> 都没有，于是挨个敲：/rss 是软 404
+      // （HTTP 200 但不是 feed），跳过；/feed.xml 上那份才算数。
+      const candidates = await radarJson<Candidate[]>(
+        harness.environment, ["discover", `${site.url}/plain`],
+      );
+      expect(candidates).toEqual([
+        {
+          name: "约定路径上的 feed",
+          feedUrl: `${site.url}/feed.xml`,
+          via: "well-known-path",
+          channelId: "rss",
+        },
+      ]);
+
+      // 挑中之后照样是一条普通端点。
+      const added = await radarJson<Endpoint>(harness.environment, [
+        "sources", "add", "--channel", "rss",
+        "--name", candidates[0]!.name, "--url", candidates[0]!.feedUrl,
+      ]);
+      expect(added.url).toBe(`${site.url}/feed.xml`);
+
+      // 站点自己声明了订阅地址就以它为准，不再去敲门。
+      const declared = await radarJson<Candidate[]>(
+        harness.environment, ["discover", `${site.url}/blog`],
+      );
+      expect(declared.every((candidate) => candidate.via === "page-feed")).toBe(true);
+    } finally {
+      await site.close();
+      await harness.dispose();
+    }
+  });
+
+  /**
+   * 渠道适配器只认网址（YouTube 的 @handle 另外要那一份 HTML），是一段纯逻辑：
+   * 直接调它，不用把真的 youtube.com、v2ex.com 拖进验收里。
+   */
+  test("渠道适配器：YouTube、V2EX、Substack、Medium、Reddit", () => {
+    const adapt = (url: string, pageBody: string | null = null) =>
+      channelAdapterCandidates(new URL(url), pageBody).map((candidate) => ({
+        feedUrl: candidate.feedUrl,
+        channelId: candidate.channelId,
+      }));
+
+    // YouTube 官方给每个频道和播放列表出一份 Atom。
+    expect(adapt("https://www.youtube.com/channel/UCabc123")).toEqual([
+      { feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabc123", channelId: "rss" },
+    ]);
+    expect(adapt("https://www.youtube.com/playlist?list=PLxyz")).toEqual([
+      { feedUrl: "https://www.youtube.com/feeds/videos.xml?playlist_id=PLxyz", channelId: "rss" },
+    ]);
+    // @handle 与 /user/x 页面上没有频道 id，从那一份 HTML 里取。
+    const handlePage = '<link rel="canonical" href="https://www.youtube.com/channel/UCfromCanonical">';
+    expect(adapt("https://www.youtube.com/@somebody", handlePage)).toEqual([
+      {
+        feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCfromCanonical",
+        channelId: "rss",
+      },
+    ]);
+    expect(adapt("https://www.youtube.com/user/somebody", '{"channelId":"UCfromBody"}')).toEqual([
+      { feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCfromBody", channelId: "rss" },
+    ]);
+    // 页面读不到就没有这条候选，不猜一个 id 出来。
+    expect(adapt("https://www.youtube.com/@somebody")).toEqual([]);
+
+    // V2EX 每个节点一份 feed，首页一份。
+    expect(adapt("https://www.v2ex.com/go/programmer")).toEqual([
+      { feedUrl: "https://www.v2ex.com/feed/programmer.xml", channelId: "rss" },
+    ]);
+    expect(adapt("https://v2ex.com/")).toEqual([
+      { feedUrl: "https://www.v2ex.com/index.xml", channelId: "rss" },
+    ]);
+
+    expect(adapt("https://someone.substack.com/p/a-post")).toEqual([
+      { feedUrl: "https://someone.substack.com/feed", channelId: "rss" },
+    ]);
+
+    expect(adapt("https://medium.com/@someone")).toEqual([
+      { feedUrl: "https://medium.com/feed/@someone", channelId: "rss" },
+    ]);
+    expect(adapt("https://medium.com/some-publication")).toEqual([
+      { feedUrl: "https://medium.com/some-publication/feed", channelId: "rss" },
+    ]);
+
+    // Reddit 要登录态，进不了自采那一档：给的是一条 agent-push 端点（ADR 0011）。
+    expect(adapt("https://www.reddit.com/r/SideProject/")).toEqual([
+      { feedUrl: "https://www.reddit.com/r/SideProject", channelId: "agent-push" },
+    ]);
+    expect(channelAdapterCandidates(new URL("https://www.reddit.com/r/SideProject/"), null)[0]!.via)
+      .toBe("channel-adapter");
+
+    // GitHub 照旧。
+    expect(adapt("https://github.com/hono/hono")).toEqual([
+      { feedUrl: "https://github.com/hono/hono/releases.atom", channelId: "rss" },
+      { feedUrl: "https://github.com/hono/hono/commits.atom", channelId: "rss" },
+    ]);
+  });
+
+  test("RSSHub 只是一份规则：没实例也列出路由但订阅不了，规则每天从你那台刷新", async () => {
     test.setTimeout(120_000);
     const harness = await startHarness("discover-rsshub", 33201, undefined, ["127.0.0.1", "localhost"]);
     const site = await startSite();
     try {
-      // 没填地址：这一步整个跳过，Radar 不替你找一台公共实例。
+      // 没填地址：路由照样列出来，只是订阅不了——用户得知道自己差的是什么，
+      // 但 Radar 不替他找一台公共实例。
       expect(await radarJson<{ baseUrl: string | null }>(harness.environment, ["rsshub", "show"]))
         .toEqual({ baseUrl: null });
-      const before = await radar(harness.environment, ["discover", "https://github.com/hono/hono"]);
-      expect(JSON.parse(before.stdout).every((candidate: Candidate) => candidate.via !== "rsshub"))
+      const before = await radarJson<Candidate[]>(
+        harness.environment, ["discover", "https://github.com/hono/hono"],
+      );
+      const withoutInstance = before.filter((candidate) => candidate.via === "rsshub");
+      expect(withoutInstance.length).toBeGreaterThan(0);
+      expect(withoutInstance.every((candidate) => candidate.needs === "rsshub")).toBe(true);
+      // 给的是路由不是地址：它还不能被 sources add 进来。
+      expect(withoutInstance.every((candidate) => candidate.feedUrl.startsWith("/github/")))
         .toBe(true);
 
       // 填上地址、但那台实例刷不下来规则时，用随版本来的那份快照，不是失败。
@@ -252,6 +385,8 @@ test.describe("粘网址发现可订阅端点", () => {
       expect(shipped.length).toBeGreaterThan(1);
       expect(shipped.every((candidate) => candidate.feedUrl.startsWith("http://127.0.0.1:1/github/")))
         .toBe(true);
+      // 有实例了就不再缺什么。
+      expect(shipped.every((candidate) => candidate.needs === undefined)).toBe(true);
 
       // 规则每天从用户自己那台刷新，匹配用的就是刷下来那份。
       await radar(harness.environment, ["rsshub", "set", site.url]);
@@ -259,7 +394,12 @@ test.describe("粘网址发现可订阅端点", () => {
         harness.environment, ["discover", "https://example.test/u/somebody"],
       );
       expect(matched).toEqual([
-        { name: "某人的帖子", feedUrl: `${site.url}/example/posts/somebody`, via: "rsshub" },
+        {
+          name: "某人的帖子",
+          feedUrl: `${site.url}/example/posts/somebody`,
+          via: "rsshub",
+          channelId: "rss",
+        },
       ]);
 
       // 一天只刷一次：同一天里再粘几次网址都不会再去打扰那台实例。
@@ -270,11 +410,22 @@ test.describe("粘网址发现可订阅端点", () => {
       await radar(harness.environment, ["discover", "https://example.test/u/somebody"]);
       expect(site.namespaceHits()).toBe(2);
 
-      // 清掉又回到跳过：这一步整个不走，那个网址就再没有别的候选了。
+      // 清掉之后规则照样匹得上，只是那条候选又变回「需要一台 RSSHub 实例」。
       await radar(harness.environment, ["rsshub", "clear"]);
       const cleared = await radar(harness.environment, ["discover", "https://example.test/u/somebody"]);
-      expect(cleared.code).not.toBe(0);
-      expect(cleared.stderr).toContain("没有找到可订阅的 feed");
+      expect(cleared.code).toBe(0);
+      expect(JSON.parse(cleared.stdout)).toEqual([
+        {
+          name: "某人的帖子",
+          feedUrl: "/example/posts/somebody",
+          via: "rsshub",
+          channelId: "rss",
+          needs: "rsshub",
+        },
+      ]);
+      // CLI 也说一句，不然用户会以为 Radar 给了个坏地址。
+      expect(cleared.stderr).toContain("需要一台 RSSHub 实例");
+      expect(cleared.stderr).toContain("docker run -d --name rsshub -p 1200:1200 diygod/rsshub");
     } finally {
       await site.close();
       await harness.dispose();
@@ -337,6 +488,16 @@ test.describe("粘网址发现可订阅端点", () => {
       const failed = await (await post("/sources/discover", { url: `${site.url}/plain` })).text();
       expect(failed).toContain("没有找到可订阅的 feed");
       expect(failed).not.toContain("stack");
+
+      // 规则匹上了但没有实例：那条候选照样列在页面上，标着差的是什么，
+      // 但加不进来——Radar 不替你找一台公共实例。
+      expect((await post("/settings/rsshub", { baseUrl: "" })).status).toBe(303);
+      const needing = await (await post("/sources/discover", {
+        url: "https://example.test/u/somebody",
+      })).text();
+      expect(needing).toContain("某人的帖子");
+      expect(needing).toContain("需要一台 RSSHub 实例");
+      expect(needing).not.toContain('action="/sources/add"');
     } finally {
       await site.close();
       await harness.dispose();
@@ -357,7 +518,7 @@ test.describe("粘网址发现可订阅端点", () => {
         harness.environment, ["discover", `${site.url}/blog`],
       );
       expect(candidates).toEqual([
-        { name: "每周更新", feedUrl: `${site.url}/blog/feed.xml`, via: "page-feed" },
+        { name: "每周更新", feedUrl: `${site.url}/blog/feed.xml`, via: "page-feed", channelId: "rss" },
       ]);
     } finally {
       await harness.dispose();

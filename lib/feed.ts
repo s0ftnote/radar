@@ -28,8 +28,13 @@ const parser = new XMLParser({
   parseTagValue: false,
 });
 
-export async function fetchFeed(url: string): Promise<ParsedFeed> {
-  const xml = await fetchFeedXml(url);
+export type FetchFeedOptions = {
+  /** 探约定路径时一条一条敲，等不起默认那么久（`lib/discovery.ts`）。 */
+  timeoutMilliseconds?: number;
+};
+
+export async function fetchFeed(url: string, options: FetchFeedOptions = {}): Promise<ParsedFeed> {
+  const xml = await fetchFeedXml(url, options);
 
   const validation = XMLValidator.validate(xml);
   if (validation !== true) {
@@ -54,11 +59,12 @@ export async function fetchFeed(url: string): Promise<ParsedFeed> {
  * 就把过关了。重定向之后的每一跳照样严查：公网 feed 把你弹到 127.0.0.1
  * 不是任何人的决定。
  */
-async function fetchFeedXml(url: string): Promise<string> {
+async function fetchFeedXml(url: string, options: FetchFeedOptions): Promise<string> {
   try {
     const response = await safeFetch(url, {
       accept: "application/rss+xml, application/atom+xml, application/xml, text/xml",
       allowPrivateOrigin: true,
+      timeoutMilliseconds: options.timeoutMilliseconds,
     });
     return response.body;
   } catch (error) {

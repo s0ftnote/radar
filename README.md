@@ -62,10 +62,22 @@ Claude Code、OpenClaw、Hermes 这类 Agent 都能给自己建定时任务；�
 radar discover https://example.com/blog
 ```
 
-依次尝试：RSSHub 规则库 → 页面自带的 feed → 认得该域名的渠道适配器。可能给出**多条候选**
-（同一个主页往往对应视频、动态、专栏几条路由），挑一条 `radar sources add` 进来，之后它就是
-一条普通的 RSS/Atom 端点。**都不中就明说够不着**——抓 HTML 拼出来的东西页面改个版就会悄悄
-空掉，而你以为自己还被覆盖着。
+依次尝试：
+
+1. **RSSHub 规则库**——把网址翻成一条 RSSHub 路由。
+2. **页面自带的 feed**——`<link rel="alternate">`，站点自己声明的那个。
+3. **约定路径**——页面没声明时，挨个敲 `/feed`、`/feed/`、`/rss`、`/rss.xml`、`/atom.xml`、
+   `/index.xml`、`/feed.xml`，敲到的东西得真能解析成 RSS/Atom 才算数。
+4. **认得该域名的渠道适配器**——GitHub（Releases / Commits）、YouTube（频道、`@handle`、
+   `/user/x`、播放列表）、V2EX（节点与首页）、Substack、Medium、Reddit。
+
+可能给出**多条候选**（同一个主页往往对应视频、动态、专栏几条路由），挑一条 `radar sources add`
+进来，之后它就是一条普通的 RSS/Atom 端点。**都不中就明说够不着**——抓 HTML 拼出来的东西页面
+改个版就会悄悄空掉，而你以为自己还被覆盖着。
+
+Reddit 是个例外：它要登录态，Radar 不自采（[ADR 0011](docs/adr/0011-radar-collects-the-open-backbone-agents-push-the-rest.md)）。
+粘一个 `/r/<版块>` 进来给的是一条 `agent-push` 端点，登记进来之后由你自己的 Agent 采完
+`radar push` 推给 Radar。
 
 RSSHub 不是采集渠道，只是一份随版本打包的规则快照，加上一处实例级设置：
 
@@ -73,8 +85,14 @@ RSSHub 不是采集渠道，只是一份随版本打包的规则快照，加上�
 radar rsshub set http://localhost:1200
 ```
 
-不填就跳过 RSSHub 那一步匹配，Radar 不替你找一台公共实例。填了就每天从你自己那台刷新规则；
-规则只在粘网址那一刻用一次，加进来的端点跟它彻底脱钩。
+没有实例也照样列出匹配到的路由，标着 `needs: rsshub`——给的是路由不是地址，订阅不了，但你
+看得见自己差的是什么。**Radar 不替你找一台公共实例**，自己起一台就是一行：
+
+```sh
+docker run -d --name rsshub -p 1200:1200 diygod/rsshub
+```
+
+填了地址就每天从你自己那台刷新规则；规则只在粘网址那一刻用一次，加进来的端点跟它彻底脱钩。
 
 这两件事在 `/sources` 那张来源页上也做得了。
 
