@@ -1,11 +1,8 @@
 import { html } from "hono/html";
-import type { HtmlEscapedString } from "hono/utils/html";
-
-/** `hono/html` 模板的返回类型。数组插值时它逐个转义，不需要自己拼字符串。 */
-type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 import type { Candidate } from "../lib/discovery.js";
 import { groupBy } from "../lib/group-by.js";
 import { isEnabled, isInUse, type Endpoint } from "../lib/endpoints.js";
+import { renderPage, type Html } from "./page-shell.js";
 
 /**
  * 来源页（ADR 0013）。一眼看清这台 Radar 现在在采什么、什么坏了、什么在等
@@ -36,32 +33,19 @@ export function renderHomePage(input: {
   rsshubBaseUrl: string | null;
   discovery?: DiscoveryPanel;
 }): Html {
-  return html`<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Radar · 来源</title>
-    <link rel="stylesheet" href="/assets/styles.css" />
-  </head>
-  <body>
-    <main id="main-content" class="page">
-      <nav class="tabs">
-        <a class="tab" href="/">内容</a>
-        <span class="tab is-current">来源</span>
-      </nav>
-      <h1>Radar</h1>
-      <p class="lede">这台 Radar 正在本机运行，版本 ${input.version}。</p>
-      <p class="meta">本地数据目录：<code>${input.dataDirectory}</code></p>
-      <p class="meta">改动请跟你的 Agent 说，或者 <code>radar --help</code>。这一页只管看。</p>
+  return renderPage({
+    title: "来源",
+    navigation: "sources",
+    content: html`<header class="page-heading">
+        <h1>来源</h1>
+        <p>管理 Radar 的采集来源。</p>
+        <p class="instance-meta">Radar ${input.version} · <code>${input.dataDirectory}</code></p>
+      </header>
       ${renderInUse(input.endpoints)}
       ${renderCatalog(input.endpoints, input.briefs)}
       ${renderAddSource(input.discovery)}
-      ${renderRsshubSetting(input.rsshubBaseUrl)}
-    </main>
-  </body>
-</html>
-`;
+      ${renderRsshubSetting(input.rsshubBaseUrl)}`,
+  });
 }
 
 /**
@@ -88,11 +72,11 @@ function renderInUse(endpoints: Endpoint[]): Html {
   const inUse = sortForDisplay(
     endpoints.filter((endpoint) => isInUse(endpoint) || endpoint.retiredAt !== null),
   );
-  return html`<section class="panel">
+  return html`<section class="panel" data-reveal>
         <h2 class="panel-title">在采的</h2>
         ${inUse.length === 0
           ? html`<p class="empty">
-          一条都还没有。先跟你的 Agent 说你想持续知道什么，建一条 Brief，再从下面的目录里挑几条纳入。
+          还没有来源。先创建 Brief，再从目录中选择。
         </p>`
           : html`<ul class="sources">
           ${inUse.map((endpoint) => renderRow(endpoint, renderAction(endpoint)))}
@@ -118,11 +102,9 @@ function renderCatalog(endpoints: Endpoint[], briefs: BriefChoice[]): Html {
     ),
     (each) => each.topic,
   );
-  return html`<section class="panel">
+  return html`<section class="panel" data-reveal>
         <h2 class="panel-title">目录里还能加的</h2>
-        <p class="source-note">
-          这些 Radar 还没在采——一条端点被哪条 Brief 纳入了，Radar 才去采它。挑一条纳入，或者跟你的 Agent 说一声。
-        </p>
+        <p class="source-note">选择来源并纳入 Brief，Radar 才会开始采集。</p>
         ${addable.length === 0
           ? html`<p class="empty">目录里的都已经在采了。</p>`
           : [...byTopic.entries()]
@@ -149,15 +131,17 @@ function topicOrder(topic: string): number {
 function renderRow(endpoint: Endpoint, action: Html | ""): Html {
   const unreachable = endpoint.channelConfigState === "unreachable";
   return html`<li class="source${unreachable ? " is-unreachable" : ""}">
-        <div class="source-main">
-          <span class="source-name">${endpoint.name}</span>
-          <span class="source-url">${endpoint.url}</span>
-          <p class="source-channel">${endpoint.channelName}</p>
-          ${renderTopics(endpoint)}
-          ${renderNote(endpoint)}
+        <div class="source-core">
+          <div class="source-main">
+            <span class="source-name">${endpoint.name}</span>
+            <span class="source-url">${endpoint.url}</span>
+            <p class="source-channel">${endpoint.channelName}</p>
+            ${renderTopics(endpoint)}
+            ${renderNote(endpoint)}
+          </div>
+          ${renderStatus(endpoint)}
+          ${action}
         </div>
-        ${renderStatus(endpoint)}
-        ${action}
       </li>`;
 }
 
@@ -247,7 +231,7 @@ function renderInclude(endpoint: Endpoint, briefs: BriefChoice[]): Html | "" {
  * 几条路由），由用户挑；挑中之后它就是一条普通的 RSS/Atom 端点。
  */
 function renderAddSource(discovery: DiscoveryPanel | undefined): Html {
-  return html`<section class="panel">
+  return html`<section class="panel" data-reveal>
         <h2 class="panel-title">粘一个网址加源</h2>
         <form class="paste" method="post" action="/sources/discover">
           <input
@@ -279,6 +263,7 @@ const viaLabels: Record<Candidate["via"], string> = {
  */
 function renderCandidate(candidate: Candidate): Html {
   return html`<li class="candidate">
+          <div class="source-core">
             <div class="source-main">
               <span class="source-name">${candidate.name}</span>
               <span class="source-url">${candidate.feedUrl}</span>
@@ -292,12 +277,13 @@ function renderCandidate(candidate: Candidate): Html {
               <input type="hidden" name="channelId" value="${candidate.channelId}" />
               <button type="submit">加进来</button>
             </form>`}
+          </div>
           </li>`;
 }
 
 /** 唯一那处实例级设置。不填就跳过 RSSHub 那一步匹配（ADR 0013）。 */
 function renderRsshubSetting(baseUrl: string | null): Html {
-  return html`<section class="panel">
+  return html`<section class="panel" data-reveal>
         <h2 class="panel-title">你的 RSSHub 地址</h2>
         <p class="source-note">
           没填也照样列出匹配到的路由，只是订阅不了——Radar 不替你找一台公共实例。自己起一台：

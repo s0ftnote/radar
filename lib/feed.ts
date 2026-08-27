@@ -6,6 +6,7 @@ export type FeedEntry = {
   /** 内容身份用 feed 自带的 guid / id，不用标题正文的整体哈希。 */
   externalId: string;
   title: string;
+  author: string | null;
   originUrl: string;
   /** 采集那一刻的正文快照（ADR 0015）。只快照文本，图片视频留地址。 */
   body: string;
@@ -102,7 +103,7 @@ function normalizeFeed(document: Record<string, unknown>, feedUrl: string): Pars
  * RSS 与 Atom 的差别只在这几个字段各自叫什么名字，别的一模一样，所以两边只
  * 交出「这条 feed 里这几样怎么取」，落成 FeedEntry 的那段共用。
  */
-type EntryFields = { id: string; url: string; body: string; publishedAt: string };
+type EntryFields = { id: string; url: string; author: string; body: string; publishedAt: string };
 
 function normalizeEntry(
   value: unknown,
@@ -115,6 +116,7 @@ function normalizeEntry(
   return {
     externalId: fields.id || fields.url || `${feedUrl}#${index}`,
     title: text(entry.title) || `未命名来源内容 ${index + 1}`,
+    author: fields.author || null,
     originUrl: fields.url || feedUrl,
     body: fields.body,
     publishedAt: dateOrNull(fields.publishedAt),
@@ -126,6 +128,7 @@ function normalizeRssEntry(value: unknown, index: number, feedUrl: string): Feed
   return normalizeEntry(value, index, feedUrl, (entry) => ({
     id: text(entry.guid),
     url: text(entry.link),
+    author: text(entry.author) || text(entry.creator),
     body: text(entry.encoded) || text(entry.description) || "",
     publishedAt: text(entry.pubDate),
   }));
@@ -135,9 +138,15 @@ function normalizeAtomEntry(value: unknown, index: number, feedUrl: string): Fee
   return normalizeEntry(value, index, feedUrl, (entry) => ({
     id: text(entry.id),
     url: atomLink(entry.link),
+    author: atomAuthor(entry.author),
     body: text(entry.content) || text(entry.summary) || "",
     publishedAt: text(entry.published) || text(entry.updated),
   }));
+}
+
+function atomAuthor(value: unknown): string {
+  const author = asRecord(first(value));
+  return author ? text(author.name) : text(value);
 }
 
 function atomLink(value: unknown): string {

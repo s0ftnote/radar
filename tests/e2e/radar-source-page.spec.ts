@@ -267,9 +267,9 @@ test.describe("来源页", () => {
     expect(await page()).not.toContain(">已停用<");
   });
 
-  test("服务端渲染，不引入 JSX 运行时", async () => {
+  test("服务端渲染，并加载实时同步与复制交互", async () => {
     const text = await page();
-    expect(text).not.toContain("<script");
+    expect(text).toContain('/assets/app.js');
     // 配色与字体沿用 DESIGN.md 那张样式表。
     expect(text).toContain("/assets/styles.css");
   });

@@ -1,162 +1,160 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-24T11:06:32Z",
+  "generatedAt": "2026-08-27T08:36:07Z",
   "title": "Design System: Radar",
   "extensions": {
     "colorMeta": {
       "canvas": {
         "role": "neutral",
-        "displayName": "Warm Paper",
-        "canonical": "#f6f5f1",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #f6f5f1)", "color-mix(in oklch, #000 55%, #f6f5f1)", "color-mix(in oklch, #000 40%, #f6f5f1)", "color-mix(in oklch, #000 20%, #f6f5f1)", "#f6f5f1", "color-mix(in oklch, #fff 20%, #f6f5f1)", "color-mix(in oklch, #fff 45%, #f6f5f1)", "color-mix(in oklch, #fff 75%, #f6f5f1)"]
+        "displayName": "Canvas Gray",
+        "canonical": "#f4f5f7",
+        "tonalRamp": ["#181a1e", "#30343a", "#4d535c", "#6f7782", "#9aa1aa", "#c6cbd1", "#e1e4e8", "#f4f5f7"]
       },
       "surface": {
         "role": "neutral",
-        "displayName": "Evidence White",
+        "displayName": "Precision White",
         "canonical": "#ffffff",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #ffffff)", "color-mix(in oklch, #000 55%, #ffffff)", "color-mix(in oklch, #000 40%, #ffffff)", "color-mix(in oklch, #000 20%, #ffffff)", "#ffffff", "#ffffff", "#ffffff", "#ffffff"]
+        "tonalRamp": ["#181a1e", "#30343a", "#4d535c", "#6f7782", "#9aa1aa", "#cfd3d8", "#eceef0", "#ffffff"]
+      },
+      "surface-subtle": {
+        "role": "neutral",
+        "displayName": "Subtle Paper",
+        "canonical": "#f7f8fa",
+        "tonalRamp": ["#181a1e", "#30343a", "#4d535c", "#6f7782", "#9aa1aa", "#c9ced4", "#e5e8eb", "#f7f8fa"]
+      },
+      "surface-active": {
+        "role": "neutral",
+        "displayName": "Active Gray",
+        "canonical": "#eef2f7",
+        "tonalRamp": ["#17202b", "#2b3949", "#45566a", "#65778c", "#8e9dad", "#b9c3ce", "#d9e0e7", "#eef2f7"]
       },
       "ink": {
         "role": "neutral",
-        "displayName": "Workbench Ink",
-        "canonical": "#1e211e",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #1e211e)", "color-mix(in oklch, #000 55%, #1e211e)", "color-mix(in oklch, #000 40%, #1e211e)", "color-mix(in oklch, #000 20%, #1e211e)", "#1e211e", "color-mix(in oklch, #fff 20%, #1e211e)", "color-mix(in oklch, #fff 45%, #1e211e)", "color-mix(in oklch, #fff 75%, #1e211e)"]
+        "displayName": "Graphite Ink",
+        "canonical": "#111318",
+        "tonalRamp": ["#111318", "#2b2e34", "#474b53", "#676c75", "#8b919a", "#b7bbc1", "#dcdfe3", "#f3f4f5"]
       },
-      "muted-ink": {
+      "muted": {
         "role": "neutral",
-        "displayName": "Muted Ledger Ink",
-        "canonical": "#656961",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #656961)", "color-mix(in oklch, #000 55%, #656961)", "color-mix(in oklch, #000 40%, #656961)", "color-mix(in oklch, #000 20%, #656961)", "#656961", "color-mix(in oklch, #fff 20%, #656961)", "color-mix(in oklch, #fff 45%, #656961)", "color-mix(in oklch, #fff 75%, #656961)"]
+        "displayName": "Operational Gray",
+        "canonical": "#59616d",
+        "tonalRamp": ["#15181d", "#2b3038", "#434a54", "#59616d", "#7e8793", "#abb2bb", "#d5d9de", "#f2f3f5"]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint Gray",
+        "canonical": "#626b76",
+        "tonalRamp": ["#171a1e", "#2e3339", "#484f57", "#626b76", "#858e98", "#afb6bd", "#d8dce0", "#f3f4f5"]
       },
       "line": {
         "role": "neutral",
-        "displayName": "Paper Hairline",
-        "canonical": "#ddded7",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #ddded7)", "color-mix(in oklch, #000 55%, #ddded7)", "color-mix(in oklch, #000 40%, #ddded7)", "color-mix(in oklch, #000 20%, #ddded7)", "#ddded7", "color-mix(in oklch, #fff 20%, #ddded7)", "color-mix(in oklch, #fff 45%, #ddded7)", "color-mix(in oklch, #fff 75%, #ddded7)"]
+        "displayName": "Hairline",
+        "canonical": "#e1e4e8",
+        "tonalRamp": ["#191b1f", "#31353a", "#4f545b", "#727881", "#9da3aa", "#c4c9ce", "#e1e4e8", "#f6f7f8"]
       },
       "line-strong": {
         "role": "neutral",
-        "displayName": "Shell Hairline",
-        "canonical": "#c8cac1",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #c8cac1)", "color-mix(in oklch, #000 55%, #c8cac1)", "color-mix(in oklch, #000 40%, #c8cac1)", "color-mix(in oklch, #000 20%, #c8cac1)", "#c8cac1", "color-mix(in oklch, #fff 20%, #c8cac1)", "color-mix(in oklch, #fff 45%, #c8cac1)", "color-mix(in oklch, #fff 75%, #c8cac1)"]
+        "displayName": "Strong Hairline",
+        "canonical": "#cfd4db",
+        "tonalRamp": ["#191c20", "#33383e", "#525961", "#747c86", "#99a1ab", "#b8bec6", "#cfd4db", "#f0f2f4"]
       },
-      "action-green": {
+      "primary": {
         "role": "primary",
-        "displayName": "Action Green",
-        "canonical": "#24664a",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #24664a)", "color-mix(in oklch, #000 55%, #24664a)", "color-mix(in oklch, #000 40%, #24664a)", "color-mix(in oklch, #000 20%, #24664a)", "#24664a", "color-mix(in oklch, #fff 20%, #24664a)", "color-mix(in oklch, #fff 45%, #24664a)", "color-mix(in oklch, #fff 75%, #24664a)"]
+        "displayName": "Signal Blue",
+        "canonical": "#2557d6",
+        "tonalRamp": ["#0c1a46", "#102a72", "#163d9b", "#1946bd", "#2557d6", "#5f82e4", "#a5b9f0", "#eaf0ff"]
       },
-      "action-green-hover": {
+      "primary-hover": {
         "role": "primary",
-        "displayName": "Pressed Evergreen",
-        "canonical": "#1d553d",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #1d553d)", "color-mix(in oklch, #000 55%, #1d553d)", "color-mix(in oklch, #000 40%, #1d553d)", "color-mix(in oklch, #000 20%, #1d553d)", "#1d553d", "color-mix(in oklch, #fff 20%, #1d553d)", "color-mix(in oklch, #fff 45%, #1d553d)", "color-mix(in oklch, #fff 75%, #1d553d)"]
+        "displayName": "Signal Blue Hover",
+        "canonical": "#1946bd",
+        "tonalRamp": ["#09183e", "#0d2868", "#133991", "#1946bd", "#315fd0", "#6e8be0", "#adbef0", "#edf2ff"]
       },
-      "health-green-soft": {
+      "primary-soft": {
         "role": "primary",
-        "displayName": "Health Wash",
-        "canonical": "#e4efe8",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #e4efe8)", "color-mix(in oklch, #000 55%, #e4efe8)", "color-mix(in oklch, #000 40%, #e4efe8)", "color-mix(in oklch, #000 20%, #e4efe8)", "#e4efe8", "color-mix(in oklch, #fff 20%, #e4efe8)", "color-mix(in oklch, #fff 45%, #e4efe8)", "color-mix(in oklch, #fff 75%, #e4efe8)"]
+        "displayName": "Signal Blue Field",
+        "canonical": "#eaf0ff",
+        "tonalRamp": ["#101c3d", "#1d315f", "#304981", "#4e66a2", "#7689bf", "#a6b3d8", "#ced7ed", "#eaf0ff"]
       },
-      "health-green-ink": {
-        "role": "primary",
-        "displayName": "Health Ink",
-        "canonical": "#184b35",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #184b35)", "color-mix(in oklch, #000 55%, #184b35)", "color-mix(in oklch, #000 40%, #184b35)", "color-mix(in oklch, #000 20%, #184b35)", "#184b35", "color-mix(in oklch, #fff 20%, #184b35)", "color-mix(in oklch, #fff 45%, #184b35)", "color-mix(in oklch, #fff 75%, #184b35)"]
+      "success": {
+        "role": "secondary",
+        "displayName": "Verified Green",
+        "canonical": "#19704a",
+        "tonalRamp": ["#09291c", "#0d402b", "#125a3b", "#19704a", "#3d8d68", "#70aa8a", "#aed0bd", "#e9f6ef"]
       },
-      "focus-green": {
-        "role": "primary",
-        "displayName": "Focus Green",
-        "canonical": "#2f7556",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #2f7556)", "color-mix(in oklch, #000 55%, #2f7556)", "color-mix(in oklch, #000 40%, #2f7556)", "color-mix(in oklch, #000 20%, #2f7556)", "#2f7556", "color-mix(in oklch, #fff 20%, #2f7556)", "color-mix(in oklch, #fff 45%, #2f7556)", "color-mix(in oklch, #fff 75%, #2f7556)"]
-      },
-      "workbench": {
-        "role": "neutral",
-        "displayName": "Creation Charcoal",
-        "canonical": "#232823",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #232823)", "color-mix(in oklch, #000 55%, #232823)", "color-mix(in oklch, #000 40%, #232823)", "color-mix(in oklch, #000 20%, #232823)", "#232823", "color-mix(in oklch, #fff 20%, #232823)", "color-mix(in oklch, #fff 45%, #232823)", "color-mix(in oklch, #fff 75%, #232823)"]
-      },
-      "workbench-text": {
-        "role": "neutral",
-        "displayName": "Workbench White",
-        "canonical": "#f7f8f5",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #f7f8f5)", "color-mix(in oklch, #000 55%, #f7f8f5)", "color-mix(in oklch, #000 40%, #f7f8f5)", "color-mix(in oklch, #000 20%, #f7f8f5)", "#f7f8f5", "color-mix(in oklch, #fff 20%, #f7f8f5)", "color-mix(in oklch, #fff 45%, #f7f8f5)", "color-mix(in oklch, #fff 75%, #f7f8f5)"]
-      },
-      "workbench-muted": {
-        "role": "neutral",
-        "displayName": "Workbench Muted",
-        "canonical": "#bfc5bd",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #bfc5bd)", "color-mix(in oklch, #000 55%, #bfc5bd)", "color-mix(in oklch, #000 40%, #bfc5bd)", "color-mix(in oklch, #000 20%, #bfc5bd)", "#bfc5bd", "color-mix(in oklch, #fff 20%, #bfc5bd)", "color-mix(in oklch, #fff 45%, #bfc5bd)", "color-mix(in oklch, #fff 75%, #bfc5bd)"]
-      },
-      "field": {
-        "role": "neutral",
-        "displayName": "Field Paper",
-        "canonical": "#fbfcfa",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #fbfcfa)", "color-mix(in oklch, #000 55%, #fbfcfa)", "color-mix(in oklch, #000 40%, #fbfcfa)", "color-mix(in oklch, #000 20%, #fbfcfa)", "#fbfcfa", "color-mix(in oklch, #fff 20%, #fbfcfa)", "color-mix(in oklch, #fff 45%, #fbfcfa)", "color-mix(in oklch, #fff 75%, #fbfcfa)"]
-      },
-      "field-border": {
-        "role": "neutral",
-        "displayName": "Field Edge",
-        "canonical": "#747b72",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #747b72)", "color-mix(in oklch, #000 55%, #747b72)", "color-mix(in oklch, #000 40%, #747b72)", "color-mix(in oklch, #000 20%, #747b72)", "#747b72", "color-mix(in oklch, #fff 20%, #747b72)", "color-mix(in oklch, #fff 45%, #747b72)", "color-mix(in oklch, #fff 75%, #747b72)"]
-      },
-      "field-border-hover": {
-        "role": "neutral",
-        "displayName": "Field Edge Hover",
-        "canonical": "#a3aaa1",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #a3aaa1)", "color-mix(in oklch, #000 55%, #a3aaa1)", "color-mix(in oklch, #000 40%, #a3aaa1)", "color-mix(in oklch, #000 20%, #a3aaa1)", "#a3aaa1", "color-mix(in oklch, #fff 20%, #a3aaa1)", "color-mix(in oklch, #fff 45%, #a3aaa1)", "color-mix(in oklch, #fff 75%, #a3aaa1)"]
-      },
-      "field-border-focus": {
-        "role": "primary",
-        "displayName": "Field Focus Edge",
-        "canonical": "#91bca5",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #91bca5)", "color-mix(in oklch, #000 55%, #91bca5)", "color-mix(in oklch, #000 40%, #91bca5)", "color-mix(in oklch, #000 20%, #91bca5)", "#91bca5", "color-mix(in oklch, #fff 20%, #91bca5)", "color-mix(in oklch, #fff 45%, #91bca5)", "color-mix(in oklch, #fff 75%, #91bca5)"]
-      },
-      "success-text": {
-        "role": "primary",
-        "displayName": "Confirmation Text",
-        "canonical": "#b7d8c5",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #b7d8c5)", "color-mix(in oklch, #000 55%, #b7d8c5)", "color-mix(in oklch, #000 40%, #b7d8c5)", "color-mix(in oklch, #000 20%, #b7d8c5)", "#b7d8c5", "color-mix(in oklch, #fff 20%, #b7d8c5)", "color-mix(in oklch, #fff 45%, #b7d8c5)", "color-mix(in oklch, #fff 75%, #b7d8c5)"]
-      },
-      "success-line": {
-        "role": "primary",
-        "displayName": "Confirmation Line",
-        "canonical": "#7fbea0",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #7fbea0)", "color-mix(in oklch, #000 55%, #7fbea0)", "color-mix(in oklch, #000 40%, #7fbea0)", "color-mix(in oklch, #000 20%, #7fbea0)", "#7fbea0", "color-mix(in oklch, #fff 20%, #7fbea0)", "color-mix(in oklch, #fff 45%, #7fbea0)", "color-mix(in oklch, #fff 75%, #7fbea0)"]
-      },
-      "error-text": {
-        "role": "tertiary",
-        "displayName": "Workbench Error",
-        "canonical": "#ffc1b8",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #ffc1b8)", "color-mix(in oklch, #000 55%, #ffc1b8)", "color-mix(in oklch, #000 40%, #ffc1b8)", "color-mix(in oklch, #000 20%, #ffc1b8)", "#ffc1b8", "color-mix(in oklch, #fff 20%, #ffc1b8)", "color-mix(in oklch, #fff 45%, #ffc1b8)", "color-mix(in oklch, #fff 75%, #ffc1b8)"]
-      },
-      "skeleton": {
-        "role": "neutral",
-        "displayName": "Loading Paper",
-        "canonical": "#e8e7e2",
-        "tonalRamp": ["color-mix(in oklch, #000 70%, #e8e7e2)", "color-mix(in oklch, #000 55%, #e8e7e2)", "color-mix(in oklch, #000 40%, #e8e7e2)", "color-mix(in oklch, #000 20%, #e8e7e2)", "#e8e7e2", "color-mix(in oklch, #fff 20%, #e8e7e2)", "color-mix(in oklch, #fff 45%, #e8e7e2)", "color-mix(in oklch, #fff 75%, #e8e7e2)"]
+      "success-soft": {
+        "role": "secondary",
+        "displayName": "Verified Green Field",
+        "canonical": "#e9f6ef",
+        "tonalRamp": ["#12281d", "#264131", "#41604d", "#64816d", "#8fa793", "#b8cbbb", "#d7e5dc", "#e9f6ef"]
       }
     },
     "typographyMeta": {
-      "display": { "displayName": "Editorial Display", "purpose": "Radar wordmark and page-level headings only." },
-      "headline": { "displayName": "Brief Headline", "purpose": "Readable long-form Radar Brief content." },
-      "title": { "displayName": "Workbench Title", "purpose": "Panel and section headings." },
-      "body": { "displayName": "Operational Body", "purpose": "Default interface copy and evidence." },
-      "label": { "displayName": "Control Label", "purpose": "Fields, badges, status, and compact metadata." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page and document titles with compact editorial authority."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Substantial local headings and empty-state anchors."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Task names and high-value row titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "General interface copy and sustained reading."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Metadata, states, compact controls, and column labels."
+      }
     },
     "shadows": [
-      { "name": "status-halo", "value": "0 0 0 5px var(--green-soft)", "purpose": "The only resting halo; identifies the running local instance." },
-      { "name": "focus-ring", "value": "0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent)", "purpose": "Visible keyboard focus around interactive elements." }
+      {
+        "name": "ambient-low",
+        "value": "0 8px 24px rgba(18, 24, 32, 0.055)",
+        "purpose": "Reserved low-level ambient token; ordinary resting sheets stay shadowless."
+      },
+      {
+        "name": "primary-action-lift",
+        "value": "0 5px 14px rgba(37, 87, 214, 0.16)",
+        "purpose": "Controlled lift for the single decisive action in a region."
+      },
+      {
+        "name": "floating-layer",
+        "value": "0 14px 38px rgba(18, 24, 32, 0.11)",
+        "purpose": "Menus, form overlays, and toast notices only."
+      }
     ],
     "motion": [
-      { "name": "state-transition", "value": "180ms ease-out", "purpose": "Hover, focus-adjacent, and compact transform feedback." },
-      { "name": "confirmation-line", "value": "420ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Success-only line reveal after a Radar Project is saved." },
-      { "name": "skeleton-sweep", "value": "1.4s ease-out infinite", "purpose": "Loading-state shimmer; removed under reduced motion." },
-      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Disables all animation and transition while preserving final-state visibility." }
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "Default state and reveal easing."
+      },
+      {
+        "name": "grid-reveal",
+        "value": "opacity 420ms, transform 500ms, translateY(12px)",
+        "purpose": "Restrained column-by-column entrance for headings and editorial sections."
+      },
+      {
+        "name": "grid-stagger",
+        "value": "38ms × order, capped at order 6",
+        "purpose": "Keeps sequential structure perceptible without creating spectacle."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "transitions none; opacity 1; transform none",
+        "purpose": "Completely disables reveal and state transitions when reduced motion is requested."
+      }
     ],
     "breakpoints": [
-      { "name": "stack", "value": "820px" },
-      { "name": "compact", "value": "460px" }
+      { "name": "wide-collapse", "value": "1120px" },
+      { "name": "column-collapse", "value": "900px" },
+      { "name": "mobile-workbench", "value": "767px" },
+      { "name": "compact-mobile", "value": "460px" }
     ]
   },
   "components": [
@@ -164,96 +162,127 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The single high-emphasis action used to advance or create.",
-      "html": "<button class=\"ds-button-primary\" type=\"button\">创建 Radar Project</button>",
-      "css": ".ds-button-primary { display:inline-flex; min-height:42px; align-items:center; justify-content:center; padding:9px 16px; color:#fff; background:var(--green, #24664a); border:0; border-radius:999px; font:700 13px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; cursor:pointer; transition:background-color 180ms ease-out,transform 180ms ease-out; } .ds-button-primary:hover { background:var(--green-hover, #1d553d); transform:translateY(-1px); } .ds-button-primary:active { transform:translateY(0); } .ds-button-primary:focus-visible { outline:3px solid color-mix(in srgb,var(--focus, #2f7556) 35%,transparent); outline-offset:3px; } @media (prefers-reduced-motion:reduce) { .ds-button-primary { transition:none; } }"
+      "description": "The single decisive action within a page or editorial region.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">生成报告</button>",
+      "css": ".ds-btn-primary { min-height: 44px; padding: 9px 15px; color: var(--surface); font-family: var(--sans); font-size: 13px; font-weight: 650; background: var(--blue); border: 0; border-radius: 9px; box-shadow: 0 5px 14px rgba(37, 87, 214, 0.16); transition: background-color 180ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease); cursor: pointer; } .ds-btn-primary:hover { background: var(--blue-hover); box-shadow: 0 8px 19px rgba(37, 87, 214, 0.22); transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 30%, transparent); outline-offset: 3px; } .ds-btn-primary:active { transform: translateY(0); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A compact outlined action for feedback and source operations.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">有用</button>",
+      "css": ".ds-btn-secondary { min-height: 36px; padding: 6px 11px; color: var(--ink); font-family: var(--sans); font-size: 11px; font-weight: 650; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 7px; transition: color 180ms var(--ease), border-color 180ms var(--ease), background-color 180ms var(--ease); cursor: pointer; } .ds-btn-secondary:hover { color: var(--blue); border-color: #9badde; background: var(--blue-soft); } .ds-btn-secondary:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 30%, transparent); outline-offset: 3px; } .ds-btn-secondary:active { background: var(--surface-active); }"
     },
     {
       "name": "Text Field",
       "kind": "input",
-      "refersTo": "field",
-      "description": "A paper-white operational field designed for the dark creation workbench.",
-      "html": "<label class=\"ds-field-label\"><span>Project 名称</span><input class=\"ds-field\" placeholder=\"例如：Agent 工具需求\"></label>",
-      "css": ".ds-field-label { display:grid; gap:7px; color:#d9ddd7; font:650 13px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-field { min-height:44px; padding:9px 11px; color:var(--ink, #1e211e); caret-color:var(--green, #24664a); background:#fbfcfa; border:1px solid #747b72; border-radius:10px; font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-field:hover { border-color:#a3aaa1; } .ds-field:focus { border-color:#91bca5; outline:3px solid rgb(101 173 136 / 24%); }"
+      "refersTo": "text-field",
+      "description": "The standard editable field for Briefs, sources, and forms.",
+      "html": "<label class=\"ds-field-label\" for=\"ds-brief\">Brief</label><input class=\"ds-text-field\" id=\"ds-brief\" value=\"持续关注开发者工具信号\" />",
+      "css": ".ds-field-label { display: block; margin-bottom: 6px; color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 650; } .ds-text-field { width: 100%; min-height: 44px; padding: 9px 12px; color: var(--ink); caret-color: var(--blue); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; font-family: var(--sans); font-size: 15px; transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-text-field:hover { border-color: #aeb5bf; } .ds-text-field:focus { outline: 0; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 87, 214, 0.12); }"
     },
     {
-      "name": "Evidence Card",
-      "kind": "card",
-      "refersTo": "surface-card",
-      "description": "The default white, bordered container for lists and inspectable evidence.",
-      "html": "<section class=\"ds-evidence-card\"><div class=\"ds-evidence-title\"><strong>Radar Projects</strong><span>2 个空间</span></div><p>来源可以复用，判断彼此隔离。</p></section>",
-      "css": ".ds-evidence-card { padding:24px; color:var(--ink, #1e211e); background:var(--surface, #fff); border:1px solid var(--line, #ddded7); border-radius:14px; font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-evidence-title { display:flex; align-items:baseline; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:1px solid var(--line, #ddded7); } .ds-evidence-title span,.ds-evidence-card p { color:var(--muted, #656961); } .ds-evidence-card p { margin:18px 0 0; }"
-    },
-    {
-      "name": "Creation Workbench",
-      "kind": "card",
-      "refersTo": "creation-workbench",
-      "description": "The charcoal instrument surface reserved for authoring a new Radar Project.",
-      "html": "<section class=\"ds-workbench\"><h2>开始一条长期关注线</h2><p>先用自己的话说明想持续知道什么。</p></section>",
-      "css": ".ds-workbench { padding:24px; color:#f7f8f5; background:#232823; border:1px solid #232823; border-radius:14px; font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-workbench h2 { margin:0 0 8px; font-size:17px; line-height:1.3; letter-spacing:-0.015em; } .ds-workbench p { margin:0; color:#bfc5bd; }"
-    },
-    {
-      "name": "Project Row",
-      "kind": "custom",
-      "description": "A provenance-minded project link with an authored directional SVG affordance.",
-      "html": "<a class=\"ds-project-row\" href=\"#\"><span class=\"ds-project-copy\"><strong>本地优先产品</strong><span>关注用户真正拥有数据和运行权的本地优先软件实践。</span></span><svg class=\"ds-row-arrow\" aria-hidden=\"true\" viewBox=\"0 0 20 20\"><path d=\"M4 10h11M11 6l4 4-4 4\"/></svg></a>",
-      "css": ".ds-project-row { display:flex; align-items:center; justify-content:space-between; gap:28px; padding:22px 4px; color:var(--ink, #1e211e); text-decoration:none; border-bottom:1px solid var(--line, #ddded7); font:400 15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; transition:color 180ms ease-out; } .ds-project-copy { display:grid; gap:5px; min-width:0; } .ds-project-copy strong { font-size:16px; } .ds-project-copy>span { color:var(--muted, #656961); } .ds-row-arrow { width:20px; height:20px; overflow:visible; fill:none; stroke:var(--green, #24664a); stroke-linecap:round; stroke-linejoin:round; stroke-width:1.5; transition:transform 180ms ease-out; } .ds-project-row:hover { color:var(--green-ink, #184b35); } .ds-project-row:hover .ds-row-arrow { transform:translateX(3px); } .ds-project-row:focus-visible { outline:3px solid color-mix(in srgb,var(--focus, #2f7556) 35%,transparent); outline-offset:3px; } @media (prefers-reduced-motion:reduce) { .ds-project-row,.ds-row-arrow { transition:none; } }"
-    },
-    {
-      "name": "Ready Status",
-      "kind": "chip",
-      "refersTo": "status-ready",
-      "description": "A compact soft-green state badge for readiness and health.",
-      "html": "<span class=\"ds-status-ready\">准备采集</span>",
-      "css": ".ds-status-ready { display:inline-flex; padding:5px 10px; color:var(--green-ink, #184b35); background:var(--green-soft, #e4efe8); border-radius:999px; font:700 12px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; }"
-    },
-    {
-      "name": "Success Confirmation",
-      "kind": "custom",
-      "description": "A reserved live-region line whose authored underline appears only after successful persistence.",
-      "html": "<p class=\"ds-confirmation\" aria-live=\"polite\">Project 已保存到本地。</p>",
-      "css": ".ds-confirmation { position:relative; min-height:24px; margin:0; color:#b7d8c5; font:400 12px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif; } .ds-confirmation::after { position:absolute; bottom:-2px; left:0; width:36px; height:1px; background:#7fbea0; content:\"\"; transform-origin:left; animation:ds-confirmation-line 420ms cubic-bezier(.16,1,.3,1) both; } @keyframes ds-confirmation-line { from { transform:scaleX(0); } to { transform:scaleX(1); } } @media (prefers-reduced-motion:reduce) { .ds-confirmation::after { animation:none; } }"
-    },
-    {
-      "name": "Masthead Wordmark",
+      "name": "Workbench Navigation",
       "kind": "nav",
-      "description": "A sparse product identity lockup with editorial Radar type and operational sans metadata.",
-      "html": "<a class=\"ds-wordmark\" href=\"#\" aria-label=\"Radar 首页\"><strong>Radar</strong><span>local intelligence</span></a>",
-      "css": ".ds-wordmark { display:inline-flex; align-items:baseline; gap:10px; color:var(--ink, #1e211e); text-decoration:none; } .ds-wordmark strong { font-family:var(--font-editorial),\"Songti SC\",\"Noto Serif CJK SC\",serif; font-size:22px; font-weight:400; letter-spacing:-.03em; } .ds-wordmark span { color:var(--muted, #656961); font:650 11px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif; letter-spacing:.09em; text-transform:uppercase; } .ds-wordmark:focus-visible { outline:3px solid color-mix(in srgb,var(--focus, #2f7556) 35%,transparent); outline-offset:3px; border-radius:8px; }"
+      "refersTo": "navigation-current",
+      "description": "The light editorial navigation treatment used inside the top workbench.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"主要导航\"><a class=\"ds-nav-link ds-is-current\" href=\"#\">任务 <svg viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 9h9m-3.5-3.5L13 9l-3.5 3.5\" /></svg></a><a class=\"ds-nav-link\" href=\"#\">来源 <svg viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 9h9m-3.5-3.5L13 9l-3.5 3.5\" /></svg></a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 3px; font-family: var(--sans); } .ds-nav-link { display: flex; min-height: 42px; align-items: center; gap: 7px; padding: 0 11px 0 13px; color: var(--muted); font-size: 14px; text-decoration: none; border-radius: 9px; transition: color 180ms var(--ease), background-color 180ms var(--ease); } .ds-nav-link svg { width: 17px; height: 17px; } .ds-nav-link path { stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; } .ds-nav-link:hover { color: var(--ink); background: var(--surface-subtle); } .ds-nav-link:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 30%, transparent); outline-offset: 3px; } .ds-nav-link.ds-is-current { color: var(--ink); font-weight: 650; background: var(--surface-active); }"
+    },
+    {
+      "name": "Skill Command",
+      "kind": "custom",
+      "refersTo": "skill-command",
+      "description": "Radar's signature copyable bridge from the WebUI back to the user's Agent.",
+      "html": "<button class=\"ds-skill-command\" type=\"button\"><code>/radar-delivery</code><span>复制</span></button>",
+      "css": ".ds-skill-command { display: flex; min-height: 38px; align-items: center; gap: 8px; padding: 0 10px; color: var(--muted); background: var(--surface-subtle); border: 0; border-radius: 8px; font-family: var(--sans); transition: color 180ms var(--ease), background-color 180ms var(--ease); cursor: pointer; } .ds-skill-command code { color: inherit; font-family: inherit; font-size: 11px; background: transparent; } .ds-skill-command span { color: var(--blue); font-size: 10px; } .ds-skill-command:hover { color: var(--blue); background: var(--blue-soft); } .ds-skill-command:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 30%, transparent); outline-offset: 3px; } .ds-skill-command:active { background: var(--surface-active); }"
+    },
+    {
+      "name": "Precision Surface",
+      "kind": "card",
+      "refersTo": "precision-surface",
+      "description": "The flat, border-defined sheet used for Briefs, judgments, reports, and grouped rows.",
+      "html": "<article class=\"ds-surface\"><h3>Brief</h3><p>持续关注开发者在 AI 编程工具中反复遇到、正在变得更严重的问题。</p></article>",
+      "css": ".ds-surface { padding: 24px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: none; font-family: var(--sans); } .ds-surface h3 { margin: 0 0 12px; font-size: 18px; font-weight: 680; letter-spacing: -0.015em; } .ds-surface p { max-width: 68ch; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.58; } .ds-surface:focus-within { border-color: var(--line-strong); }"
+    },
+    {
+      "name": "Verified Status Chip",
+      "kind": "chip",
+      "refersTo": "status-success",
+      "description": "A compact text-bearing semantic marker for positive or selected state.",
+      "html": "<span class=\"ds-status-success\">给你看</span>",
+      "css": ".ds-status-success { display: inline-flex; padding: 4px 8px; color: var(--success); background: var(--success-soft); border-radius: 6px; font-family: var(--sans); font-size: 10px; font-weight: 650; white-space: nowrap; }"
+    },
+    {
+      "name": "Editorial Row",
+      "kind": "custom",
+      "refersTo": "precision-surface",
+      "description": "The aligned information row shared by task, document, report, and source lists.",
+      "html": "<a class=\"ds-editorial-row\" href=\"#\"><span class=\"ds-row-main\"><strong>Agent 重试时无法保留完整上下文</strong><small>多个开发者报告长期任务的上下文丢失</small></span><span class=\"ds-row-meta\">8月26日 10:20</span><span class=\"ds-row-state\">给你看</span></a>",
+      "css": ".ds-editorial-row { display: grid; grid-template-columns: minmax(260px, 1.5fr) 150px 90px; gap: 22px; min-height: 78px; align-items: center; padding: 14px 10px; color: var(--muted); border-top: 1px solid var(--line); border-radius: 8px; font-family: var(--sans); text-decoration: none; transition: background-color 180ms var(--ease); } .ds-row-main { min-width: 0; } .ds-row-main strong { display: block; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; } .ds-row-main small { display: block; overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; } .ds-row-meta { font-size: 12px; } .ds-row-state { justify-self: start; padding: 4px 8px; color: var(--success); background: var(--success-soft); border-radius: 6px; font-size: 10px; font-weight: 650; } .ds-editorial-row:hover { background: var(--surface-subtle); } .ds-editorial-row:hover .ds-row-main strong { color: var(--blue); } .ds-editorial-row:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 30%, transparent); outline-offset: 3px; }"
     }
   ],
   "narrative": {
-    "northStar": "The Editorial Investigation Desk",
-    "overview": "Radar is an Operate-mode workbench with the calm authority of a well-kept research desk. Warm paper surrounds precise white evidence surfaces, while the charcoal creation panel feels like the active instrument on that desk. The interface is restrained and information-led: identity and provenance remain legible, controls feel deliberate, and valid emptiness receives the same compositional care as populated states.\n\nBrand expression is concentrated rather than spread everywhere. The self-hosted ZCOOL XiaoWei face gives the Radar wordmark and page-level headings an editorial voice; the rest of the workbench uses a durable system sans stack for fast scanning and mixed Chinese/Latin content. Deep green is reserved for action, focus, health, and authored directional affordances—not decoration. The incumbent visual evidence remains `prototypes/radar-brief-prototype.html` and `docs/radar-product-handoff.html`; the shipped implementation is the normative source for exact values.",
+    "northStar": "The International Signal Desk",
+    "overview": "Radar is an international signal-editing system: structured, precise, global, editorial, and restrained. Its neutral gray-white canvas, white precision workbench, graphite text, single deep-blue action color, and entirely sans-serif typography make order, alignment, and information density more important than decoration.\n\nThe top workbench keeps Agent commands and live state reachable while every page proceeds through one coherent column grid—from tasks into Briefs, sources, judgments, and reports. The first viewport establishes the title, primary action, and core task content without letting navigation consume the screen; the interface should feel like a durable editorial desk, never a promotional dashboard.",
     "keyCharacteristics": [
-      "Warm paper canvas with flat white, hairline-bordered reading surfaces.",
-      "One dark creation workbench that clearly distinguishes making from inspecting.",
-      "Editorial display type used sparingly; system sans carries operational content.",
-      "Deep green communicates action, focus, health, and forward movement.",
-      "Responsive topology puts creation before the project list on narrow screens.",
-      "Surface seed `e2d76f24` identifies this implemented visual direction."
+      "International Grid × Structured Editorial",
+      "Neutral gray-white canvas with crisp white working surfaces",
+      "One deep-blue action voice against graphite information hierarchy",
+      "Flat, border-defined structure with selective functional elevation",
+      "Restrained column-by-column reveal that yields to reduced-motion preferences"
     ],
     "rules": [
-      { "name": "The Green Means Something Rule", "body": "Deep green is reserved for action, health, focus, and directional affordances; never use it as ambient decoration.", "section": "colors" },
-      { "name": "The Paper and Instrument Rule", "body": "Reading and evidence live on white paper-like surfaces; the dark workbench is reserved for creation.", "section": "colors" },
-      { "name": "The Two-Voice Rule", "body": "ZCOOL XiaoWei belongs only to the Radar wordmark and page-level `h1`; every workbench control, section title, datum, and paragraph stays in the system sans.", "section": "typography" },
-      { "name": "The Creation-Before-List Rule", "body": "Narrow screens must show the creation workbench before the existing-project list; this ordering is a product topology, not a cosmetic rearrangement.", "section": "layout" },
-      { "name": "The Border-Built Depth Rule", "body": "Use one-pixel hairlines and tonal separation for structure; do not add ambient card shadows.", "section": "elevation" }
+      {
+        "name": "The One Signal Rule",
+        "body": "Deep blue is the only general action color; green remains semantic, and neutral surfaces carry the rest of the hierarchy.",
+        "section": "colors"
+      },
+      {
+        "name": "The Neutral Field Rule",
+        "body": "Keep large areas gray-white or white so content density reads as organized information, not visual noise.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sans-Only Rule",
+        "body": "Use the shared sans-serif stack for both Chinese and Latin; hierarchy comes from scale, weight, spacing, and alignment rather than a decorative type family.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Grid Rule",
+        "body": "Every surface must align to the workspace and its local columns; do not create offset islands merely to add visual variety.",
+        "section": "layout"
+      },
+      {
+        "name": "The Reachable Agent Rule",
+        "body": "Agent commands and live sync state remain directly reachable at every viewport, including all three command paths on mobile.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "Resting surfaces use borders and tonal contrast; shadows indicate action or temporary elevation, never ordinary grouping.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Controlled Radius Rule",
+        "body": "Corners communicate scale—14px for surfaces, 9px for primary controls, and smaller radii for dense metadata—without turning the interface into stacked soft shells.",
+        "section": "shapes"
+      }
     ],
     "dos": [
-      "Do preserve the Operate-mode hierarchy: task completion, scanability, and inspectable state come before brand theater.",
-      "Do keep ZCOOL XiaoWei self-hosted and confined to the Radar wordmark and page-level headings.",
-      "Do use white bordered surfaces for evidence and the charcoal surface for creation.",
-      "Do keep deep green semantic and rare: action, focus, health, and forward direction only.",
-      "Do preserve the creation-before-list mobile topology and the authored SVG row affordance.",
-      "Do keep every transition meaningful and provide the global reduced-motion fallback."
+      "Do align headings, actions, rows, sheets, and metadata to one coherent editorial grid.",
+      "Do reserve deep blue for interactive intent and green for explicit success or selected semantics.",
+      "Do keep resting surfaces flat with 1px boundaries and use elevation only for primary action or temporary floating layers.",
+      "Do preserve all three Agent Skill paths plus “复制” in the compact mobile workbench.",
+      "Do disable reveal motion completely for reduced-motion users and keep state meaning available in text."
     ],
     "donts": [
-      "Don't add ambient shadows, gradients, glass effects, or decorative green washes.",
-      "Don't apply the editorial face to controls, metadata, body copy, or dense workbench content.",
-      "Don't convert the project list into a feed or flatten provenance into anonymous metadata.",
-      "Don't animate error or idle messages with the success confirmation line.",
-      "Don't replace the implemented system based only on the evidence prototypes; use them as preserved lineage and the shipped code as exact ground truth."
+      "Don't introduce a dark oversized side island, mint green palette, or competing accent colors.",
+      "Don't stack double soft shells, heavy shadows, excessive rounding, or generic pills around ordinary content.",
+      "Don't use offset Bento compositions or decorative asymmetry that breaks the shared column grid.",
+      "Don't let decoration, motion, or navigation displace the first viewport's title, primary action, and core task content.",
+      "Don't use serif display typography or ornament that makes the product feel promotional, low-grade, or visually noisy."
     ]
   }
 }

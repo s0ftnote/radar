@@ -12,7 +12,7 @@ Radar 砍掉 Next 与 React，保留 TypeScript。一个常驻 Node 进程同时
 
 - `lib/` 一行不用改，它本来就与栈无关。
 - `app/api/` 的五个路由重写为 Hono 路由。ADR 0012 已把 HTTP API 降为内部实现而非契约，改形状不构成破坏。
-- 来源页服务端渲染，不引入 JSX 运行时；`DESIGN.md` 的配色与 ZCOOL XiaoWei 字体照搬。
+- 来源页服务端渲染，不引入 JSX 运行时；配色与统一的系统无衬线字体遵循 `DESIGN.md`。
 - [#58](https://github.com/s0ftnote/radar/issues/58) 要删的 Brief 列表页与详情页在这次迁移里自然消失，不必单独删一遍。
 - 全局包不再需要携带 `next build` 产物，发布流程少一环。
 - e2e 仍用 Playwright，它测的是浏览器行为，与服务端用什么框架无关。

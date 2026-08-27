@@ -54,7 +54,9 @@ export function enqueueCurrentPage(briefId: string): number {
 
 /** 一次采集之后，所有 Brief 都跟着入队。 */
 export function enqueueForAllBriefs(): number {
-  const briefIds = database().prepare("SELECT id FROM briefs").all() as Array<{ id: string }>;
+  const briefIds = database()
+    .prepare("SELECT id FROM briefs WHERE archived_at IS NULL")
+    .all() as Array<{ id: string }>;
   return briefIds.reduce((total, brief) => total + enqueueCurrentPage(brief.id), 0);
 }
 

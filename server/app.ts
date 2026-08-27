@@ -9,11 +9,13 @@ import {
   type PushedEntry,
 } from "../lib/acquisition.js";
 import {
+  archiveBrief,
   createBrief,
   getBrief,
   listBriefRevisions,
   listBriefs,
   reviseBrief,
+  updateBrief,
 } from "../lib/briefs.js";
 import { radarDataDirectory } from "../lib/data-directory.js";
 import {
@@ -62,14 +64,21 @@ import {
   maximumWorkPackageLimit,
 } from "../lib/work-package.js";
 import { renderHomePage, type DiscoveryPanel } from "./home-page.js";
-import { renderContentPage } from "./content-page.js";
 import {
   contentFacets,
+  getBriefContent,
+  getBriefContentAtJudgment,
   listBriefContent,
-  type ContentState,
 } from "../lib/brief-content.js";
+import { createReport, getReport, listReports } from "../lib/reports.js";
+import { listJudgmentsByIds } from "../lib/judgments.js";
 import { packageRoot } from "../lib/package-root.js";
 import { radarVersion } from "../lib/version.js";
+import { renderTasksPage } from "./tasks-page.js";
+import { renderTaskPage } from "./task-page.js";
+import { renderDocumentPage } from "./document-page.js";
+import { renderReportPage } from "./report-page.js";
+import { liveUpdatesResponse, notifyRadarChanged } from "./live-updates.js";
 
 /**
  * HTTP 是 Radar 的内部实现，不是契约（ADR 0012）——契约是 `radar` 的命令面。
@@ -85,12 +94,88 @@ export function createRadarApp(): Hono {
    */
   app.use(csrf());
 
+  // Agent 与网页都经这一个 HTTP 服务写入。任何成功写操作完成后通知浏览器，
+  // 页面只接收失效信号，再从 Radar 读当前真相，不在浏览器里维护第二份状态。
+  app.use("*", async (context, next) => {
+    await next();
+    if (!["GET", "HEAD"].includes(context.req.method) && context.res.status < 400) {
+      notifyRadarChanged();
+    }
+  });
+
   app.get("/health", (context) =>
     context.json({ ok: true, version: radarVersion(), dataDirectory: radarDataDirectory() }),
   );
 
-  // 首页是内容页，来源页在 /sources（ADR 0017）。
-  app.get("/", (context) => context.html(contentPage(context.req.query(), context.req.queries())));
+  app.get("/events", (context) => liveUpdatesResponse(context.req.raw.signal));
+
+  // 首页是任务工作台。任务就是 Brief 的 Web 命名，不另加一层领域对象。
+  app.get("/", (context) => context.html(tasksPage()));
+
+  app.post("/tasks", async (context) => {
+    const form = await context.req.formData();
+    const brief = createBrief({
+      name: requiredText(form.get("name"), "任务名称"),
+      body: requiredText(form.get("body"), "Brief"),
+    });
+    enqueueCurrentPage(brief.id);
+    return context.redirect(`/tasks/${brief.id}`, 303);
+  });
+
+  app.get("/tasks/:briefId", (context) => {
+    const brief = getBrief(context.req.param("briefId"));
+    if (!brief) throw new HTTPException(404, { message: "找不到这条任务。" });
+    return context.html(taskPage(brief.id));
+  });
+
+  app.post("/tasks/:briefId", async (context) => {
+    const form = await context.req.formData();
+    const brief = updateBrief({
+      briefId: context.req.param("briefId"),
+      name: requiredText(form.get("name"), "任务名称"),
+      body: requiredText(form.get("body"), "Brief"),
+      rationale: requiredText(form.get("rationale"), "修改依据"),
+    });
+    return context.redirect(`/tasks/${brief.id}`, 303);
+  });
+
+  app.post("/tasks/:briefId/delete", (context) => {
+    archiveBrief(context.req.param("briefId"));
+    return context.redirect("/", 303);
+  });
+
+  app.get("/tasks/:briefId/documents/:contentId", (context) => {
+    const brief = getBrief(context.req.param("briefId"));
+    if (!brief) throw new HTTPException(404, { message: "找不到这条任务。" });
+    const judgmentId = context.req.query("judgment");
+    const item = judgmentId
+      ? getBriefContentAtJudgment(brief.id, context.req.param("contentId"), judgmentId)
+      : getBriefContent(brief.id, context.req.param("contentId"));
+    if (!item) throw new HTTPException(404, { message: "找不到这篇文档。" });
+    return context.html(renderDocumentPage(brief, item));
+  });
+
+  app.get("/reports/:reportId", (context) => {
+    const report = getReport(context.req.param("reportId"));
+    if (!report) throw new HTTPException(404, { message: "找不到这份报告。" });
+    const brief = getBrief(report.briefId);
+    if (!brief) throw new HTTPException(404, { message: "找不到这份报告所属的任务。" });
+    const references = listJudgmentsByIds(report.judgmentIds).flatMap((judgment) => {
+      const document = getBriefContentAtJudgment(
+        report.briefId,
+        judgment.sourceContentId,
+        judgment.id,
+      );
+      return document ? [{ judgment, document }] : [];
+    });
+    return context.html(renderReportPage({ brief, report, references }));
+  });
+
+  app.get("/api/reports/:reportId", (context) => {
+    const report = getReport(context.req.param("reportId"));
+    if (!report) throw new HTTPException(404, { message: "找不到这份报告。" });
+    return context.json(report);
+  });
 
   app.get("/sources", (context) => context.html(homePage()));
 
@@ -395,6 +480,26 @@ export function createRadarApp(): Hono {
     context.json(listDeliveries(context.req.param("briefId"), context.req.query("destination"))),
   );
 
+  app.get("/briefs/:briefId/reports", (context) =>
+    context.json(listReports(context.req.param("briefId"))),
+  );
+
+  app.post("/briefs/:briefId/reports", async (context) => {
+    const body = await jsonBody(context.req.raw);
+    return context.json(
+      createReport({
+        briefId: context.req.param("briefId"),
+        title: requiredText(body.title, "报告标题"),
+        body: requiredText(body.body, "报告正文"),
+        generatedBy: requiredText(body.generatedBy, "报告生成者"),
+        judgmentIds: textList(body.judgmentIds) ?? [],
+        idempotencyKey:
+          typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() || undefined : undefined,
+      }),
+      201,
+    );
+  });
+
   app.post("/briefs/:briefId/deliveries", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(
@@ -448,6 +553,7 @@ export function createRadarApp(): Hono {
       whatItIs: relevant ? requiredText(body.whatItIs, "「是什么」") : undefined,
       evidence: relevant ? requiredText(body.evidence, "「凭什么」") : undefined,
       uncertainty: relevant ? requiredText(body.uncertainty, "「哪里不确定」") : undefined,
+      tags: textList(body.tags),
       whyForYou: requiredText(body.whyForYou, relevant ? "「为什么给你」" : "淘汰理由"),
       judgedBy: requiredText(body.judgedBy, "判断者"),
       signalContentIds: textList(body.signalContentIds),
@@ -496,46 +602,37 @@ function destinationOf(raw: string): string {
  */
 const contentPageLimit = 200;
 
-function contentPage(query: Record<string, string>, queries: Record<string, string[]>) {
+function taskPage(briefId: string) {
   const briefs = listBriefs();
-  const brief = briefs.find((each) => each.id === query.brief) ?? briefs[0] ?? null;
-  if (!brief) {
-    return renderContentPage({
-      briefs,
-      brief: null,
-      items: [],
-      facets: { counts: { for_you: 0, filtered: 0, pending: 0 }, endpoints: [] },
-      queueDepth: 0,
-      lastJudgedAt: null,
-      activeStates: [],
-      activeEndpointId: null,
-      truncatedAt: null,
-    });
-  }
-
-  const activeStates = (queries.state ?? []).filter(isContentState);
-  const activeEndpointId = query.endpoint ?? null;
-  // 多取一条就知道是不是还有下一页，不用再数一遍全量。
-  const items = listBriefContent(
-    { briefId: brief.id, states: activeStates, endpointId: activeEndpointId ?? undefined },
-    contentPageLimit + 1,
-  );
-  const status = queueStatus(brief.id);
-  return renderContentPage({
-    briefs,
+  const brief = briefs.find((each) => each.id === briefId);
+  if (!brief) throw new HTTPException(404, { message: "找不到这条任务。" });
+  const status = queueStatus(briefId);
+  const inclusions = new Set(listBriefInclusions(briefId).map((endpoint) => endpoint.endpointId));
+  return renderTaskPage({
     brief,
-    items: items.slice(0, contentPageLimit),
-    facets: contentFacets(brief.id),
+    items: listBriefContent({ briefId }, contentPageLimit),
+    facets: contentFacets(briefId),
     queueDepth: status.queueDepth,
     lastJudgedAt: status.lastJudgedAt,
-    activeStates,
-    activeEndpointId,
-    truncatedAt: items.length > contentPageLimit ? contentPageLimit : null,
+    endpoints: listEndpoints().filter((endpoint) => inclusions.has(endpoint.id)),
+    reports: listReports(briefId),
   });
 }
 
-function isContentState(value: string): value is ContentState {
-  return value === "for_you" || value === "filtered" || value === "pending";
+function tasksPage() {
+  return renderTasksPage(
+    listBriefs().map((brief) => {
+      const facets = contentFacets(brief.id);
+      const status = queueStatus(brief.id);
+      return {
+        brief,
+        forYouCount: facets.counts.for_you,
+        pendingCount: facets.counts.pending,
+        reportCount: listReports(brief.id).length,
+        lastJudgedAt: status.lastJudgedAt,
+      };
+    }),
+  );
 }
 
 /**

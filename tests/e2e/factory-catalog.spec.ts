@@ -153,11 +153,11 @@ test.describe("装好之后、第一条 Brief 之前", () => {
     expect(after.every((endpoint) => endpoint.lastSuccessAt === null)).toBe(true);
   });
 
-  test("两张网页都说下一步该做什么，不假装有东西", async () => {
+  test("空任务工作台与来源页都照实展示当前状态", async () => {
     const content = await (await fetch(`${origin}/`)).text();
-    expect(content).toContain("还没有 Brief");
-    expect(content).toContain("先跟你的 Agent 说你想持续知道什么");
-    expect(content).not.toContain('<ul class="contents">');
+    expect(content).toContain("这里还没有任务");
+    expect(content).toContain("/radar-steward");
+    expect(content).not.toContain('class="task-row"');
 
     const sources = await (await fetch(`${origin}/sources`)).text();
     // 在采的那半是空的，目录那半摆着还能加的，但没有 Brief 可纳入。

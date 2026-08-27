@@ -56,7 +56,7 @@ test.describe("装好的 Radar", () => {
     expect(stdout).toContain("RADAR_DATA_DIR");
   });
 
-  test("在任意 cwd 下起服务，字体与样式照样送得出", async () => {
+  test("在任意 cwd 下起服务，无衬线样式照样送得出", async () => {
     test.setTimeout(90_000);
     const dataDirectory = await mkdtemp(join(tmpdir(), "radar-anycwd-"));
     // 故意在一个跟仓库和安装目录都无关的 cwd 下起：静态资源不能跟着 cwd 走。
@@ -75,11 +75,11 @@ test.describe("装好的 Radar", () => {
 
       const styles = await fetch(`http://127.0.0.1:${radar.port}/assets/styles.css`);
       expect(styles.status).toBe(200);
-      expect(await styles.text()).toContain("ZCOOL XiaoWei");
-
-      const font = await fetch(`http://127.0.0.1:${radar.port}/assets/fonts/ZCOOLXiaoWei-Regular.ttf`);
-      expect(font.status).toBe(200);
-      expect((await font.arrayBuffer()).byteLength).toBeGreaterThan(10_000);
+      const stylesheet = await styles.text();
+      expect(stylesheet).toContain("--sans:");
+      expect(stylesheet).toContain("font-family: var(--sans)");
+      expect(stylesheet).not.toContain("ZCOOL");
+      expect(stylesheet).not.toContain("font-family: serif");
 
       // 只绑 127.0.0.1：不该在任何外部网卡上出现。
       const { port } = radar;

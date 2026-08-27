@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { radarDataDirectory } from "../lib/data-directory.js";
 import type { BriefExport } from "../lib/export.js";
-import { DataDirectoryBusyError, defaultPort } from "../lib/service-runtime.js";
+import { DataDirectoryBusyError, defaultPort, readRuntime } from "../lib/service-runtime.js";
 import { callRadar, readStdin } from "./client.js";
 import { defaultSkillsTarget, installSkills } from "./skills.js";
 import { radarVersion } from "../lib/version.js";
@@ -115,6 +115,14 @@ Brief
                                   账实不符时把账改回来，那条又回到增量里
   radar deliver history --brief <id> [--to <去处>]
 
+报告
+  radar report create --brief <id> --title <标题> --by <Agent>
+                      --judgment <id>… [--idempotency-key <key>]
+                                  把生成后的 Markdown 正文从 stdin 写回 Radar，
+                                  并记录报告用了哪些判断
+  radar report list --brief <id>  列出一条 Brief 下保存的报告
+  radar report show <reportId>    读取一份报告正文与取材关系
+
 反馈
   radar feedback --brief <id> [--judgment <id>] --disposition <标签>
                                   写回用户明说的反馈，正文从 stdin 读
@@ -129,7 +137,7 @@ Brief
 
 Skill
   radar skills install [--dir <目录>]
-                                  把随本版 Radar 来的三份 Skill 装进你的 Agent，
+                                  把随本版 Radar 来的四份 Skill 装进你的 Agent，
                                   默认 ~/.agents/skills，幂等覆盖。也可以
                                   npx skills add s0ftnote/radar
 
@@ -140,7 +148,7 @@ Skill
   RADAR_DATA_DIR                  本地数据目录，默认 ~/.radar
 
 取数据的命令输出 JSON，直接管给 jq。judge 的契约是：
-  { queueEntryId, relevant, whatItIs, evidence, uncertainty, whyForYou,
+  { queueEntryId, relevant, whatItIs, evidence, uncertainty, tags?, whyForYou,
     judgedBy, signalContentIds?, relatedJudgmentIds?, idempotencyKey? }
 判不相关时前三块留空，whyForYou 写淘汰理由——照样必填。
 `;
@@ -196,6 +204,8 @@ async function main(argv: string[]): Promise<void> {
         return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/judgments`));
       case "deliver":
         return await deliver(rest);
+      case "report":
+        return await report(rest);
       case "feedback":
         return await feedback(rest);
       case "export":
@@ -240,7 +250,38 @@ async function up(argv: string[]): Promise<void> {
 
 async function status(): Promise<void> {
   const health = (await callRadar("/health")) as { version: string; dataDirectory: string };
-  process.stdout.write(`Radar ${health.version} 正在运行，数据目录 ${health.dataDirectory}\n`);
+  const runtime = readRuntime(radarDataDirectory());
+  const url = runtime?.port ? `http://127.0.0.1:${runtime.port}` : "";
+  process.stdout.write(
+    `Radar ${health.version} 正在运行，数据目录 ${health.dataDirectory}${url ? `\n打开 ${url}` : ""}\n`,
+  );
+}
+
+async function report(argv: string[]): Promise<void> {
+  const [subcommand, ...rest] = argv;
+  if (subcommand === "create") {
+    const body = (await readStdin()).trim();
+    if (!body) fail("报告正文从 stdin 读，现在是空的。");
+    return emit(
+      await callRadar(`/briefs/${requiredOption(rest, "--brief")}/reports`, {
+        method: "POST",
+        body: {
+          title: requiredOption(rest, "--title"),
+          body,
+          generatedBy: requiredOption(rest, "--by"),
+          judgmentIds: listOption(rest, "--judgment"),
+          idempotencyKey: option(rest, "--idempotency-key"),
+        },
+      }),
+    );
+  }
+  if (subcommand === "list") {
+    return emit(await callRadar(`/briefs/${requiredOption(rest, "--brief")}/reports`));
+  }
+  if (subcommand === "show") {
+    return emit(await callRadar(`/api/reports/${positional(rest, "reportId")}`));
+  }
+  fail("`radar report` 的子命令是 create / list / show。");
 }
 
 async function brief(argv: string[]): Promise<void> {
@@ -504,8 +545,8 @@ async function rsshub(argv: string[]): Promise<void> {
 }
 
 /**
- * 把随本版 Radar 来的三份 Skill 装进用户的 Agent。装完用户就只跟 Agent 说话，
- * 不用再直接跟 `radar` 打交道（ADR 0012）。
+ * 把随本版 Radar 来的四份 Skill 装进用户的 Agent。WebUI 公开其中三份给人复制，
+ * 判断角色由其他流程在需要时接上（ADR 0019）。
  */
 function skills(argv: string[]): void {
   const [subcommand, ...rest] = argv;

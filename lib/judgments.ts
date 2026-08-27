@@ -24,6 +24,8 @@ export type Judgment = {
   whatItIs: string;
   evidence: string;
   uncertainty: string;
+  /** Agent 从这份内容本身提取的文档级标签，不是采集端点的 topics。 */
+  tags: string[];
   whyForYou: string;
   judgedBy: string;
   createdAt: string;
@@ -37,6 +39,7 @@ export type RecordJudgmentInput = {
   whatItIs?: string;
   evidence?: string;
   uncertainty?: string;
+  tags?: string[];
   whyForYou: string;
   judgedBy: string;
   signalContentIds?: string[];
@@ -68,6 +71,7 @@ type JudgmentRow = {
   what_it_is: string;
   evidence: string;
   uncertainty: string;
+  tags: string;
   why_for_you: string;
   judged_by: string;
   created_at: string;
@@ -111,8 +115,8 @@ export function recordJudgment(input: RecordJudgmentInput): Judgment {
     db.prepare(
       `INSERT INTO judgments
         (id, brief_id, brief_revision_id, queue_entry_id, source_content_id, relevant,
-         what_it_is, evidence, uncertainty, why_for_you, judged_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         what_it_is, evidence, uncertainty, tags, why_for_you, judged_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       judgmentId,
       entry.briefId,
@@ -123,6 +127,7 @@ export function recordJudgment(input: RecordJudgmentInput): Judgment {
       input.relevant ? (input.whatItIs ?? "") : "",
       input.relevant ? (input.evidence ?? "") : "",
       input.relevant ? (input.uncertainty ?? "") : "",
+      JSON.stringify(normalizeTags(input.tags)),
       input.whyForYou,
       input.judgedBy,
       createdAt,
@@ -271,6 +276,7 @@ function hydrate(rows: JudgmentRow[]): Judgment[] {
     whatItIs: row.what_it_is,
     evidence: row.evidence,
     uncertainty: row.uncertainty,
+    tags: parseTags(row.tags),
     whyForYou: row.why_for_you,
     judgedBy: row.judged_by,
     createdAt: row.created_at,
@@ -285,4 +291,15 @@ function hydrate(rows: JudgmentRow[]): Judgment[] {
       (relation) => relation.related_judgment_id,
     ),
   }));
+}
+
+function normalizeTags(tags: string[] | undefined): string[] {
+  return [...new Set((tags ?? []).map((tag) => tag.trim()).filter(Boolean))];
+}
+
+function parseTags(raw: string): string[] {
+  const value = JSON.parse(raw) as unknown;
+  return Array.isArray(value)
+    ? value.filter((tag): tag is string => typeof tag === "string")
+    : [];
 }
