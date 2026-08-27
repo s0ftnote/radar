@@ -388,6 +388,19 @@ test.describe("粘网址发现可订阅端点", () => {
       // 有实例了就不再缺什么。
       expect(shipped.every((candidate) => candidate.needs === undefined)).toBe(true);
 
+      // 搜索页的关键词在 query string 里，规则的 :keyword 从那儿填：一条 X 关键词订阅。
+      const keyword = await radarJson<Candidate[]>(
+        harness.environment, ["discover", "https://x.com/search?q=AI%20coding"],
+      );
+      expect(keyword.map((candidate) => candidate.feedUrl))
+        .toContain("http://127.0.0.1:1/twitter/keyword/AI%20coding");
+      // 某个人的时间线还是走路径，不受影响。
+      const person = await radarJson<Candidate[]>(
+        harness.environment, ["discover", "https://x.com/karpathy"],
+      );
+      expect(person.map((candidate) => candidate.feedUrl))
+        .toContain("http://127.0.0.1:1/twitter/user/karpathy");
+
       // 规则每天从用户自己那台刷新，匹配用的就是刷下来那份。
       await radar(harness.environment, ["rsshub", "set", site.url]);
       const matched = await radarJson<Candidate[]>(

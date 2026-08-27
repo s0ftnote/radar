@@ -59,7 +59,7 @@ export function matchRsshubRoutes(pastedUrl: string): RsshubCandidate[] {
   const seen = new Set<string>();
   const candidates: RsshubCandidate[] = [];
   for (const rule of currentRules()) {
-    const route = applyRule(rule, host, path);
+    const route = applyRule(rule, host, path, url.searchParams);
     if (!route || seen.has(route)) continue;
     seen.add(route);
     candidates.push({ name: rule.name, route, feedUrl: base ? `${base}${route}` : null });
@@ -71,31 +71,41 @@ export function matchRsshubRoutes(pastedUrl: string): RsshubCandidate[] {
  * 一条 radar 规则长这样：`github.com/:user/:repo/issues` → `/github/issue/:user/:repo`。
  * `:name` 吃掉一整段，`*` 吃掉剩下的全部。目标里没填上的参数（RSSHub 写成
  * `:number?`）直接去掉——那是可选参数。
+ *
+ * 路径里填不上的参数再看 query string：搜索页的关键词都在那儿——`x.com/search?q=…`
+ * 对 `/twitter/keyword/:keyword`。先找同名参数，必填的再拿 `q`——搜索框的通用叫法；
+ * 可选参数不猜。
  */
-function applyRule(rule: RsshubRule, host: string, path: string): string | null {
+function applyRule(
+  rule: RsshubRule,
+  host: string,
+  path: string,
+  query: URLSearchParams,
+): string | null {
   const [ruleHost, ...ruleSegments] = rule.source.split("/");
   if (!ruleHost || ruleHost.replace(/^www\./, "") !== host) return null;
 
   const pathSegments = path.split("/").filter(Boolean);
   const values = new Map<string, string>();
   for (const [index, segment] of ruleSegments.entries()) {
-    if (segment === "*") return fill(rule.target, values);
+    if (segment === "*") return fill(rule.target, values, query);
     const actual = pathSegments[index];
     if (actual === undefined) return null;
     if (segment.startsWith(":")) values.set(segment.slice(1).replace(/\?$/, ""), actual);
     else if (segment !== actual) return null;
   }
   if (pathSegments.length !== ruleSegments.length) return null;
-  return fill(rule.target, values);
+  return fill(rule.target, values, query);
 }
 
-function fill(target: string, values: Map<string, string>): string | null {
+function fill(target: string, values: Map<string, string>, query: URLSearchParams): string | null {
   const filled = target
     .split("/")
     .map((segment) => {
       if (!segment.startsWith(":")) return segment;
       const optional = segment.endsWith("?");
-      const value = values.get(segment.slice(1).replace(/\?$/, ""));
+      const name = segment.slice(1).replace(/\?$/, "");
+      const value = values.get(name) ?? query.get(name) ?? (optional ? null : query.get("q"));
       if (value) return encodeURIComponent(value);
       return optional ? null : undefined;
     })
