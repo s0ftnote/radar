@@ -19,6 +19,9 @@ type WorkPackage = {
   pendingContents: Array<{ endpointId: string; title: string }>;
   queueDepth: number;
 };
+type BriefDetail = {
+  includedEndpoints: Array<{ endpointId: string; name: string; topics: string[] }>;
+};
 
 const briefBody = "关注开发者反复表达、正在变化、可能还没被满足的需求与痛点。";
 
@@ -160,7 +163,45 @@ test.describe("管家角色的操作面", () => {
     }
   });
 
-  test("两级开关互不覆盖：实例级停用真的不采，Brief 级排除只是这条 Brief 不看", async () => {
+  test("新建的 Brief 队列是空的，纳入一条端点之后才收得到它的内容", async () => {
+    test.setTimeout(120_000);
+    const harness = await startHarness("inclusions", 33166);
+    const { environment } = harness;
+    try {
+      await waitForFirstCollection(environment);
+      const brief = await createBrief(environment, "Demand Radar");
+
+      // 一条端点都没纳入：队列是空的，哪怕实例早就采到了内容——一条 Brief 只看
+      // 它纳入的端点（ADR 0018）。
+      const empty = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
+      expect(empty.pendingContents).toEqual([]);
+      expect(empty.queueDepth).toBe(0);
+      expect(await radarJson(environment, ["queue", "--brief", brief.id])).toMatchObject({
+        queueDepth: 0,
+      });
+      expect(await radarJson<BriefDetail>(environment, ["brief", "show", brief.id]))
+        .toMatchObject({ includedEndpoints: [] });
+
+      await radarJson(environment, ["sources", "include", "fixture-alpha", "--brief", brief.id]);
+
+      // 纳入之后，下一次入队就收得到——采集是实例级的，一直在进行。
+      await radarJson(environment, ["collect", "--endpoint", "fixture-alpha"]);
+      const filled = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
+      expect(filled.pendingContents.length).toBeGreaterThan(0);
+      expect(new Set(filled.pendingContents.map((content) => content.endpointId)))
+        .toEqual(new Set(["fixture-alpha"]));
+
+      // 看一条 Brief 就看得见它纳入了哪些端点，topics 一并给出。
+      const shown = await radarJson<BriefDetail>(environment, ["brief", "show", brief.id]);
+      expect(shown.includedEndpoints).toEqual([
+        expect.objectContaining({ endpointId: "fixture-alpha", topics: ["devtools", "systems"] }),
+      ]);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  test("两级开关互不覆盖：实例级停用真的不采，Brief 级纳入只决定这条 Brief 看不看", async () => {
     test.setTimeout(120_000);
     const harness = await startHarness("switches", 33164);
     const { environment, feed } = harness;
@@ -169,29 +210,36 @@ test.describe("管家角色的操作面", () => {
       const brief = await createBrief(environment, "Demand Radar");
       const other = await createBrief(environment, "另一条 Brief");
 
-      // Brief 级排除：这条 Brief 不看 alpha，另一条照看。
-      await radarJson(environment, [
-        "sources", "exclude", "fixture-alpha", "--brief", brief.id, "--reason", "太吵",
-      ]);
-      const exclusions = await radarJson<Array<{ endpointId: string; reason: string | null }>>(
-        environment, ["sources", "exclusions", "--brief", brief.id],
+      // Brief 级纳入：这条 Brief 只纳入 beta，另一条两条都纳入。
+      const inclusions = await radarJson<Array<{ endpointId: string; reason: string | null }>>(
+        environment,
+        ["sources", "include", "fixture-beta", "--brief", brief.id, "--reason", "这条线只看它"],
       );
-      expect(exclusions).toHaveLength(1);
-      expect(exclusions[0]).toMatchObject({ endpointId: "fixture-alpha", reason: "太吵" });
+      expect(inclusions).toHaveLength(1);
+      expect(inclusions[0]).toMatchObject({ endpointId: "fixture-beta", reason: "这条线只看它" });
+      for (const endpointId of ["fixture-alpha", "fixture-beta"]) {
+        await radarJson(environment, ["sources", "include", endpointId, "--brief", other.id]);
+      }
 
-      const excluded = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
-      expect(excluded.pendingContents.map((content) => content.endpointId)).toEqual(["fixture-beta"]);
+      const scoped = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
+      expect(scoped.pendingContents.map((content) => content.endpointId)).toEqual(["fixture-beta"]);
       const unaffected = await radarJson<WorkPackage>(environment, ["pending", "--brief", other.id]);
       expect(new Set(unaffected.pendingContents.map((c) => c.endpointId))).toEqual(
         new Set(["fixture-alpha", "fixture-beta"]),
       );
 
-      // 排除不是停用：Radar 照样在采 alpha。
+      // 没纳入不是停用：Radar 照样在采 alpha。
       const stillCollecting = await radarJson<Endpoint[]>(environment, ["sources"]);
       expect(stillCollecting[0]!.userDisabledAt).toBeNull();
       expect(await radarJson<{ status: string }>(
         environment, ["collect", "--endpoint", "fixture-alpha"],
       )).toMatchObject({ status: "success" });
+
+      // 每条端点已被哪些 Brief 纳入，`radar sources` 就答得出。
+      const beta = (await radarJson<Endpoint[]>(environment, ["sources"]))
+        .find((endpoint) => endpoint.id === "fixture-beta")!;
+      expect(beta.includedInBriefs.map((each) => each.briefId).sort())
+        .toEqual([brief.id, other.id].sort());
 
       // 实例级停用：写进的是「用户停用」字段，「目录退役」字段不碰。
       const disabled = await radarJson<Endpoint>(environment, [
@@ -209,12 +257,12 @@ test.describe("管家角色的操作面", () => {
       const enabled = await radarJson<Endpoint>(environment, ["sources", "enable", "fixture-beta"]);
       expect(enabled.userDisabledAt).toBeNull();
 
-      // 排除期间 alpha 出的新内容，取消排除之后照样看得见——排除是「不看」，
+      // 没纳入那段时间 alpha 出的新内容，纳入之后照样看得见——纳入是「看不看」，
       // 不是「丢掉」（ADR 0010：只排序不丢弃）。
       feed.addEntry({
         guid: "alpha-3",
-        title: "排除期间冒出来的一条",
-        body: "这条是在被排除的窗口里采到的。",
+        title: "纳入之前冒出来的一条",
+        body: "这条是在 alpha 还没被纳入的窗口里采到的。",
         publishedAt: "Tue, 25 Aug 2026 09:00:00 GMT",
       });
       await radarJson(environment, ["collect", "--endpoint", "fixture-alpha"]);
@@ -224,12 +272,19 @@ test.describe("管家角色的操作面", () => {
       ).toEqual(["fixture-beta"]);
 
       await radarJson(environment, ["sources", "include", "fixture-alpha", "--brief", brief.id]);
-      expect(await radarJson(environment, ["sources", "exclusions", "--brief", brief.id])).toEqual([]);
-
       const restored = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       expect(restored.pendingContents.map((content) => content.title)).toContain(
-        "排除期间冒出来的一条",
+        "纳入之前冒出来的一条",
       );
+
+      // 移出去只是这条 Brief 不再看它，代次一条不删：再纳入回来原样还在。
+      await radarJson(environment, ["sources", "remove", "fixture-alpha", "--brief", brief.id]);
+      expect(await radarJson<BriefDetail>(environment, ["brief", "show", brief.id]))
+        .toMatchObject({ includedEndpoints: [expect.objectContaining({ endpointId: "fixture-beta" })] });
+      expect(
+        (await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]))
+          .pendingContents.map((content) => content.endpointId),
+      ).toEqual(["fixture-beta"]);
     } finally {
       await harness.dispose();
     }

@@ -9,8 +9,9 @@ import { isEnabled, type Endpoint } from "../lib/endpoints.js";
 /**
  * Web 上只有这一张页，它就是首页（ADR 0013）。一眼看清这台 Radar 现在够得着
  * 什么、什么坏了、什么在等推送。**看归网页，改归对话**——页面上只有实例级
- * 停用一个动作，Brief 级排除不上页面（那是 Brief 级的事，搬上来就要引入
- * Brief 选择器，一张清单立刻变成一个控制台）。
+ * 停用一个动作，Brief 级纳入不上页面（那是 Brief 级的事，搬上来就要引入
+ * Brief 选择器，一张清单立刻变成一个控制台）。topics 只是摆出来给人看的
+ * 挑源依据，不是筛选器。
  *
  * `hono/html` 的插值默认转义——feed 标题、端点名与错误原因都由第三方控制，
  * 直接拼进模板字符串就是存储型 XSS。
@@ -80,11 +81,23 @@ function renderRow(endpoint: Endpoint): Html {
           <span class="source-name">${endpoint.name}</span>
           <span class="source-url">${endpoint.url}</span>
           <p class="source-channel">${endpoint.channelName}</p>
+          ${renderTopics(endpoint)}
           ${renderNote(endpoint)}
         </div>
         ${renderStatus(endpoint)}
         ${renderAction(endpoint)}
       </li>`;
+}
+
+/**
+ * 主题标签。建 Brief 时按需求挑源靠的就是它（ADR 0018），页面上只把它摆出来
+ * ——挑哪些进哪条 Brief 是对话里的事。
+ */
+function renderTopics(endpoint: Endpoint): Html | "" {
+  if (endpoint.topics.length === 0) return "";
+  return html`<p class="source-topics">${endpoint.topics.map(
+    (topic) => html`<span class="topic">${topic}</span>`,
+  )}</p>`;
 }
 
 /** 状态徽章。停用与退役是写下的决定，盖过观察到的来源状态——它压根没在采。 */

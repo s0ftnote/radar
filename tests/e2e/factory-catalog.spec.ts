@@ -44,6 +44,14 @@ test.describe("出厂来源目录", () => {
     }
   });
 
+  // 建 Brief 时按需求挑源靠的就是 topics（ADR 0018）：没标的那条永远不会被挑中。
+  test("每条出厂端点都标了 topics", () => {
+    for (const endpoint of catalog.endpoints) {
+      expect(endpoint.topics?.length, `${endpoint.id} 没标 topics`).toBeGreaterThan(0);
+      for (const topic of endpoint.topics!) expect(topic).toMatch(/^[a-z][a-z-]*$/);
+    }
+  });
+
   test("目录里的 url 不能重复——搬家只改 url，不新开一条", () => {
     const urls = catalog.endpoints.map((endpoint) => endpoint.url);
     expect(new Set(urls).size).toBe(urls.length);

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
 import { delay, radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -67,11 +67,7 @@ test.describe("tracer bullet", () => {
       expect(endpoints.every((endpoint) => endpoint.provenance === "factory")).toBe(true);
       expect(endpoints[0]!.licenseBasis?.basis).toBe("publisher-provided-feed");
 
-      const brief = await radarJson<Brief>(
-        environment,
-        ["brief", "create", "--name", "Demand Radar"],
-        briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       expect(brief.currentRevision.number).toBe(1);
 
       // 建完 Brief 立刻看得见各端点当前那一页。
@@ -185,11 +181,7 @@ test.describe("tracer bullet", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment,
-        ["brief", "create", "--name", "代次验收"],
-        briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "代次验收", briefBody);
       const work = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const target = work.pendingContents[0]!;
 
@@ -298,11 +290,7 @@ test.describe("tracer bullet", () => {
     try {
       await waitForFirstCollection(environment);
 
-      const older = await radarJson<Brief>(
-        environment,
-        ["brief", "create", "--name", "先建的 Brief"],
-        briefBody,
-      );
+      const older = await createBriefWithAllSources<Brief>(environment, "先建的 Brief", briefBody);
       expect(
         (await radarJson<WorkPackage>(environment, ["pending", "--brief", older.id])).queueDepth,
       ).toBe(3);
@@ -328,11 +316,7 @@ test.describe("tracer bullet", () => {
 
       // 后建的 Brief 只拿当前一页：alpha 现在只剩一条，beta 一条。
       // 已经从 feed 上下架的两条不回填。
-      const newer = await radarJson<Brief>(
-        environment,
-        ["brief", "create", "--name", "后建的 Brief"],
-        briefBody,
-      );
+      const newer = await createBriefWithAllSources<Brief>(environment, "后建的 Brief", briefBody);
       const newerWork = await radarJson<WorkPackage>(environment, ["pending", "--brief", newer.id]);
       expect(newerWork.queueDepth).toBe(2);
       expect(newerWork.pendingContents.map((content) => content.title).sort()).toEqual([

@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 2,
+  "catalogVersion": 3,
   "channels": [
     {
       "id": "rss",
@@ -20,6 +20,11 @@
       "channelId": "rss",
       "name": "Hacker News 首页",
       "url": "https://news.ycombinator.com/rss",
+      "topics": [
+        "devtools",
+        "systems",
+        "startups"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://news.ycombinator.com/newsguidelines.html",
@@ -31,6 +36,11 @@
       "channelId": "rss",
       "name": "Lobsters 首页",
       "url": "https://lobste.rs/rss",
+      "topics": [
+        "devtools",
+        "systems",
+        "webdev"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://lobste.rs/about",
@@ -42,6 +52,10 @@
       "channelId": "rss",
       "name": "GitHub Changelog",
       "url": "https://github.blog/changelog/feed/",
+      "topics": [
+        "devtools",
+        "opensource"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://github.blog/changelog/",
@@ -53,6 +67,10 @@
       "channelId": "rss",
       "name": "Product Hunt 首页",
       "url": "https://www.producthunt.com/feed",
+      "topics": [
+        "product",
+        "startups"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://www.producthunt.com/",
@@ -64,6 +82,10 @@
       "channelId": "rss",
       "name": "Stack Overflow Blog",
       "url": "https://stackoverflow.blog/feed/",
+      "topics": [
+        "devtools",
+        "webdev"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://stackoverflow.blog/",
@@ -75,6 +97,10 @@
       "channelId": "rss",
       "name": "The Changelog",
       "url": "https://changelog.com/feed",
+      "topics": [
+        "devtools",
+        "opensource"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://changelog.com/",
@@ -86,6 +112,11 @@
       "channelId": "rss",
       "name": "nodejs/node 的 Releases",
       "url": "https://github.com/nodejs/node/releases.atom",
+      "topics": [
+        "devtools",
+        "webdev",
+        "opensource"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://github.com/nodejs/node",
@@ -97,6 +128,10 @@
       "channelId": "rss",
       "name": "anthropics/claude-code 的 Releases",
       "url": "https://github.com/anthropics/claude-code/releases.atom",
+      "topics": [
+        "ai",
+        "devtools"
+      ],
       "licenseBasis": {
         "basis": "publisher-provided-feed",
         "reference": "https://github.com/anthropics/claude-code",
@@ -108,6 +143,11 @@
       "channelId": "agent-push",
       "name": "Reddit r/programming",
       "url": "https://www.reddit.com/r/programming/",
+      "topics": [
+        "devtools",
+        "webdev",
+        "systems"
+      ],
       "licenseBasis": {
         "basis": "agent-pushed",
         "reference": "https://www.redditinc.com/policies/data-api-terms",
@@ -119,6 +159,10 @@
       "channelId": "agent-push",
       "name": "Reddit r/SideProject",
       "url": "https://www.reddit.com/r/SideProject/",
+      "topics": [
+        "product",
+        "startups"
+      ],
       "licenseBasis": {
         "basis": "agent-pushed",
         "reference": "https://www.redditinc.com/policies/data-api-terms",

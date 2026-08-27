@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect, test } from "@playwright/test";
 import { startFeedFixture, type FeedFixture } from "./support/feed-fixture.js";
-import { waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, waitForFirstCollection, type Endpoint } from "./support/harness.js";
 import {
   radar,
   radarJson,
@@ -78,11 +78,7 @@ test.describe("出厂来源目录的升级对账", () => {
     let radarProcess: RunningRadar = await startRadar(dataDirectory, { port: 33207, catalogPath });
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<{ id: string }>(
-        environment,
-        ["brief", "create", "--name", "升级对账"],
-        "关注开发者留证据这件事。",
-      );
+      const brief = await createBriefWithAllSources<{ id: string }>(environment, "升级对账", "关注开发者留证据这件事。");
       const before = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const alphaQueue = before.pendingContents.filter(
         (content) => content.endpointId === "fixture-alpha",

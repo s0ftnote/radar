@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -36,9 +36,7 @@ test.describe("排队策略", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       // 没下发过就是没有，不是一份藏起来的默认值。
       expect(await radarJson(environment, ["strategy", "show", "--brief", brief.id])).toBeNull();
 
@@ -92,9 +90,7 @@ test.describe("排队策略", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       // 默认公式是纯新鲜度，alpha 两条都比 beta 新。分数说了算，所以两条
       // alpha 在前——但 beta 照样占得到它那条保底名额（ADR 0010：配额约束的是
@@ -170,9 +166,7 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy-exclude", 33183);
     const { environment } = harness;
     try {
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const refused = await radar(
         environment,
         ["strategy", "set", "--brief", brief.id, "--rationale", "想把招聘帖直接扔掉", "--by", "claude-code"],
@@ -191,9 +185,7 @@ test.describe("排队策略", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       await radarJson(
         environment,
         ["strategy", "set", "--brief", brief.id, "--rationale", "本地优先优先", "--by", "claude-code"],
@@ -260,9 +252,7 @@ test.describe("排队策略", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
 
       const stats = await radarJson<Stats>(environment, ["strategy", "stats", "--brief", brief.id]);
@@ -315,9 +305,7 @@ test.describe("排队策略", () => {
       ]);
       await radarJson(environment, ["collect", "--endpoint", "fixture-alpha"]);
 
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       await radarJson(
         environment,
         ["strategy", "set", "--brief", brief.id, "--rationale", "只认这个词", "--by", "claude-code"],
@@ -347,9 +335,7 @@ test.describe("排队策略", () => {
         "sources", "add", "--channel", "agent-push",
         "--name", "某个板块", "--url", "https://example.invalid/r/hot",
       ]);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       await radarJson(
         environment,

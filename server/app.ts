@@ -17,10 +17,11 @@ import {
 } from "../lib/briefs.js";
 import { radarDataDirectory } from "../lib/data-directory.js";
 import {
-  listBriefExclusions,
+  getEndpoint,
+  listBriefInclusions,
   listEndpoints,
   registerUserEndpoint,
-  setBriefExclusion,
+  setBriefInclusion,
   setUserDisabled,
 } from "../lib/endpoints.js";
 import { listFeedback, recordFeedback } from "../lib/feedback.js";
@@ -153,19 +154,26 @@ export function createRadarApp(): Hono {
     ),
   );
 
+  // 登记一条端点。带上 `briefId` 就顺手把它纳入那条 Brief——建 Brief 时粘一个
+  // 网址进来，登记与纳入本来就是一个动作（ADR 0018）。
   app.post("/endpoints", async (context) => {
     const body = await jsonBody(context.req.raw);
-    return context.json(
-      registerUserEndpoint({
-        channelId: requiredText(body.channelId, "采集渠道 id"),
-        name: requiredText(body.name, "端点名字"),
-        url: requiredText(body.url, "端点地址"),
-      }),
-      201,
-    );
+    const briefId = typeof body.briefId === "string" ? body.briefId.trim() : "";
+    if (briefId && !getBrief(briefId)) {
+      throw new HTTPException(404, { message: "找不到这个 Radar Brief。" });
+    }
+    const endpoint = registerUserEndpoint({
+      channelId: requiredText(body.channelId, "采集渠道 id"),
+      name: requiredText(body.name, "端点名字"),
+      url: requiredText(body.url, "端点地址"),
+    });
+    if (!briefId) return context.json(endpoint, 201);
+    setBriefInclusion(briefId, endpoint.id, true);
+    // 再读一遍：返回里就带着「已纳入哪些 Brief」。
+    return context.json(getEndpoint(endpoint.id)!, 201);
   });
 
-  // 实例级停用与 Brief 级排除是两个开关，互不覆盖。
+  // 实例级停用与 Brief 级纳入是两个开关，互不覆盖。
   app.post("/endpoints/:endpointId/enabled", async (context) => {
     const body = await jsonBody(context.req.raw);
     return context.json(setEnabled(context.req.param("endpointId"), body.enabled));
@@ -234,7 +242,14 @@ export function createRadarApp(): Hono {
     await next();
   });
 
-  app.get("/briefs/:briefId", (context) => context.json(getBrief(context.req.param("briefId"))));
+  // 看一条 Brief 就看得见它纳入了哪些端点——那是这条 Brief 的队列里有什么的
+  // 唯一来源（ADR 0018）。
+  app.get("/briefs/:briefId", (context) => {
+    const briefId = context.req.param("briefId");
+    const brief = getBrief(briefId);
+    if (!brief) throw new HTTPException(404, { message: "找不到这个 Radar Brief。" });
+    return context.json({ ...brief, includedEndpoints: listBriefInclusions(briefId) });
+  });
 
   app.get("/briefs/:briefId/work-package", (context) =>
     context.json(
@@ -302,19 +317,16 @@ export function createRadarApp(): Hono {
     return context.body(null, 204);
   });
 
-  app.get("/briefs/:briefId/exclusions", (context) =>
-    context.json(listBriefExclusions(context.req.param("briefId"))),
-  );
-
-  app.post("/briefs/:briefId/exclusions", async (context) => {
+  // 一条 Brief 只看它纳入的端点（ADR 0018）。实例级采集不受这里影响。
+  app.post("/briefs/:briefId/inclusions", async (context) => {
     const body = await jsonBody(context.req.raw);
-    setBriefExclusion(
+    setBriefInclusion(
       context.req.param("briefId"),
       requiredText(body.endpointId, "采集端点 id"),
-      body.excluded !== false,
+      body.included !== false,
       typeof body.reason === "string" ? body.reason : undefined,
     );
-    return context.json(listBriefExclusions(context.req.param("briefId")));
+    return context.json(listBriefInclusions(context.req.param("briefId")));
   });
 
   // 策略是独立对象、独立版本化，不塞进 Brief。

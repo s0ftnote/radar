@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -51,9 +51,7 @@ test.describe("取数角色", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const judgments = await judgeEverything(environment, brief.id);
       expect(judgments).toHaveLength(3);
 
@@ -116,9 +114,7 @@ test.describe("取数角色", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const [judgment] = await judgeEverything(environment, brief.id);
 
       const once = await radarJson<Delivery>(environment, [
@@ -168,9 +164,7 @@ test.describe("取数角色", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const workPackage = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
 
       const judgments: Judgment[] = [];
@@ -248,12 +242,8 @@ test.describe("取数角色", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
-      const other = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "另一条线"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
+      const other = await createBriefWithAllSources<Brief>(environment, "另一条线", briefBody);
       await radar(environment, [
         "subject", "put", "--brief", brief.id, "--name", "Postgres", "--alias", "PG",
       ]);
@@ -318,9 +308,7 @@ test.describe("取数角色", () => {
     const { environment } = harness;
     try {
       await waitForFirstCollection(environment);
-      const brief = await radarJson<Brief>(
-        environment, ["brief", "create", "--name", "Demand Radar"], briefBody,
-      );
+      const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const [judgment] = await judgeEverything(environment, brief.id);
       await radarJson(environment, [
         "deliver", "mark", "--brief", brief.id, "--to", "周报",

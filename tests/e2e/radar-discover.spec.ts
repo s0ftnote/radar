@@ -199,6 +199,43 @@ test.describe("粘网址发现可订阅端点", () => {
     }
   });
 
+  // 粘一个网址进来，本来就是为某条 Brief 粘的：登记与纳入分成两步只会漏掉
+  // 第二步（ADR 0018）。
+  test("点名了 Brief 又只有一条候选时，登记的同时就纳入那条 Brief", async () => {
+    test.setTimeout(120_000);
+    const harness = await startHarness("discover-brief", 33212, undefined, ["127.0.0.1", "localhost"]);
+    try {
+      const brief = await radarJson<{ id: string }>(
+        harness.environment, ["brief", "create", "--name", "Demand Radar"], "关注开发者的痛点。",
+      );
+      harness.feed.replacePage("/delta", [
+        {
+          guid: "delta-1",
+          title: "只有一条候选的源",
+          body: "粘进来的本身就是一份 feed。",
+          publishedAt: "Mon, 24 Aug 2026 14:00:00 GMT",
+        },
+      ]);
+
+      const added = await radarJson<Endpoint>(harness.environment, [
+        "discover", `${harness.feed.url}/delta`, "--brief", brief.id,
+      ]);
+      expect(added.provenance).toBe("user");
+      expect(added.url).toBe(`${harness.feed.url}/delta`);
+      expect(added.includedInBriefs.map((each) => each.briefId)).toEqual([brief.id]);
+
+      // 采回来的内容直接进这条 Brief 的队列，不用再补一次纳入。
+      await radarJson(harness.environment, ["collect", "--endpoint", added.id]);
+      const pending = await radarJson<{ pendingContents: Array<{ title: string }> }>(
+        harness.environment, ["pending", "--brief", brief.id],
+      );
+      expect(pending.pendingContents.map((content) => content.title))
+        .toEqual(["只有一条候选的源"]);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
   test("都不中就明示够不着，不降级去抓 HTML", async () => {
     test.setTimeout(120_000);
     const harness = await startHarness("discover-none", 33200, undefined, ["127.0.0.1", "localhost"]);

@@ -37,7 +37,14 @@ async function pageCatalog(directory: string, feed: FeedFixture): Promise<string
         },
       ],
       endpoints: [
-        { id: "ok", channelId: "rss", name: "正常的源", url: `${feed.url}/alpha`, licenseBasis: license },
+        {
+          id: "ok",
+          channelId: "rss",
+          name: "正常的源",
+          url: `${feed.url}/alpha`,
+          topics: ["devtools", "systems"],
+          licenseBasis: license,
+        },
         { id: "broken", channelId: "rss", name: injected, url: `${feed.url}/missing`, licenseBasis: license },
         {
           id: "gone",
@@ -143,6 +150,13 @@ test.describe("来源页", () => {
     expect(text).toContain(">等推送<");
   });
 
+  // 挑源靠的就是这几个标签（ADR 0018），页面上把它摆出来，但不做成筛选器。
+  test("出厂目录给的 topics 摆在页面上", async () => {
+    const text = await page();
+    expect(text).toContain(">devtools<");
+    expect(text).toContain(">systems<");
+  });
+
   test("来自外部来源的文本一律转义", async () => {
     const text = await page();
     // 端点名与退役理由都由第三方写，原样出现在页面上，但作为文本，不是标签。
@@ -150,7 +164,7 @@ test.describe("来源页", () => {
     expect(text).not.toContain(injected);
   });
 
-  test("页面上只有实例级停用一个动作，Brief 级排除不上页面", async () => {
+  test("页面上只有实例级停用一个动作，Brief 级纳入不上页面", async () => {
     // `配置后解锁` 与够不着的行没有动作按钮。
     const before = await page();
     const actions = before.match(/<form class="source-action"[\s\S]*?<\/form>/g) ?? [];
@@ -159,12 +173,14 @@ test.describe("来源页", () => {
     expect(actions.join("")).not.toContain("/sources/walled-off/");
     expect(actions.join("")).not.toContain("/sources/gone/");
 
-    // Brief 级排除不上页面。
+    // Brief 级纳入不上页面：搬上来就要引入 Brief 选择器（ADR 0018）。
     const brief = await radarJson<{ id: string }>(
       environment, ["brief", "create", "--name", "Demand Radar"], "关注开发者的痛点。",
     );
-    await radar(environment, ["sources", "exclude", "ok", "--brief", brief.id, "--reason", "太吵"]);
-    expect(await page()).not.toContain("太吵");
+    await radar(environment, [
+      "sources", "include", "ok", "--brief", brief.id, "--reason", "这条线只看它",
+    ]);
+    expect(await page()).not.toContain("这条线只看它");
 
     // 停用是页面上真的动作，按下去 Radar 真的不再采它。
     // 浏览器提交同源表单时会带上 Origin，这里照做。
