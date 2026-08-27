@@ -13,13 +13,18 @@ import { safeFetch } from "./safe-fetch.js";
  *
  * 规则随版本打包（`data/rsshub-rules.json`，取自 RSSHub 官方 routes.json 里
  * 每条路由自带的 radar 规则）。用户填了自己那台实例的地址，就每天从他自己
- * 那台刷新一次——不填就跳过这一步匹配，Radar 不替他找一台公共实例。
+ * 那台刷新一次。没填也照样匹配、照样把路由列出来，只是那条候选还不能订阅，
+ * 标着「需要一台 RSSHub 实例」——Radar 不替他找一台公共实例。
  */
 export type RsshubRule = { source: string; target: string; name: string };
 
 export type RuleSnapshot = { takenFrom: string; takenAt: string; rules: RsshubRule[] };
 
-export type RsshubCandidate = { name: string; feedUrl: string; route: string };
+/**
+ * `feedUrl` 为 null 表示规则匹上了这条路由，但用户还没有一台自己的 RSSHub
+ * 实例——路由照样交出去，只是它还不是一个能订阅的地址。
+ */
+export type RsshubCandidate = { name: string; feedUrl: string | null; route: string };
 
 const baseUrlKey = "rsshub_base_url";
 const refreshedAtKey = "rsshub_rules_refreshed_at";
@@ -38,12 +43,14 @@ export function setRsshubBaseUrl(url: string | null): void {
 }
 
 /**
- * 没填地址就一条候选都不给——这一步直接跳过，不是「够不着」。填了就用规则
- * 匹配；规则先看用户那台刷新下来的，没有就用随版本来的那份。
+ * 规则匹配跟有没有实例是两件事。没填地址照样匹配、照样把路由列出来——用户
+ * 得知道自己差的是什么，一句「够不着」会让他以为这个网址本来就没救。差的
+ * 那台实例还是他自己的事：Radar 不替他找一台公共实例（ADR 0013）。
+ *
+ * 规则先看用户那台刷新下来的，没有就用随版本来的那份。
  */
 export function matchRsshubRoutes(pastedUrl: string): RsshubCandidate[] {
   const base = rsshubBaseUrl();
-  if (!base) return [];
 
   const url = new URL(pastedUrl);
   const host = url.hostname.replace(/^www\./, "");
@@ -55,7 +62,7 @@ export function matchRsshubRoutes(pastedUrl: string): RsshubCandidate[] {
     const route = applyRule(rule, host, path);
     if (!route || seen.has(route)) continue;
     seen.add(route);
-    candidates.push({ name: rule.name, route, feedUrl: `${base}${route}` });
+    candidates.push({ name: rule.name, route, feedUrl: base ? `${base}${route}` : null });
   }
   return candidates;
 }

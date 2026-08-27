@@ -123,8 +123,9 @@ export function createRadarApp(): Hono {
 
   app.post("/sources/add", async (context) => {
     const form = await context.req.formData();
+    // 渠道跟着候选走：绝大多数是 rss，Reddit 那种归 agent-push（ADR 0011）。
     registerUserEndpoint({
-      channelId: "rss",
+      channelId: String(form.get("channelId") ?? "").trim() || "rss",
       name: String(form.get("name") ?? "").trim() || String(form.get("url") ?? ""),
       url: String(form.get("url") ?? "").trim(),
     });
