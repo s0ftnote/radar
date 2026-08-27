@@ -96,6 +96,28 @@ docker run -d --name rsshub -p 1200:1200 diygod/rsshub
 
 这两件事在 `/sources` 那张来源页上也做得了。
 
+## 要登录的平台（X、小红书、Reddit……）由你的 Agent 采
+
+Radar 自己只采不用登录就读得到的东西。X、小红书、B 站动态、Reddit 这类平台要登录态，
+**凭据是你的，Radar 不存也不问**——两条路，选一条：
+
+- **自建 RSSHub 填上平台 token**：RSSHub 的 X 路由要 `TWITTER_AUTH_TOKEN`（你自己账号的
+  cookie），B 站、知乎、微博各有各的。填好之后 `radar discover https://x.com/karpathy` 给出的
+  就是一条普通 RSS 端点，Radar 按计划采。
+- **登记成 `配置后解锁` 端点，让 Agent 采了推进来**：在来源页或让管家登记「X @karpathy」
+  「X 搜索：AI coding 抱怨」这样的端点，Radar 标它 `等推送`；判断角色开工时用你 Agent 手边的
+  工具采下来 `radar push`。工具由你自己装、自己登录：
+  - [Agent-Reach](https://github.com/Panniantong/Agent-Reach)——一层能力层，X/Reddit/小红书走
+    cookie 或浏览器登录态，`doctor` 能告诉你哪个平台通、哪个 cookie 过期。它自己提醒：cookie
+    平台有封号风险，用专用小号。
+  - [last30days](https://github.com/mvanhorn/last30days-skill)——「最近 30 天某某有什么」的
+    一次性调研 skill，X 走浏览器里已登录的 x.com 或 xAI key，顺带覆盖 Reddit、YouTube、HN、
+    TikTok 等十几个平台。适合搜索型端点：一个关键词，它跨平台搜一遍，Agent 把结果推给 Radar。
+  - 平台官方 API（X API v2 付费档、Reddit API）——你已经有 key 的话。
+
+Radar 只认推进来的那几个字段：外部 id、标题、原文链接、采集当刻的正文快照。cookie、key
+留在工具自己的配置里，别贴进跟 Agent 的聊天。
+
 ## 队列只排序，不丢弃
 
 采得多是常态，判得完不是。Radar 按你下发的打分公式排序，从不因为排在后面就丢掉；超过保留
