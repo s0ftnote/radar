@@ -7,7 +7,7 @@ import { createBriefWithAllSources, startHarness } from "./support/harness.js";
 import { delay, radar, radarJson, repositoryRoot, stopRadar } from "./support/radar-process.js";
 
 /**
- * 三份 Skill 与安装。验收是**两个完整周期**：建 Brief → 采集 → 判断 → 交付记账
+ * 四份 Skill 与安装。验收是**两个完整周期**：建 Brief → 采集 → 判断 → 交付记账
  * → 写反馈 → 下一周期的工作包里读到那条反馈。文件复制到位不算完成。
  */
 
@@ -29,6 +29,7 @@ const triggerPhrases: Record<string, RegExp> = {
   "radar-steward": /这条没意思/,
   "radar-judgment": /待判断|最近有什么/,
   "radar-delivery": /周报|Obsidian/,
+  "open-radar": /打开 Radar|Open Radar/,
 };
 
 const judgeContract = (content: PendingContent, extra: Record<string, unknown> = {}) =>
@@ -44,13 +45,13 @@ const judgeContract = (content: PendingContent, extra: Record<string, unknown> =
     ...extra,
   });
 
-test.describe("三份 Skill 与安装", () => {
+test.describe("四份 Skill 与安装", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("三份随仓库来的 Skill 都是 model-invoked，只写时机不写用法", () => {
+  test("四份随仓库来的 Skill 都是 model-invoked，只写时机不写用法", () => {
     const source = resolve(repositoryRoot, "skills");
     const names = readdirSync(source).sort();
-    expect(names).toEqual(["radar-delivery", "radar-judgment", "radar-steward"]);
+    expect(names).toEqual(["open-radar", "radar-delivery", "radar-judgment", "radar-steward"]);
 
     for (const name of names) {
       const text = readFileSync(join(source, name, "SKILL.md"), "utf8");
@@ -75,9 +76,11 @@ test.describe("三份 Skill 与安装", () => {
     const steward = readFileSync(join(source, "radar-steward", "SKILL.md"), "utf8");
     expect(steward).toContain("radar collect");
     expect(steward).toContain("radar-judgment");
+    expect(readFileSync(join(source, "radar-delivery", "SKILL.md"), "utf8"))
+      .toContain("radar report create");
   });
 
-  test("radar skills install 幂等覆盖，装的是随本版 Radar 来的那三份", async () => {
+  test("radar skills install 幂等覆盖，装的是随本版 Radar 来的那四份", async () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), "radar-skills-data-"));
     const target = await mkdtemp(join(tmpdir(), "radar-skills-"));
     try {
@@ -88,7 +91,7 @@ test.describe("三份 Skill 与安装", () => {
       const first = await radar({ dataDirectory }, ["skills", "install", "--dir", target]);
       expect(first.code).toBe(0);
       expect(readdirSync(target).sort()).toEqual([
-        "radar-delivery", "radar-judgment", "radar-steward", "someone-elses-skill",
+        "open-radar", "radar-delivery", "radar-judgment", "radar-steward", "someone-elses-skill",
       ]);
 
       // 上一版留下的文件不该赖着不走，装第二次结果一模一样。
@@ -97,7 +100,7 @@ test.describe("三份 Skill 与安装", () => {
       expect(second.code).toBe(0);
       expect(readdirSync(join(target, "radar-steward"))).toEqual(["SKILL.md"]);
 
-      // 只碰自己那三份：别人的 Skill 原样还在。
+      // 只碰自己的四份：别人的 Skill 原样还在。
       expect(readFileSync(join(target, "someone-elses-skill", "SKILL.md"), "utf8"))
         .toBe("不是 Radar 装的。");
 

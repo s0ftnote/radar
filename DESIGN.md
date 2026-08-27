@@ -1,246 +1,271 @@
 ---
 name: Radar
-description: A warm-paper editorial workbench for a private, local-first Radar Brief station.
+description: An international signal desk where structured editorial order keeps every Brief, source, judgment, and report legible.
 colors:
-  canvas: "#f6f5f1"
+  canvas: "#f4f5f7"
   surface: "#ffffff"
-  ink: "#1e211e"
-  muted-ink: "#656961"
-  line: "#ddded7"
-  line-strong: "#c8cac1"
-  action-green: "#24664a"
-  action-green-hover: "#1d553d"
-  health-green-soft: "#e4efe8"
-  health-green-ink: "#184b35"
-  focus-green: "#2f7556"
-  workbench: "#232823"
-  workbench-text: "#f7f8f5"
-  workbench-muted: "#bfc5bd"
-  field: "#fbfcfa"
-  field-border: "#747b72"
-  field-border-hover: "#a3aaa1"
-  field-border-focus: "#91bca5"
-  success-text: "#b7d8c5"
-  success-line: "#7fbea0"
-  error-text: "#ffc1b8"
-  skeleton: "#e8e7e2"
+  surface-subtle: "#f7f8fa"
+  surface-active: "#eef2f7"
+  ink: "#111318"
+  muted: "#59616d"
+  faint: "#626b76"
+  line: "#e1e4e8"
+  line-strong: "#cfd4db"
+  primary: "#2557d6"
+  primary-hover: "#1946bd"
+  primary-soft: "#eaf0ff"
+  success: "#19704a"
+  success-soft: "#e9f6ef"
 typography:
   display:
-    fontFamily: "var(--font-editorial), Songti SC, Noto Serif CJK SC, serif"
-    fontSize: "38px"
-    fontWeight: 400
-    lineHeight: 1.12
+    fontFamily: '"Radar Geist", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei UI", sans-serif'
+    fontSize: "clamp(40px, 4.1vw, 54px)"
+    fontWeight: 650
+    lineHeight: 1.07
     letterSpacing: "-0.035em"
   headline:
-    fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Noto Sans CJK SC, sans-serif"
+    fontFamily: '"Radar Geist", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei UI", sans-serif'
     fontSize: "24px"
-    fontWeight: 400
-    lineHeight: 1.5
+    fontWeight: 650
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Noto Sans CJK SC, sans-serif"
-    fontSize: "17px"
-    fontWeight: 700
-    lineHeight: 1.3
-    letterSpacing: "-0.015em"
+    fontFamily: '"Radar Geist", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei UI", sans-serif'
+    fontSize: "19px"
+    fontWeight: 680
+    letterSpacing: "-0.018em"
   body:
-    fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Noto Sans CJK SC, sans-serif"
+    fontFamily: '"Radar Geist", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei UI", sans-serif'
     fontSize: "15px"
     fontWeight: 400
-    lineHeight: 1.6
+    lineHeight: 1.58
+    letterSpacing: "normal"
   label:
-    fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Noto Sans CJK SC, sans-serif"
-    fontSize: "13px"
+    fontFamily: '"Radar Geist", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei UI", sans-serif'
+    fontSize: "11px"
     fontWeight: 650
-    lineHeight: 1.6
+    letterSpacing: "0.02em"
 rounded:
-  compact: "8px"
-  field: "10px"
+  control: "9px"
   surface: "14px"
-  pill: "999px"
 spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "12px"
-  base: "16px"
-  lg: "24px"
-  xl: "38px"
+  xxs: "4px"
+  xs: "8px"
+  sm: "12px"
+  md: "16px"
+  lg: "20px"
+  xl: "24px"
+  xxl: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.action-green}"
+    backgroundColor: "{colors.primary}"
     textColor: "{colors.surface}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "9px 16px"
-    height: "42px"
+    rounded: "{rounded.control}"
+    padding: "9px 15px"
+    height: "44px"
   button-primary-hover:
-    backgroundColor: "{colors.action-green-hover}"
+    backgroundColor: "{colors.primary-hover}"
     textColor: "{colors.surface}"
-    rounded: "{rounded.pill}"
-  field:
-    backgroundColor: "{colors.field}"
+    rounded: "{rounded.control}"
+    padding: "9px 15px"
+    height: "44px"
+  button-secondary:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "7px"
+    padding: "6px 11px"
+    height: "36px"
+  text-field:
+    backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body}"
-    rounded: "{rounded.field}"
-    padding: "9px 11px"
-  surface-card:
+    rounded: "8px"
+    padding: "9px 12px"
+    height: "44px"
+  navigation-current:
+    backgroundColor: "{colors.surface-active}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.control}"
+    padding: "0 11px 0 13px"
+    height: "42px"
+  skill-command:
+    backgroundColor: "{colors.surface-subtle}"
+    textColor: "{colors.muted}"
+    typography: "{typography.label}"
+    rounded: "8px"
+    padding: "0 10px"
+    height: "38px"
+  precision-surface:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.surface}"
     padding: "24px"
-  creation-workbench:
-    backgroundColor: "{colors.workbench}"
-    textColor: "{colors.workbench-text}"
-    rounded: "{rounded.surface}"
-    padding: "24px"
-  status-ready:
-    backgroundColor: "{colors.health-green-soft}"
-    textColor: "{colors.health-green-ink}"
-    rounded: "{rounded.pill}"
-    padding: "5px 10px"
+  status-success:
+    backgroundColor: "{colors.success-soft}"
+    textColor: "{colors.success}"
+    rounded: "6px"
+    padding: "4px 8px"
 ---
 
 # Design System: Radar
 
 ## Overview
 
-**Creative North Star: "The Editorial Investigation Desk"**
+**Creative North Star: "The International Signal Desk"**
 
-Radar is an Operate-mode workbench with the calm authority of a well-kept research desk. Warm paper surrounds precise white evidence surfaces, while the charcoal creation panel feels like the active instrument on that desk. The interface is restrained and information-led: identity and provenance remain legible, controls feel deliberate, and valid emptiness receives the same compositional care as populated states.
+Radar is an international signal-editing system: structured, precise, global, editorial, and restrained. Its neutral gray-white canvas, white precision workbench, graphite text, single deep-blue action color, and entirely sans-serif typography make order, alignment, and information density more important than decoration.
 
-Brand expression is concentrated rather than spread everywhere. The self-hosted ZCOOL XiaoWei face gives the Radar wordmark and page-level headings an editorial voice; the rest of the workbench uses a durable system sans stack for fast scanning and mixed Chinese/Latin content. Deep green is reserved for action, focus, health, and authored directional affordances—not decoration. The incumbent visual evidence remains `docs/prototypes/radar-brief-prototype.html` and `docs/radar-product-handoff.html`; the shipped implementation is the normative source for exact values.
+The top workbench keeps Agent commands and live state reachable while every page proceeds through one coherent column grid—from tasks into Briefs, sources, judgments, and reports. The first viewport establishes the title, primary action, and core task content without letting navigation consume the screen; the interface should feel like a durable editorial desk, never a promotional dashboard.
 
 **Key Characteristics:**
 
-- Warm paper canvas with flat white, hairline-bordered reading surfaces.
-- One dark creation workbench that clearly distinguishes making from inspecting.
-- Editorial display type used sparingly; system sans carries operational content.
-- Deep green communicates action, focus, health, and forward movement.
-- Responsive topology puts creation before the Brief list on narrow screens.
-- Surface seed `e2d76f24` identifies this implemented visual direction.
+- International Grid × Structured Editorial
+- Neutral gray-white canvas with crisp white working surfaces
+- One deep-blue action voice against graphite information hierarchy
+- Flat, border-defined structure with selective functional elevation
+- Restrained column-by-column reveal that yields to reduced-motion preferences
 
 ## Colors
 
-The palette is a warm neutral field with near-black ink and a single restrained deep-green semantic accent.
+The palette is a cool neutral editorial field with one concentrated deep-blue action voice and a reserved green for verified success.
 
 ### Primary
 
-- **Action Green:** The only strong accent, used for primary actions, row direction, text selection, focus-adjacent states, and running/ready health signals.
-- **Action Green Hover:** A deeper interaction state for primary actions; it reinforces intent without introducing a new hue.
+- **Signal Blue:** The sole interactive accent for primary actions, links, selection, focus, and purposeful hover states; its darker state is reserved for hover and its pale field for quiet interactive emphasis.
+
+### Secondary
+
+- **Verified Green:** Positive or selected semantic state, paired with a pale green field and never used as a general accent.
 
 ### Neutral
 
-- **Warm Paper:** The application canvas; it keeps the workspace quiet and materially distinct from white documents.
-- **Evidence White:** The reading surface for lists, briefs, next steps, fields, and fatal states.
-- **Workbench Charcoal:** The creation surface; it visually separates active authorship from passive inspection.
-- **Ink:** Primary text and structural contrast.
-- **Muted Ink:** Explanations, metadata, dates, and secondary navigation.
-- **Hairline / Strong Hairline:** Borders provide structure in place of shadows, with the stronger value reserved for shell boundaries.
+- **Canvas Gray:** The application field behind all working surfaces.
+- **Precision White:** The workbench, forms, sheets, and other primary surfaces.
+- **Subtle Paper and Active Gray:** Quiet hover, code, tag, selected-navigation, and low-emphasis state fields.
+- **Graphite Ink:** Primary headings and essential content.
+- **Operational Gray and Faint Gray:** Supporting copy, metadata, labels, and hierarchy that must remain readable without competing with the task.
+- **Hairline and Strong Hairline:** Default surface division and the firmer control boundary.
 
 ### Named Rules
 
-**The Green Means Something Rule.** Deep green is reserved for action, health, focus, and directional affordances; never use it as ambient decoration.
+**The One Signal Rule.** Deep blue is the only general action color; green remains semantic, and neutral surfaces carry the rest of the hierarchy.
 
-**The Paper and Instrument Rule.** Reading and evidence live on white paper-like surfaces; the dark workbench is reserved for creation.
+**The Neutral Field Rule.** Keep large areas gray-white or white so content density reads as organized information, not visual noise.
 
 ## Typography
 
-**Display Font:** ZCOOL XiaoWei, self-hosted, with Songti SC, Noto Serif CJK SC, and generic serif fallbacks.
+**Display Font:** Radar Geist, with PingFang SC, Noto Sans CJK SC, Microsoft YaHei UI, and sans-serif fallbacks
 
-**Body Font:** The native system sans stack, including PingFang SC and Noto Sans CJK SC fallbacks.
+**Body Font:** Radar Geist, with PingFang SC, Noto Sans CJK SC, Microsoft YaHei UI, and sans-serif fallbacks
 
-**Character:** The display face adds a measured Chinese editorial cadence, while the sans stack keeps the product operational, compact, and resilient across platforms. Mixed Chinese and English terminology is treated as working language, not decorative typesetting.
+**Character:** Radar Geist is locally self-hosted as a variable face for Latin characters; Chinese text deliberately falls through to the native CJK sans-serif stack. The result is compact, contemporary, and globally legible without mixing serif display gestures into an operational product.
 
 ### Hierarchy
 
-- **Display** (400, 38px, 1.12): Page-level `h1` only; it drops to 31px below 820px and stays within roughly 18 characters.
-- **Headline** (400, 24px, 1.5): Long-form Radar Brief content; it drops to 21px below 820px.
-- **Title** (700, 17px, 1.3): Panel and section headings; nearby empty-state titles rise to 19px where needed.
-- **Body** (400, 15px, 1.6): Default operational copy. Introductory summaries use 16px and remain near 68 characters wide.
-- **Label** (650, 13px): Field labels and compact status copy. Shell metadata uses 11px, 0.09em tracking, and uppercase Latin text.
+- **Display** (650, fluid 40–54px, 1.07): Page and document titles; tightly tracked and limited to roughly 24 characters per line.
+- **Headline** (650, 24px): Empty states and substantial local headings.
+- **Title** (680, 19px): Task names and high-value row titles.
+- **Body** (400, 15px, 1.58): General interface and prose; sustained reading stays near 68–72 characters per line.
+- **Label** (650, 11px, 0.02em): Metadata, state, compact controls, and column labels; preserve natural case instead of forcing uppercase.
 
 ### Named Rules
 
-**The Two-Voice Rule.** ZCOOL XiaoWei belongs only to the Radar wordmark and page-level `h1`; every workbench control, section title, datum, and paragraph stays in the system sans.
+**The Sans-Only Rule.** Use the shared sans-serif stack for both Chinese and Latin; hierarchy comes from scale, weight, spacing, and alignment rather than a decorative type family.
 
 ## Layout
 
-The shell is centered at a maximum width of 1180px with 20px side clearance on desktop. A restrained masthead and footer form horizontal evidence boundaries. Main content uses 68px top and 84px bottom padding, with page headings separated from work areas by 38px.
+The desktop workspace is a unified editorial column system. A sticky workbench sits near the top edge with a 68px minimum height; it may stretch to 1320px, while page content is capped at 1240px and enters with 72px of top space. Page headings align titles, supporting text, and a primary action on the same horizontal logic; sheets and row lists inherit that grid instead of becoming independent Bento islands.
 
-At desktop widths, the primary workspace is a two-column grid: the inspection area receives roughly twice the space of the creation workbench (`1.55fr / 0.8fr`), with a 24px gutter and a 320px minimum for the right column. The creation workbench sticks 24px from the viewport top while scrolling. Cards normally use 24px internal padding; the Brief document uses 28px.
+The first viewport must establish the light workbench, title hierarchy, primary action, and core task content as one composition. Desktop information rows use explicit columns and 1px dividers; page reading measures remain near 68–72ch. Repeated spacing uses a compact 4/8/12/16/20/24/32px rhythm, with larger section gaps used only to separate editorial chapters.
 
-Below 820px the shell narrows to 14px side clearance, the page rhythm compresses, and every two-column work area becomes one column. On the home screen the creation workbench explicitly moves to grid row one, ahead of the Radar Brief list. Heading groups stack, dates can disappear from Brief rows, provenance pairs become one-column, and the footer becomes a short vertical stack. Below 460px panel padding reduces to 20px and Brief summaries may wrap.
+Responsive changes are structural at 1120px, 900px, 767px, and 460px. Secondary task metadata collapses first, then multi-column task and judgment layouts become single-column. At 767px the workbench becomes a compact grid rather than a sidebar: brand, navigation, and live state occupy the first row, while all three Skill commands remain visible beneath it with both path and “复制”. The workspace edge contracts, primary actions move into document flow, and forms become viewport-contained overlays.
 
-**The Creation-Before-List Rule.** Narrow screens must show the creation workbench before the existing-Brief list; this ordering is a product topology, not a cosmetic rearrangement.
-
-## Elevation & Depth
-
-Radar is flat by default and uses no card shadows. Depth comes from material contrast: warm canvas, white bordered evidence surfaces, and the solid charcoal workbench. The only resting halo is the soft green ring around the tiny running-status dot; the only animated shimmer belongs to loading skeletons.
+The signature motion is a restrained grid reveal: content rises 12px while opacity resolves over 420–500ms with cubic-bezier(0.32, 0.72, 0, 1), staggered lightly by column order. Disable transitions and reveal transforms completely when reduced motion is requested.
 
 ### Named Rules
 
-**The Border-Built Depth Rule.** Use one-pixel hairlines and tonal separation for structure; do not add ambient card shadows.
+**The One Grid Rule.** Every surface must align to the workspace and its local columns; do not create offset islands merely to add visual variety.
+
+**The Reachable Agent Rule.** Agent commands and live sync state remain directly reachable at every viewport, including all three command paths on mobile.
+
+## Elevation & Depth
+
+Radar is flat by default. White surfaces separate from the cool canvas through a 1px neutral boundary, not shadow; rows separate through hairlines and tonal hover fields. Elevation is functional and scarce: the blue primary action receives a small colored lift, while menus, forms, and toast notices use a stronger floating shadow because they temporarily sit above the document plane.
+
+### Shadow Vocabulary
+
+- **Ambient Low** (0 8px 24px rgba(18, 24, 32, 0.055)): Reserved low-level ambient depth token; never required for ordinary sheets.
+- **Primary Action Lift** (0 5px 14px rgba(37, 87, 214, 0.16)): Gives the one decisive action a controlled blue lift; hover strengthens it slightly.
+- **Floating Layer** (0 14px 38px rgba(18, 24, 32, 0.11)): Menus, form overlays, and toast notices only.
+
+### Named Rules
+
+**The Flat-by-Default Rule.** Resting surfaces use borders and tonal contrast; shadows indicate action or temporary elevation, never ordinary grouping.
 
 ## Shapes
 
-The form language is gently rounded and practical. Major panels use 14px corners, fields use 10px corners, and compact floating utilities use 8px. Buttons and status badges are full pills. The running-status indicator is circular. Borders are thin and visible; shapes do not rely on clipping or ornamental geometry.
+The form language is gently rectilinear: precision surfaces use a 14px radius, standard buttons use 9px, and compact controls step down to 7–8px. Borders are 1px and quiet. Small status markers and tags may use 5–6px corners; only the live connection dot is circular. Pills are not a general-purpose visual language.
 
-The authored Brief-row arrow is a 20px inline SVG with rounded stroke caps and joins. Its simple rightward line is the recurring directional silhouette and shifts 3px on hover.
+### Named Rules
+
+**The Controlled Radius Rule.** Corners communicate scale—14px for surfaces, 9px for primary controls, and smaller radii for dense metadata—without turning the interface into stacked soft shells.
 
 ## Components
 
+Components are precise, restrained, and stateful. Their hierarchy comes from fill, line, text weight, and alignment before shadow or ornament.
+
 ### Buttons
 
-- **Shape:** Full pill with a 42px minimum height and compact 9px by 16px padding.
-- **Primary:** White, bold sans text on Action Green; the button expands to the available width inside the creation workbench.
-- **Hover / Focus:** Hover deepens the green and lifts by 1px; active returns to rest. Keyboard focus uses a three-pixel translucent green outline with a three-pixel offset.
-- **Disabled:** Keeps its semantic color but drops to 58% opacity, removes the lift, and uses a wait cursor.
+- **Shape:** Compact rectangular controls with a 9px primary radius and 7–8px for smaller secondary controls.
+- **Primary:** Signal Blue fill, white label, 44px minimum height, and 9px by 15px padding; use for the single decisive action in a region.
+- **Hover / Focus:** Hover darkens to the dedicated blue hover state, lifts by 1px, and strengthens the blue shadow; focus-visible uses a clear blue ring and active returns to the baseline.
+- **Secondary / Text:** Secondary controls are white with a strong neutral hairline and turn pale blue on hover; text actions remain unfilled and use Signal Blue.
+
+### Chips
+
+- **Style:** Compact 5–6px-radius fields with 10–11px labels. Neutral chips use Active Gray; verified status uses pale green with green text.
+- **State:** Text must name the state; color never carries meaning alone. Do not inflate chips into decorative pills.
 
 ### Cards / Containers
 
-- **Corner Style:** Gently rounded major surfaces (14px).
-- **Background:** Evidence White for reading and inspection; Workbench Charcoal for the create-brief surface.
-- **Shadow Strategy:** None; use canvas contrast and one-pixel borders.
-- **Border:** Standard Hairline for panels; the dark workbench matches border and fill.
-- **Internal Padding:** 24px normally, 28px for the Brief document, and 20px on the narrowest screens.
+- **Corner Style:** Gently curved precision surfaces with a 14px radius.
+- **Background:** Precision White on Canvas Gray.
+- **Shadow Strategy:** Flat at rest; refer to the Flat-by-Default Rule.
+- **Border:** One quiet neutral hairline.
+- **Internal Padding:** Usually 20–30px, tightening to about 20–23px on mobile.
 
 ### Inputs / Fields
 
-- **Style:** Near-white field fill, medium neutral border, 10px corners, dark ink, and green caret. Inputs are at least 44px tall; textareas are at least 130px and resize vertically.
-- **Hover / Focus:** Hover lightens the border. Focus moves to a softened green border with a translucent three-pixel green outline.
-- **Error / Disabled:** Errors are announced in text and use pale red against the dark workbench; no state relies on color alone.
+- **Style:** White field, 1px strong hairline, 8px radius, 44px minimum height, and 9px by 12px padding.
+- **Focus:** Signal Blue border plus a restrained 3px translucent blue ring; caret also uses Signal Blue.
+- **Disabled:** Lower opacity while retaining the control silhouette and readable text.
 
 ### Navigation
 
-The masthead is deliberately spare: Radar wordmark at left, compact uppercase local-instance context at right, separated from content by a strong hairline. On mobile, secondary wordmark and instance metadata disappear before the identity does. Detail pages use a small, muted breadcrumb whose links move to Health Green Ink on hover.
+The white top workbench contains the Radar wordmark, task/source navigation, Agent command dock, and live state. Navigation links are muted at rest, receive a subtle neutral hover field, and use an Active Gray field with stronger text for the current section. On mobile it becomes a two-row compact grid; it never turns into a dark side island or hides the three Agent commands.
 
-### Brief Rows
+### Skill Command
 
-Rows are border-separated links with a strong title, a truncating or wrapping Brief summary, compact date metadata, and an authored SVG arrow. Hover changes the row text toward green and translates only the arrow by 3px; the affordance remains legible without motion.
+The Skill command is Radar’s signature bridge back to the user’s Agent. It is a quiet gray command tile that reveals the blue action voice on hover; every mobile instance displays the full path and “复制”, with a status toast confirming the result.
 
-### Status and Confirmation
+### Editorial Row
 
-Running and ready states pair green text with a dot, halo, or soft badge rather than color alone. Form messaging reserves a minimum 24px line to avoid layout shift. Only a successful save draws the 36px confirmation line, scaling from the left over 420ms with a decisive ease-out curve. Error and idle states never receive that flourish. Under reduced-motion preferences the line remains visible in its final state because animations and transitions are disabled globally.
-
-### Loading
-
-Loading uses rounded neutral skeleton blocks with a restrained white sweep. The skeleton geometry mirrors the heading and two-panel work area, and all shimmer stops under reduced-motion preferences.
+Task, document, report, and source rows share a disciplined pattern: primary title first, supporting metadata in aligned columns, 1px dividers between peers, and a quiet tonal hover. On narrow screens, low-priority columns disappear in a defined order while title and state remain legible.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** preserve the Operate-mode hierarchy: task completion, scanability, and inspectable state come before brand theater.
-- **Do** keep ZCOOL XiaoWei self-hosted and confined to the Radar wordmark and page-level headings.
-- **Do** use white bordered surfaces for evidence and the charcoal surface for creation.
-- **Do** keep deep green semantic and rare: action, focus, health, and forward direction only.
-- **Do** preserve the creation-before-list mobile topology and the authored SVG row affordance.
-- **Do** keep every transition meaningful and provide the global reduced-motion fallback.
+- Do align headings, actions, rows, sheets, and metadata to one coherent editorial grid.
+- Do reserve deep blue for interactive intent and green for explicit success or selected semantics.
+- Do keep resting surfaces flat with 1px boundaries and use elevation only for primary action or temporary floating layers.
+- Do preserve all three Agent Skill paths plus “复制” in the compact mobile workbench.
+- Do disable reveal motion completely for reduced-motion users and keep state meaning available in text.
 
 ### Don't:
 
-- **Don't** add ambient shadows, gradients, glass effects, or decorative green washes.
-- **Don't** apply the editorial face to controls, metadata, body copy, or dense workbench content.
-- **Don't** convert the Brief list into a feed or flatten provenance into anonymous metadata.
-- **Don't** animate error or idle messages with the success confirmation line.
-- **Don't** replace the implemented system based only on the evidence prototypes; use them as preserved lineage and the shipped code as exact ground truth.
+- Don't introduce a dark oversized side island, mint green palette, or competing accent colors.
+- Don't stack double soft shells, heavy shadows, excessive rounding, or generic pills around ordinary content.
+- Don't use offset Bento compositions or decorative asymmetry that breaks the shared column grid.
+- Don't let decoration, motion, or navigation displace the first viewport's title, primary action, and core task content.
+- Don't use serif display typography or ornament that makes the product feel promotional, low-grade, or visually noisy.

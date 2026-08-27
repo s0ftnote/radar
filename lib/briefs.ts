@@ -44,6 +44,7 @@ const briefSelection = `
     SELECT MAX(latest.revision_number) FROM brief_revisions AS latest
     WHERE latest.brief_id = brief.id
   )
+    AND brief.archived_at IS NULL
 `;
 
 export function listBriefs(): Brief[] {
@@ -88,18 +89,36 @@ export function reviseBrief(input: {
   body: string;
   rationale: string;
 }): Brief {
-  const db = database();
   inTransaction(() => {
-    const next = (db
-      .prepare("SELECT MAX(revision_number) AS latest FROM brief_revisions WHERE brief_id = ?")
-      .get(input.briefId) as { latest: number | null }).latest;
-    if (next === null) throw new UnknownBriefError(input.briefId);
-    db.prepare(
-      `INSERT INTO brief_revisions (id, brief_id, revision_number, body, rationale, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(randomUUID(), input.briefId, next + 1, input.body, input.rationale, new Date().toISOString());
+    appendBriefRevision(input);
   });
   return getBrief(input.briefId)!;
+}
+
+export function updateBrief(input: {
+  briefId: string;
+  name: string;
+  body: string;
+  rationale: string;
+}): Brief {
+  const current = getBrief(input.briefId);
+  if (!current) throw new UnknownBriefError(input.briefId);
+
+  inTransaction(() => {
+    database().prepare("UPDATE briefs SET name = ? WHERE id = ?").run(input.name, input.briefId);
+    if (input.body === current.currentRevision.body) return;
+    appendBriefRevision(input);
+  });
+
+  return getBrief(input.briefId)!;
+}
+
+/** 从工作台移除一条任务；Brief、判断、报告与交付历史原样保留。 */
+export function archiveBrief(briefId: string): void {
+  if (!getBrief(briefId)) throw new UnknownBriefError(briefId);
+  database()
+    .prepare("UPDATE briefs SET archived_at = ? WHERE id = ? AND archived_at IS NULL")
+    .run(new Date().toISOString(), briefId);
 }
 
 /** Brief 的全部修订，新的在前。历史版本不删——改主意要留得下追溯。 */
@@ -145,4 +164,27 @@ function mapBrief(row: BriefRow): Brief {
       createdAt: row.revision_created_at,
     },
   };
+}
+
+function appendBriefRevision(input: {
+  briefId: string;
+  body: string;
+  rationale: string;
+}): void {
+  const db = database();
+  const latest = (db
+    .prepare("SELECT MAX(revision_number) AS latest FROM brief_revisions WHERE brief_id = ?")
+    .get(input.briefId) as { latest: number | null }).latest;
+  if (latest === null) throw new UnknownBriefError(input.briefId);
+  db.prepare(
+    `INSERT INTO brief_revisions (id, brief_id, revision_number, body, rationale, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(
+    randomUUID(),
+    input.briefId,
+    latest + 1,
+    input.body,
+    input.rationale,
+    new Date().toISOString(),
+  );
 }

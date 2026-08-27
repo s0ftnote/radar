@@ -159,14 +159,15 @@ function persistEntry(endpointId: string, entry: FeedEntry, seenAt: string): "cr
   const contentId = randomUUID();
   db.prepare(
     `INSERT INTO source_contents
-      (id, endpoint_id, external_id, title, body, origin_url, published_at,
+      (id, endpoint_id, external_id, title, author, body, origin_url, published_at,
        raw_json, acquired_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     contentId,
     endpointId,
     entry.externalId,
     entry.title,
+    entry.author,
     entry.body,
     entry.originUrl,
     entry.publishedAt,
@@ -240,6 +241,7 @@ function skipped(
 export type PushedEntry = {
   externalId: unknown;
   title: unknown;
+  author?: unknown;
   originUrl: unknown;
   body: unknown;
   publishedAt?: unknown;
@@ -304,6 +306,7 @@ function toFeedEntry(entry: PushedEntry): FeedEntry {
   return {
     externalId,
     title,
+    author: text(entry.author) || null,
     originUrl,
     body,
     publishedAt: text(entry.publishedAt) || null,
@@ -313,7 +316,7 @@ function toFeedEntry(entry: PushedEntry): FeedEntry {
         : undefined,
     // 只留契约里那几个字段。Agent 夹带的别的东西一律不落盘——Radar 里不出现
     // 任何登录态凭据（ADR 0011）。
-    rawPayload: JSON.stringify({ externalId, title, originUrl, body }),
+    rawPayload: JSON.stringify({ externalId, title, author: text(entry.author) || null, originUrl, body }),
   };
 }
 

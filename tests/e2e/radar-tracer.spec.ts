@@ -282,6 +282,39 @@ test.describe("tracer bullet", () => {
     }
   });
 
+  test("后台采集失败也通知已打开的 WebUI 刷新来源状态", async () => {
+    test.setTimeout(120_000);
+    const harness = await startHarness("failed-live-update", 33163, 2);
+    const { environment, feed, radarProcess } = harness;
+    const controller = new AbortController();
+    try {
+      await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
+      // 把两个端点的成功时间都推到现在，给订阅事件与断开 feed 留出确定的窗口。
+      await radarJson(environment, ["collect", "--endpoint", "fixture-alpha"]);
+      await radarJson(environment, ["collect", "--endpoint", "fixture-beta"]);
+
+      const response = await fetch(`http://127.0.0.1:${radarProcess.port}/events`, {
+        signal: controller.signal,
+      });
+      const reader = response.body!.getReader();
+      const ready = await reader.read();
+      expect(new TextDecoder().decode(ready.value)).toContain("event: ready");
+
+      feed.breakFeed();
+      const event = await Promise.race([
+        reader.read().then((chunk) => new TextDecoder().decode(chunk.value)),
+        delay(8_000).then(() => ""),
+      ]);
+      expect(event).toContain("event: radar");
+
+      const endpoints = await radarJson<Endpoint[]>(environment, ["sources"]);
+      expect(endpoints.some((endpoint) => endpoint.status === "recently_failed")).toBe(true);
+    } finally {
+      controller.abort();
+      await harness.dispose();
+    }
+  });
+
   test("Brief 在端点之后创建时只拿当前一页，不回填历史", async () => {
     test.setTimeout(120_000);
     const harness = await startHarness("currentpage", 33154);

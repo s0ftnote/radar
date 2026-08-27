@@ -92,6 +92,7 @@ function inclusionsByEndpoint(): Map<string, Array<{ briefId: string; briefName:
       `SELECT inclusion.endpoint_id, inclusion.brief_id, brief.name AS brief_name
          FROM brief_endpoint_inclusions AS inclusion
          JOIN briefs AS brief ON brief.id = inclusion.brief_id
+        WHERE brief.archived_at IS NULL
         ORDER BY brief.created_at`,
     )
     .all() as Array<{ endpoint_id: string; brief_id: string; brief_name: string }>;

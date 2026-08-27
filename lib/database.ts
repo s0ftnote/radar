@@ -86,7 +86,8 @@ function initializeSchema(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS briefs (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      archived_at TEXT
     ) STRICT;
 
     -- Brief 修订：当前版本与历史版本同时保留，并记录变化依据。
@@ -141,6 +142,7 @@ function initializeSchema(db: DatabaseSync): void {
       endpoint_id TEXT NOT NULL REFERENCES endpoints(id),
       external_id TEXT NOT NULL,
       title TEXT NOT NULL,
+      author TEXT,
       body TEXT NOT NULL,
       origin_url TEXT NOT NULL,
       published_at TEXT,
@@ -211,6 +213,8 @@ function initializeSchema(db: DatabaseSync): void {
       what_it_is TEXT NOT NULL,
       evidence TEXT NOT NULL,
       uncertainty TEXT NOT NULL,
+      -- Agent 从这份内容提取的文档级标签；端点 topics 只负责建 Brief 时挑源。
+      tags TEXT NOT NULL DEFAULT '[]',
       -- 相关时是「为什么给你」，不相关时是淘汰理由。两种情况都必填：
       -- 用户问「这条为什么没给我」要答得出。
       why_for_you TEXT NOT NULL CHECK (why_for_you <> ''),
@@ -247,6 +251,26 @@ function initializeSchema(db: DatabaseSync): void {
       external_reference TEXT CHECK (external_reference IS NULL OR external_reference <> ''),
       delivered_at TEXT NOT NULL,
       PRIMARY KEY (judgment_id, destination)
+    ) STRICT;
+
+    -- 报告是 Agent 用多条判断写成的最终产物。与 delivery 的「送过没有」不同，
+    -- WebUI 要直接读报告正文，所以正文与取材关系都由 Radar 保存。
+    CREATE TABLE IF NOT EXISTS reports (
+      id TEXT PRIMARY KEY,
+      brief_id TEXT NOT NULL REFERENCES briefs(id),
+      title TEXT NOT NULL CHECK (title <> ''),
+      body TEXT NOT NULL CHECK (body <> ''),
+      generated_by TEXT NOT NULL CHECK (generated_by <> ''),
+      idempotency_key TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE (brief_id, idempotency_key)
+    ) STRICT;
+    CREATE INDEX IF NOT EXISTS reports_by_brief ON reports(brief_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS report_judgments (
+      report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+      judgment_id TEXT NOT NULL REFERENCES judgments(id),
+      PRIMARY KEY (report_id, judgment_id)
     ) STRICT;
 
     -- 幂等键防的是同一调用者的网络重试，不是重复判断——那由队列代次挡下。

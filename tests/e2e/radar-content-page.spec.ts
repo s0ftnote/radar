@@ -1,63 +1,49 @@
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { expect, test } from "@playwright/test";
 import { createBriefWithAllSources, startHarness, type Harness } from "./support/harness.js";
 import { radarJson } from "./support/radar-process.js";
 
-/**
- * 内容页（ADR 0017）：这台 Radar 到底给你攒下了什么。一条流加筛选，判过的
- * 四问原样摆着，判过没给的也摆出理由——只排序不丢弃（ADR 0010）。
- */
-
 type Brief = { id: string; name: string };
-type PendingContent = {
-  queueEntryId: string;
-  sourceContentId: string;
-  title: string;
-  endpointId: string;
-};
+type PendingContent = { queueEntryId: string; sourceContentId: string; title: string };
 type WorkPackage = { pendingContents: PendingContent[] };
-type Judgment = { id: string };
-type Endpoint = { id: string; includedInBriefs: Array<{ briefId: string }> };
+type Judgment = { id: string; whyForYou: string };
+type Report = { id: string; briefId: string; title: string; body: string };
 
-test.describe("内容页", () => {
+test.describe("Radar WebUI", () => {
+  test.describe.configure({ mode: "serial" });
+
   let harness: Harness;
   let origin: string;
   let brief: Brief;
   let kept: PendingContent;
-  let dropped: PendingContent;
+  let judgment: Judgment;
+  let report: Report;
 
   test.beforeAll(async () => {
     test.setTimeout(120_000);
-    harness = await startHarness("content-page", 33199);
+    harness = await startHarness("webui", 33199);
     origin = `http://127.0.0.1:${harness.radarProcess.port}`;
 
-    brief = await createBriefWithAllSources<Brief>(harness.environment, "开发者的痛点", "关注开发者反复抱怨、又没被满足的痛点。");
-    // 两条判断故意取自不同端点，来源筛选那条用例才有东西可筛。
+    brief = await createBriefWithAllSources<Brief>(
+      harness.environment,
+      "开发者的痛点",
+      "关注开发者反复抱怨、又没被满足的痛点。",
+    );
     const work = await radarJson<WorkPackage>(harness.environment, ["pending", "--brief", brief.id]);
-    kept = work.pendingContents.find((each) => each.endpointId === "fixture-alpha")!;
-    dropped = work.pendingContents.find((each) => each.endpointId === "fixture-beta")!;
-
-    await radarJson<Judgment>(
+    kept = work.pendingContents[0]!;
+    judgment = await radarJson<Judgment>(
       harness.environment,
       ["judge"],
       JSON.stringify({
         queueEntryId: kept.queueEntryId,
         relevant: true,
-        // Agent 按 Markdown 写，里面还夹着从原帖抄来的敌意片段。
-        whatItIs: "一条关于证据可追溯的抱怨。\n\n- 删帖之后引用就断\n- 没有快照",
-        evidence: "原帖说删帖之后引用就断了：<img src=x onerror=alert(1)>",
-        uncertainty: "不知道这是普遍现象还是个例。",
-        whyForYou: "这正是这条 Brief 关注的、**反复出现**又没被满足的痛点。[原帖](javascript:alert(1))",
-        judgedBy: "claude-code",
-      }),
-    );
-    await radarJson<Judgment>(
-      harness.environment,
-      ["judge"],
-      JSON.stringify({
-        queueEntryId: dropped.queueEntryId,
-        relevant: false,
-        whyForYou: "只是一条产品公告，跟痛点没关系。",
-        judgedBy: "claude-code",
+        whatItIs: "开发者反复提到：原帖删除后，引用证据就会中断。",
+        evidence: "原帖明确描述了删帖后引用失效，并给出实际使用场景。",
+        uncertainty: "暂时不知道这是普遍现象还是单一社区的高频问题。",
+        tags: ["证据留存", "开发者痛点"],
+        whyForYou: "它符合 Brief 中反复出现、尚未解决的开发者痛点。",
+        judgedBy: "codex",
       }),
     );
   });
@@ -66,136 +52,224 @@ test.describe("内容页", () => {
     await harness.dispose();
   });
 
-  const page = async (query = ""): Promise<string> => {
-    const response = await fetch(`${origin}/${query}`);
-    expect(response.ok).toBeTruthy();
-    return response.text();
-  };
-
-  test("首页是内容页，来源页在 /sources", async () => {
-    expect(await page()).toContain("开发者的痛点");
-    const sources = await fetch(`${origin}/sources`);
-    expect((await sources.text())).toContain('<ul class="sources">');
+  test("首页是任务工作台，并永久提供三个可复制 Skill", async () => {
+    const text = await (await fetch(origin)).text();
+    expect(text).toContain("开发者的痛点");
+    expect(text).toContain("/radar-steward");
+    expect(text).toContain("/radar-delivery");
+    expect(text).toContain("/open-radar");
+    expect(text).toContain("/assets/app.js");
+    expect(text).not.toContain("新手引导");
   });
 
-  test("三档都在同一条流里，判过没给的带着理由", async () => {
-    const text = await page();
-    expect(text).toContain(">给你看<");
-    expect(text).toContain(">判过没给<");
-    expect(text).toContain(">还没轮到<");
-
-    // 相关的摆四问，不相关的只摆淘汰理由——那三块本来就是空的。
-    expect(text).toContain("这是什么");
-    expect(text).toContain("凭什么这么说");
-    expect(text).toContain("哪里还不确定");
-    expect(text).toContain("为什么给你看");
-    expect(text).toContain("为什么没给你");
-    expect(text).toContain("只是一条产品公告，跟痛点没关系。");
-
-    // 一条流，不是三个区块。
-    expect(text.match(/<ul class="contents">/g)).toHaveLength(1);
+  test("任务详情同时展示 Brief、来源、内容和报告区域", async () => {
+    const text = await (await fetch(`${origin}/tasks/${brief.id}`)).text();
+    expect(text).toContain("关注开发者反复抱怨");
+    expect(text).toContain("Fixture Alpha");
+    expect(text).toContain(kept.title);
+    expect(text).toContain("Agent 生成");
   });
 
-  test("筛选是链接，档与来源各自收窄", async () => {
-    const forYou = await page(`?brief=${brief.id}&state=for_you`);
-    expect(forYou).toContain(kept.title);
-    expect(forYou).not.toContain(dropped.title);
-    expect(forYou).toContain(">给你看<");
-    expect(forYou).not.toContain(">还没轮到<");
-
-    // 来源筛选把另一个端点的内容整条筛掉。端点保底配额让这两条判断分属两个
-    // 端点（ADR 0010），正好拿来验筛选。
-    expect(kept.endpointId).not.toBe(dropped.endpointId);
-    const oneSource = await page(`?brief=${brief.id}&endpoint=${kept.endpointId}`);
-    expect(oneSource).toContain(kept.title);
-    expect(oneSource).not.toContain(dropped.title);
+  test("文档详情展示摘要、标签、作者平台和安全的原文入口", async () => {
+    const text = await (
+      await fetch(`${origin}/tasks/${brief.id}/documents/${kept.sourceContentId}`)
+    ).text();
+    expect(text).toContain("摘要");
+    expect(text).toContain("开发者反复提到");
+    expect(text).toContain("证据留存");
+    expect(text).toContain("开发者痛点");
+    expect(text).not.toContain(">devtools<");
+    expect(text).toContain("原文");
+    expect(text).toContain("Fixture Alpha");
+    expect(text).not.toContain('href="javascript:');
   });
 
-  test("在一条判断上说「有用」，写进反馈并回到原来那一页", async () => {
-    const back = `/?brief=${brief.id}&state=for_you`;
-    const judgments = await radarJson<Array<{ id: string; relevant: boolean }>>(
+  test("Agent 保存报告后，任务页与报告详情实时共用同一份正文", async () => {
+    report = await radarJson<Report>(
       harness.environment,
-      ["judgments", "--brief", brief.id],
+      [
+        "report", "create", "--brief", brief.id,
+        "--title", "开发者痛点周报", "--by", "codex",
+        "--judgment", judgment.id, "--idempotency-key", "report-week-35",
+      ],
+      "# 本周判断\n\n证据留存仍然是反复出现的问题。",
     );
-    const relevant = judgments.find((judgment) => judgment.relevant)!;
+    const replayed = await radarJson<Report>(
+      harness.environment,
+      [
+        "report", "create", "--brief", brief.id,
+        "--title", "开发者痛点周报", "--by", "codex",
+        "--judgment", judgment.id, "--idempotency-key", "report-week-35",
+      ],
+      "# 本周判断\n\n证据留存仍然是反复出现的问题。",
+    );
+    expect(replayed.id).toBe(report.id);
 
-    const said = await fetch(`${origin}/content/feedback`, {
+    const task = await (await fetch(`${origin}/tasks/${brief.id}`)).text();
+    expect(task).toContain("开发者痛点周报");
+    const reportPage = await (await fetch(`${origin}/reports/${report.id}`)).text();
+    expect(reportPage).toContain("本周判断");
+    expect(reportPage).toContain("证据留存仍然是反复出现的问题");
+    expect(reportPage).toContain(kept.title);
+    expect(reportPage).toContain("引用判断");
+  });
+
+  test("相同报告幂等键只在各自任务内重放", async () => {
+    const anotherBrief = await createBriefWithAllSources<Brief>(
+      harness.environment,
+      "第二条雷达",
+      "关注本地优先产品。",
+    );
+    const work = await radarJson<WorkPackage>(harness.environment, [
+      "pending", "--brief", anotherBrief.id,
+    ]);
+    const anotherJudgment = await radarJson<Judgment>(
+      harness.environment,
+      ["judge"],
+      JSON.stringify({
+        queueEntryId: work.pendingContents[0]!.queueEntryId,
+        relevant: true,
+        whatItIs: "一条本地优先产品信号。",
+        evidence: "正文讨论本地所有权。",
+        uncertainty: "尚未验证市场规模。",
+        tags: ["本地优先"],
+        whyForYou: "符合第二条 Brief。",
+        judgedBy: "codex",
+      }),
+    );
+    const anotherReport = await radarJson<Report>(
+      harness.environment,
+      [
+        "report", "create", "--brief", anotherBrief.id,
+        "--title", "第二份报告", "--by", "codex",
+        "--judgment", anotherJudgment.id, "--idempotency-key", "report-week-35",
+      ],
+      "# 第二份报告\n\n这是另一条任务的独立产物。",
+    );
+    expect(anotherReport.id).not.toBe(report.id);
+    expect(anotherReport.briefId).toBe(anotherBrief.id);
+
+    await fetch(`${origin}/tasks/${anotherBrief.id}/delete`, {
+      method: "POST",
+      headers: { origin },
+      redirect: "manual",
+    });
+  });
+
+  test("重判后历史报告仍固定引用当时的判断", async () => {
+    const requeued = await radarJson<{ queueEntryId: string }>(harness.environment, [
+      "requeue", "--brief", brief.id, "--content", kept.sourceContentId,
+    ]);
+    const latest = await radarJson<Judgment>(
+      harness.environment,
+      ["judge"],
+      JSON.stringify({
+        queueEntryId: requeued.queueEntryId,
+        relevant: true,
+        whatItIs: "重判后的内容摘要。",
+        evidence: "重判后的证据。",
+        uncertainty: "重判后的不确定性。",
+        tags: ["重新判断"],
+        whyForYou: "这次重判采用了更新后的判断边界。",
+        judgedBy: "codex",
+      }),
+    );
+
+    const historicalReport = await (await fetch(`${origin}/reports/${report.id}`)).text();
+    expect(historicalReport).toContain(judgment.whyForYou);
+    expect(historicalReport).not.toContain(latest.whyForYou);
+    expect(historicalReport).toContain(`?judgment=${judgment.id}`);
+
+    const historicalDocument = await (
+      await fetch(
+        `${origin}/tasks/${brief.id}/documents/${kept.sourceContentId}?judgment=${judgment.id}`,
+      )
+    ).text();
+    expect(historicalDocument).toContain(judgment.whyForYou);
+    expect(historicalDocument).not.toContain(latest.whyForYou);
+
+    const currentDocument = await (
+      await fetch(`${origin}/tasks/${brief.id}/documents/${kept.sourceContentId}`)
+    ).text();
+    expect(currentDocument).toContain(latest.whyForYou);
+    expect(currentDocument).toContain("重新判断");
+    judgment = latest;
+  });
+
+  test("WebUI 可以修改任务名称和 Brief，并形成新修订", async () => {
+    const changed = await fetch(`${origin}/tasks/${brief.id}`, {
+      method: "POST",
+      headers: { origin },
+      body: new URLSearchParams({
+        name: "开发者需求雷达",
+        body: "只关注有直接用户证据、正在重复出现的开发者需求。",
+        rationale: "收紧判断边界",
+      }),
+      redirect: "manual",
+    });
+    expect(changed.status).toBe(303);
+    const text = await (await fetch(`${origin}/tasks/${brief.id}`)).text();
+    expect(text).toContain("开发者需求雷达");
+    expect(text).toContain("只关注有直接用户证据");
+    expect(text).toContain("第 2 版");
+  });
+
+  test("WebUI 的成功写操作会通过事件流通知已打开的页面", async () => {
+    const controller = new AbortController();
+    const response = await fetch(`${origin}/events`, { signal: controller.signal });
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toContain("event: ready");
+
+    await fetch(`${origin}/content/feedback`, {
       method: "POST",
       headers: { origin },
       body: new URLSearchParams({
         briefId: brief.id,
-        judgmentId: relevant.id,
+        judgmentId: judgment.id,
         disposition: "useful",
-        back,
+        back: `/tasks/${brief.id}/documents/${kept.sourceContentId}`,
       }),
       redirect: "manual",
     });
-    expect(said.status).toBe(303);
-    expect(said.headers.get("location")).toBe(back);
 
-    // 写进的是反馈，下一次判断时 AI 看得到。
-    const feedback = (await (await fetch(`${origin}/briefs/${brief.id}/feedback`)).json()) as Array<{
-      judgmentId: string | null;
-      disposition: string;
-    }>;
-    expect(
-      feedback.some((each) => each.judgmentId === relevant.id && each.disposition === "useful"),
-    ).toBe(true);
+    let event = "";
+    const deadline = Date.now() + 3_000;
+    while (!event.includes("event: radar") && Date.now() < deadline) {
+      const chunk = await reader.read();
+      event += new TextDecoder().decode(chunk.value);
+    }
+    controller.abort();
+    expect(event).toContain("event: radar");
+  });
 
-    // 说过的话摆在条目旁边，按钮收起来——同一条不会被反复点。
-    expect(await page(`?brief=${brief.id}&state=for_you`)).toContain("你说过：有用");
-
-    // 跨站的表单 POST 写不进反馈。
-    const crossSite = await fetch(`${origin}/content/feedback`, {
+  test("任务从 WebUI 移除后，完整历史仍保留在实例中", async () => {
+    const removed = await fetch(`${origin}/tasks/${brief.id}/delete`, {
       method: "POST",
-      headers: { origin: "https://evil.example" },
-      body: new URLSearchParams({ briefId: brief.id, judgmentId: relevant.id, disposition: "useful" }),
+      headers: { origin },
       redirect: "manual",
     });
-    expect(crossSite.status).toBe(403);
-  });
+    expect(removed.status).toBe(303);
+    const home = await (await fetch(origin)).text();
+    expect(home).toContain("这里还没有任务");
+    expect(home).not.toContain(`/tasks/${brief.id}`);
 
-  test("原文地址不是 http(s) 就不给链接——标题还在，只是点不动", async () => {
-    // 推送来的内容由用户自己的 Agent 采（ADR 0011），地址是第三方给的。
-    // 转义挡得住把标签写进属性值，挡不住 `javascript:`。
-    // 登记的同时纳入这条 Brief——不纳入的话，推来的内容不进它的队列（ADR 0018）。
-    const endpoint = await radarJson<Endpoint>(harness.environment, [
-      "sources", "add", "--channel", "agent-push",
-      "--name", "推送来的板块", "--url", "https://example.invalid/pushed",
-      "--brief", brief.id,
-    ]);
-    expect(endpoint.includedInBriefs.map((each) => each.briefId)).toEqual([brief.id]);
-    await radarJson(
-      harness.environment,
-      ["push", "--endpoint", endpoint.id],
-      JSON.stringify([
-        {
-          externalId: "hostile-1",
-          title: "地址是个 javascript: 伪协议",
-          originUrl: 'javascript:alert("xss")',
-          body: "正文照常。",
-          publishedAt: "2026-08-25T02:00:00.000Z",
-        },
-      ]),
-    );
-
-    const text = await page(`?brief=${brief.id}&state=pending`);
-    expect(text).toContain("地址是个 javascript: 伪协议");
-    expect(text).toContain('<span class="content-title">');
-    expect(text).not.toContain("href=\"javascript:");
-  });
-
-  test("Agent 写的文本按 Markdown 渲染，原始标签照样转义", async () => {
-    const text = await page(`?brief=${brief.id}&state=for_you`);
-    // 判断的四问是 Agent 写的，按 Markdown 写就按 Markdown 摆。
-    expect(text).toContain("<strong>反复出现</strong>");
-    expect(text).toContain("<li>");
-    // 渲染成 HTML 不等于放行 HTML：原始标签转义，`javascript:` 留成文本。
-    expect(text).toContain("&lt;img src=x onerror=alert(1)&gt;");
-    expect(text).not.toContain('href="javascript:');
-  });
-
-  test("服务端渲染，不引入 JSX 运行时", async () => {
-    expect(await page()).not.toContain("<script");
+    const db = new DatabaseSync(join(harness.environment.dataDirectory, "radar.sqlite"));
+    try {
+      const archived = db.prepare("SELECT archived_at FROM briefs WHERE id = ?").get(brief.id) as
+        | { archived_at: string | null }
+        | undefined;
+      const judgments = db
+        .prepare("SELECT COUNT(*) AS count FROM judgments WHERE brief_id = ?")
+        .get(brief.id) as { count: number };
+      const reports = db
+        .prepare("SELECT COUNT(*) AS count FROM reports WHERE brief_id = ?")
+        .get(brief.id) as { count: number };
+      expect(archived?.archived_at).not.toBeNull();
+      expect(judgments.count).toBeGreaterThanOrEqual(2);
+      expect(reports.count).toBe(1);
+    } finally {
+      db.close();
+    }
   });
 });

@@ -1,6 +1,7 @@
 import { collectEndpoint } from "../lib/acquisition.js";
 import { isBackingOff, isCollectable, isDue, isEnabled, listEndpoints } from "../lib/endpoints.js";
 import { sweepRetentionWindow } from "../lib/queue.js";
+import { notifyRadarChanged } from "./live-updates.js";
 
 export type Scheduler = { stop(): void };
 
@@ -24,12 +25,16 @@ export function startScheduler(): Scheduler {
       // 保留窗口是纯时间规则，没有采集也照样到点（ADR 0010）：一次 UPDATE，
       // 跟着同一趟巡视走就够，不另起一个定时器。
       const swept = sweepRetentionWindow();
-      if (swept > 0) console.error(`[Radar] ${swept} 条过了保留窗口，移出待判断队列。`);
+      if (swept > 0) {
+        console.error(`[Radar] ${swept} 条过了保留窗口，移出待判断队列。`);
+        notifyRadarChanged();
+      }
 
       for (const endpoint of listEndpoints()) {
         if (stopped) break;
         if (!isCollectable(endpoint) || isBackingOff(endpoint) || !isDue(endpoint)) continue;
         const result = await collectEndpoint(endpoint.id);
+        if (result.status !== "skipped") notifyRadarChanged();
         if (result.status === "failed") {
           console.error(`[Radar] 采集 ${endpoint.id} 失败：${result.error}`);
         }
