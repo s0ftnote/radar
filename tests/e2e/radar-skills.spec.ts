@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness } from "./support/harness.js";
 import { delay, radar, radarJson, repositoryRoot, stopRadar } from "./support/radar-process.js";
 
 /**
@@ -118,7 +118,6 @@ test.describe("三份 Skill 与安装", () => {
     const harness = await startHarness("skills-e2e", 33196, 1);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
 
       // —— 第一周期 ——
       // 管家：建 Brief，建完立刻催一次采集。
@@ -190,7 +189,6 @@ test.describe("三份 Skill 与安装", () => {
     const harness = await startHarness("skills-offline", 33197);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       const workPackage = await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
       const [first, second] = workPackage.pendingContents;

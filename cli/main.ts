@@ -32,8 +32,12 @@ Brief
   radar subject remove --brief <id> --name <名字>
 
 采集
-  radar sources                   列出采集端点、它们的 topics、来源状态，以及各自
-                                  已被哪些 Brief 纳入
+  radar sources [--catalog] [--topic <标签>]
+                                  列出采集端点、它们的 topics、来源状态，以及各自
+                                  已被哪些 Brief 纳入。默认只列在采的（被某条 Brief
+                                  纳入的，加上你停用掉的）；--catalog 列出整份出厂
+                                  目录，包括还没纳入任何 Brief 的；--topic 按出厂
+                                  目录写下的领域标签筛，两个可以一起用
   radar sources add --channel <id> --name <名字> --url <地址> [--brief <id>]
                                   登记自己的端点，标成 user 来源；带 --brief 就在
                                   登记的同时纳入那条 Brief
@@ -271,7 +275,10 @@ async function brief(argv: string[]): Promise<void> {
 
 async function sources(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
-  if (!subcommand) return emit(await callRadar("/endpoints"));
+  // 不给子命令就是列表。挑源时要的是目录里的一小片，不是整份目录（#104）。
+  if (!subcommand || subcommand.startsWith("--")) {
+    return emit(await callRadar(endpointsQuery(argv)));
+  }
 
   if (subcommand === "add") {
     return emit(
@@ -311,6 +318,16 @@ async function sources(argv: string[]): Promise<void> {
     );
   }
   fail("`radar sources` 的子命令是 add / disable / enable / include / remove。");
+}
+
+/** `radar sources` 的两个筛子，可叠加。默认只列在采的。 */
+function endpointsQuery(argv: string[]): string {
+  const query = new URLSearchParams();
+  if (argv.includes("--catalog")) query.set("catalog", "true");
+  const topic = option(argv, "--topic");
+  if (topic) query.set("topic", topic);
+  const rendered = query.toString();
+  return rendered ? `/endpoints?${rendered}` : "/endpoints";
 }
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, type Endpoint } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -35,7 +35,6 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy", 33181);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       // 没下发过就是没有，不是一份藏起来的默认值。
       expect(await radarJson(environment, ["strategy", "show", "--brief", brief.id])).toBeNull();
@@ -89,7 +88,6 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy-order", 33182);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
 
       // 默认公式是纯新鲜度，alpha 两条都比 beta 新。分数说了算，所以两条
@@ -184,7 +182,6 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy-stats", 33184);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       await radarJson(
         environment,
@@ -251,7 +248,6 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy-default", 33186);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       await radarJson<WorkPackage>(environment, ["pending", "--brief", brief.id]);
 
@@ -285,8 +281,6 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy-deep", 33187);
     const { environment, feed } = harness;
     try {
-      await waitForFirstCollection(environment);
-
       // alpha 换成一整页 250 条，那条要找的埋在最后——比任何按新鲜度取头部的
       // 候选窗口都深。
       feed.replacePage("/alpha", [
@@ -303,8 +297,8 @@ test.describe("排队策略", () => {
           publishedAt: "Mon, 01 Jan 2024 00:00:00 GMT",
         },
       ]);
-      await radarJson(environment, ["collect", "--endpoint", "fixture-alpha"]);
 
+      // 建 Brief 那一步会纳入端点并催一次采集：Radar 采的只有被纳入的端点。
       const brief = await createBriefWithAllSources<Brief>(environment, "Demand Radar", briefBody);
       await radarJson(
         environment,
@@ -330,7 +324,6 @@ test.describe("排队策略", () => {
     const harness = await startHarness("strategy-hotness", 33185);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const endpoint = await radarJson<Endpoint>(environment, [
         "sources", "add", "--channel", "agent-push",
         "--name", "某个板块", "--url", "https://example.invalid/r/hot",

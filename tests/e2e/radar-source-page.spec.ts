@@ -7,8 +7,9 @@ import { radar, radarJson, startRadar, stopRadar, type RunningRadar } from "./su
 import type { Endpoint } from "./support/harness.js";
 
 /**
- * Web 上唯一那张来源页（ADR 0013）：一眼看清这台 Radar 现在够得着什么、
- * 什么坏了、什么在等推送。看归网页，改归对话。
+ * 来源页（ADR 0013）：一眼看清这台 Radar 现在在采什么、什么坏了、什么在等推送，
+ * 以及目录里还摆着什么可以加。看归网页，改归对话——页面上的动作只有实例级停用
+ * 与「纳入到某条 Brief」两个（#104）。
  */
 
 /** 端点名与错误原因都来自第三方，直接拼进模板字符串就是存储型 XSS。 */
@@ -55,6 +56,14 @@ async function pageCatalog(directory: string, feed: FeedFixture): Promise<string
           retired: `站点关了，官方 feed 不再更新。${injected}`,
         },
         { id: "pushed", channelId: "agent-push", name: "要登录才看得到", url: "https://example.test/pushed", licenseBasis: license },
+        {
+          id: "spare",
+          channelId: "rss",
+          name: "目录里还摆着的源",
+          url: `${feed.url}/beta`,
+          topics: ["product"],
+          licenseBasis: license,
+        },
         { id: "walled-off", channelId: "walled", name: "够不着的源", url: "https://example.test/walled", licenseBasis: license },
       ],
     }),
@@ -70,6 +79,7 @@ test.describe("来源页", () => {
   let radarProcess: RunningRadar;
   let environment: { dataDirectory: string; catalogPath: string };
   let origin: string;
+  let brief: { id: string };
 
   test.beforeAll(async () => {
     test.setTimeout(120_000);
@@ -79,6 +89,14 @@ test.describe("来源页", () => {
     environment = { dataDirectory, catalogPath };
     radarProcess = await startRadar(dataDirectory, { port: 33198, catalogPath });
     origin = `http://127.0.0.1:${radarProcess.port}`;
+    // Radar 只采被纳入的端点（#104）：先建一条 Brief，把要在「在采的」那半
+    // 里露面的三条纳进去，`spare` 留在目录里当「还能加的」。
+    brief = await radarJson<{ id: string }>(
+      environment, ["brief", "create", "--name", "Demand Radar"], "关注开发者的痛点。",
+    );
+    for (const endpointId of ["ok", "broken", "pushed"]) {
+      await radar(environment, ["sources", "include", endpointId, "--brief", brief.id]);
+    }
     // `broken` 指着一个 404 的地址，催一次采集把「最近失败」做出来。
     await radar(environment, ["collect"]);
   });
@@ -95,20 +113,40 @@ test.describe("来源页", () => {
     return response.text();
   };
 
-  test("单一列表按渠道配置状态排序，不分区块", async () => {
+  test("分成两半：在采的在上，目录里还能加的在下", async () => {
     const text = await page();
-    // 三档各出现一次，顺序是 装好即用 → 配置后解锁 → 够不着。
-    const order = ["正常的源", "要登录才看得到", "够不着的源"].map((name) => text.indexOf(name));
+    expect(text.indexOf("在采的")).toBeLessThan(text.indexOf("目录里还能加的"));
+
+    // 在采的那半仍是一张清单，内部不按渠道配置状态切块：装好即用在前，
+    // 配置后解锁在后，中间没有小标题把它切开（ADR 0013）。
+    expect(text.match(/<ul class="sources">/g)).toHaveLength(1);
+    const inUse = /<ul class="sources">([\s\S]*?)<\/ul>/.exec(text)![1]!;
+    expect(inUse).not.toContain("<h2");
+    const order = ["正常的源", "要登录才看得到"].map((name) => inUse.indexOf(name));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((left, right) => left - right));
 
-    // 一张清单，不是三个区块——列表只有一个，中间也没有小标题把它切开。
-    expect(text.match(/<ul class="sources">/g)).toHaveLength(1);
-    const list = /<ul class="sources">([\s\S]*?)<\/ul>/.exec(text)![1]!;
-    expect(list).not.toContain("<h2");
+    // 没被任何 Brief 纳入的不在上半——登记着不等于在采（#104）。
+    expect(inUse).not.toContain("目录里还摆着的源");
+    expect(inUse).not.toContain("够不着的源");
   });
 
-  test("三种来源状态各自说清楚，够不着的灰着摆在那里", async () => {
+  test("目录里还能加的按 topics 分组折起来，每条一个要选 Brief 的纳入动作", async () => {
+    const text = await page();
+    const catalog = text.slice(text.indexOf("目录里还能加的"));
+    expect(catalog).toContain('<details class="topic-group">');
+    expect(catalog).toContain("product");
+    expect(catalog).toContain("目录里还摆着的源");
+    // 未纳入是来源状态，不是「正常」：Radar 压根没在采它。
+    expect(catalog).toContain(">未纳入<");
+    // 纳入要选一条 Brief——纳入本来就是 Brief 级的决定。
+    expect(catalog).toContain('action="/sources/spare/include"');
+    expect(catalog).toContain(`<option value="${brief.id}">Demand Radar</option>`);
+    // 够不着的那条没有纳入动作：纳进来也采不到。
+    expect(catalog).not.toContain('action="/sources/walled-off/include"');
+  });
+
+  test("几种来源状态各自说清楚，够不着的灰着摆在那里", async () => {
     const text = await page();
     expect(text).toContain(">正常<");
     expect(text).toContain(">最近失败<");
@@ -164,25 +202,38 @@ test.describe("来源页", () => {
     expect(text).not.toContain(injected);
   });
 
-  test("页面上只有实例级停用一个动作，Brief 级纳入不上页面", async () => {
-    // `配置后解锁` 与够不着的行没有动作按钮。
+  test("页面上两个动作：实例级停用，和把目录里的一条纳入某条 Brief", async () => {
+    // `配置后解锁` 与够不着的行没有停用按钮。
     const before = await page();
     const actions = before.match(/<form class="source-action"[\s\S]*?<\/form>/g) ?? [];
-    expect(actions).toHaveLength(2); // 只有 rss 渠道下两条没退役的端点
+    expect(actions).toHaveLength(2); // 在采的那半里，rss 渠道下两条没退役的端点
     expect(actions.join("")).not.toContain("/sources/pushed/");
     expect(actions.join("")).not.toContain("/sources/walled-off/");
     expect(actions.join("")).not.toContain("/sources/gone/");
 
-    // Brief 级纳入不上页面：搬上来就要引入 Brief 选择器（ADR 0018）。
-    const brief = await radarJson<{ id: string }>(
-      environment, ["brief", "create", "--name", "Demand Radar"], "关注开发者的痛点。",
-    );
+    // 纳入是页面上真的动作：按下去它就从目录那半挪到在采的那半，Radar 开始采它。
+    const included = await fetch(`${origin}/sources/spare/include`, {
+      method: "POST",
+      headers: { origin },
+      body: new URLSearchParams({ briefId: brief.id }),
+      redirect: "manual",
+    });
+    expect(included.status).toBe(303);
+    const spare = (await radarJson<Endpoint[]>(environment, ["sources"]))
+      .find((endpoint) => endpoint.id === "spare")!;
+    expect(spare.includedInBriefs.map((each) => each.briefId)).toEqual([brief.id]);
+    expect(spare.status).toBe("normal");
+    const afterInclude = await page();
+    const inUse = /<ul class="sources">([\s\S]*?)<\/ul>/.exec(afterInclude)![1]!;
+    expect(inUse).toContain("目录里还摆着的源");
+
+    // 页面只做纳入这个决定本身，不把纳入的理由摆上来——那是对话里的事。
     await radar(environment, [
       "sources", "include", "ok", "--brief", brief.id, "--reason", "这条线只看它",
     ]);
     expect(await page()).not.toContain("这条线只看它");
 
-    // 停用是页面上真的动作，按下去 Radar 真的不再采它。
+    // 停用是页面上另一个真的动作，按下去 Radar 真的不再采它。
     // 浏览器提交同源表单时会带上 Origin，这里照做。
     const stopped = await fetch(`${origin}/sources/ok/enabled`, {
       method: "POST",

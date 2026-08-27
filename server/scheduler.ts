@@ -1,5 +1,5 @@
 import { collectEndpoint } from "../lib/acquisition.js";
-import { isBackingOff, isCollectable, isDue, listEndpoints } from "../lib/endpoints.js";
+import { isBackingOff, isCollectable, isDue, isEnabled, listEndpoints } from "../lib/endpoints.js";
 import { sweepRetentionWindow } from "../lib/queue.js";
 
 export type Scheduler = { stop(): void };
@@ -8,8 +8,10 @@ export type Scheduler = { stop(): void };
 const maximumTickSeconds = 30;
 
 /**
- * 装好即用渠道由 Radar 自己按计划采集（ADR 0011）：服务起来立刻首采，
- * 此后按渠道级节奏。防重入与退避都在 `collectEndpoint` 里，这里只管催。
+ * 装好即用渠道由 Radar 自己按计划采集（ADR 0011）：服务起来立刻扫一遍，此后
+ * 按渠道级节奏。采的只有被 Brief 纳入的那些——出厂目录是一份目录不是一份订阅
+ * （#104），所以一台还没有 Brief 的新实例上这一趟一个请求都不发。防重入与退避
+ * 都在 `collectEndpoint` 里，这里只管催。
  */
 export function startScheduler(): Scheduler {
   let running = false;
@@ -50,10 +52,11 @@ export function startScheduler(): Scheduler {
 }
 
 function tickSeconds(): number {
-  // 只看真的会被采的端点：`配置后解锁` 那一档由 Agent 推来，它渠道上的节奏
-  // 不该把巡视频率往下拽。
+  // 只看 Radar 自己会去采的那些渠道：`配置后解锁` 那一档由 Agent 推来，它渠道
+  // 上的节奏不该把巡视频率往下拽。这里不看 Brief 纳入——纳入随时会变，巡视
+  // 频率却是起服务时定下的，跟着它走会让刚纳入的端点等上一整个慢周期。
   const intervals = listEndpoints()
-    .filter(isCollectable)
+    .filter((endpoint) => isEnabled(endpoint) && endpoint.channelConfigState === "ready")
     .map((endpoint) => endpoint.collectionIntervalSeconds);
   return Math.max(1, Math.min(maximumTickSeconds, ...intervals));
 }

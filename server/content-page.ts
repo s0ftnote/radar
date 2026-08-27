@@ -57,11 +57,17 @@ export function renderContentPage(view: ContentView): Html {
 `;
 }
 
-/** 一条 Brief 都还没有：这一页没什么可看的，去说一句话就有了。 */
+/**
+ * 一条 Brief 都还没有：这一页没什么可看的，也不该假装有。出厂目录是一份目录
+ * 不是一份订阅——没有 Brief 就没有任何端点被纳入，Radar 一条都不采（#104）。
+ * 所以这里给的是下一步该做什么，不是一张空表。
+ */
 function renderNoBrief(): Html {
   return html`<h1>还没有 Brief</h1>
-      <p class="lede">Brief 是你写下的那句「我想一直知道什么」。跟你的 Agent 说一句就有了。</p>
-      <p class="meta">来源已经在采了，等你说清楚要看什么，它们才知道往哪儿归。</p>`;
+      <p class="lede">先跟你的 Agent 说你想持续知道什么。</p>
+      <p class="meta">
+        它会替你写下判断标准、从来源目录里挑几条纳入，Radar 从那一刻才开始采——在此之前这里一直是空的。
+      </p>`;
 }
 
 function renderBrief(view: ContentView): Html {

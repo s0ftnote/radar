@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { createBriefWithAllSources, startHarness, waitForFirstCollection, type Endpoint } from "./support/harness.js";
+import { createBriefWithAllSources, startHarness, type Endpoint } from "./support/harness.js";
 import { radar, radarJson } from "./support/radar-process.js";
 
 /**
@@ -35,8 +35,6 @@ test.describe("配置后解锁渠道", () => {
     const harness = await startHarness("push", 33171);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
-
       // 端点必须先经管家角色登记，推来的内容才有来源归属。
       const endpoint = await radarJson<Endpoint>(environment, [
         "sources", "add", "--channel", "agent-push",
@@ -92,7 +90,6 @@ test.describe("配置后解锁渠道", () => {
     const harness = await startHarness("push-body", 33172);
     const { environment } = harness;
     try {
-      await waitForFirstCollection(environment);
       const endpoint = await radarJson<Endpoint>(environment, [
         "sources", "add", "--channel", "agent-push",
         "--name", "某个板块", "--url", "https://example.invalid/r/elsewhere",
@@ -108,7 +105,7 @@ test.describe("配置后解锁渠道", () => {
 
       // 一条不合契约就整批不落——不落一半。
       expect(
-        (await radarJson<Endpoint[]>(environment, ["sources"])).find(
+        (await radarJson<Endpoint[]>(environment, ["sources", "--catalog"])).find(
           (candidate) => candidate.id === endpoint.id,
         )!.lastPushAt,
       ).toBeNull();
@@ -205,7 +202,7 @@ test.describe("配置后解锁渠道", () => {
       );
       expect(sweep.find((result) => result.endpointId === endpoint.id)!.status).toBe("skipped");
 
-      const after = (await radarJson<Endpoint[]>(environment, ["sources"])).find(
+      const after = (await radarJson<Endpoint[]>(environment, ["sources", "--catalog"])).find(
         (candidate) => candidate.id === endpoint.id,
       )!;
       expect(after.lastAttemptAt).toBeNull();

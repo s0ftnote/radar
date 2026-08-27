@@ -18,11 +18,13 @@ import {
 import { radarDataDirectory } from "../lib/data-directory.js";
 import {
   getEndpoint,
+  isInUse,
   listBriefInclusions,
   listEndpoints,
   registerUserEndpoint,
   setBriefInclusion,
   setUserDisabled,
+  type Endpoint,
 } from "../lib/endpoints.js";
 import { listFeedback, recordFeedback } from "../lib/feedback.js";
 import {
@@ -142,7 +144,16 @@ export function createRadarApp(): Hono {
   // 字体与样式住在包里，不在 cwd 里——`radar` 装成全局命令后能在任意目录起。
   app.use("/assets/*", serveStatic({ root: packageRoot() }));
 
-  app.get("/endpoints", (context) => context.json(listEndpoints()));
+  // 默认只答「在采的」。目录厚起来之后，整份吐给 Agent 只会把它建 Brief 那一步
+  // 淹掉；要挑源就按 topics 要一小片（#104）。
+  app.get("/endpoints", (context) =>
+    context.json(
+      selectEndpoints({
+        catalog: context.req.query("catalog") === "true",
+        topic: context.req.query("topic"),
+      }),
+    ),
+  );
 
   // 点名一个端点是「现在就去看一眼」，可以越过退避；全催一遍不行，那会把
   // 退避整个废掉（ADR 0010）。
@@ -179,11 +190,21 @@ export function createRadarApp(): Hono {
     return context.json(setEnabled(context.req.param("endpointId"), body.enabled));
   });
 
-  // 来源页上唯一那个动作，同一个操作换个说法进来。表单提交完把用户送回那一页
+  // 来源页上的动作之一，同一个操作换个说法进来。表单提交完把用户送回那一页
   // ——页面是给人看的，不该让浏览器停在一段 JSON 上。
   app.post("/sources/:endpointId/enabled", async (context) => {
     const form = await context.req.formData();
     setEnabled(context.req.param("endpointId"), form.get("enabled") === "true");
+    return context.redirect("/sources", 303);
+  });
+
+  // 页面上另一个动作：把目录里的一条纳入某条 Brief。纳入之后 Radar 才去采它
+  // （#104），所以顺手催一次——不然用户按下去看不到任何变化。
+  app.post("/sources/:endpointId/include", async (context) => {
+    const form = await context.req.formData();
+    const endpointId = context.req.param("endpointId");
+    setBriefInclusion(requiredText(form.get("briefId"), "Radar Brief"), endpointId, true);
+    await collectEndpoint(endpointId);
     return context.redirect("/sources", 303);
   });
 
@@ -531,9 +552,21 @@ function homePage(discovery?: DiscoveryPanel) {
     version: radarVersion(),
     dataDirectory: radarDataDirectory(),
     endpoints: listEndpoints(),
+    // 纳入要选一条 Brief，所以页面得知道有哪些（#104）。
+    briefs: listBriefs().map((brief) => ({ id: brief.id, name: brief.name })),
     rsshubBaseUrl: rsshubBaseUrl(),
     discovery,
   });
+}
+
+/**
+ * 列哪些端点。`catalog` 要的是整份目录，`topic` 按出厂目录写下的领域标签筛，
+ * 两个可以一起用——「目录里 ai 这一片有什么」是挑源时真正会问的那句。
+ */
+function selectEndpoints(scope: { catalog: boolean; topic?: string }): Endpoint[] {
+  const { catalog, topic } = scope;
+  const endpoints = listEndpoints().filter((endpoint) => catalog || isInUse(endpoint));
+  return topic ? endpoints.filter((endpoint) => endpoint.topics.includes(topic)) : endpoints;
 }
 
 /** 开关只有开和关两种写法，两个入口写的是同一份 Radar 状态。 */
